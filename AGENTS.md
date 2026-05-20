@@ -154,7 +154,9 @@ estado_sesion: 'realizada' | 'cancelada' | 'pendiente'
 ### Principio fundamental
 **La funcionalidad es prioridad absoluta.** Nada decorativo puede romper, esconder o complicar una acción del usuario. Dicho esto, el diseño no es opcional: esta app debe sentirse **premium, moderna y profesional** en cada pantalla.
 
-La consistencia visual es la regla de oro del diseño en este proyecto. Antes de crear cualquier componente nuevo, revisar si ya existe uno similar y reutilizarlo o extenderlo. **Nunca inventar un patrón visual nuevo si ya hay uno establecido.**
+La app es para un consultorio de kinesiología. El diseño debe transmitir **pulcritud, orden, confianza y profesionalismo clínico**. La paleta es light mode con fondo hueso/tiza y acento teal, que es el color dominante en el rubro kinesiológico/fisioterapéutico: transmite calma, claridad mental y salud.
+
+La consistencia visual es la regla de oro. Antes de crear cualquier componente nuevo, revisar si ya existe uno similar y reutilizarlo o extenderlo. **Nunca inventar un patrón visual nuevo si ya hay uno establecido.**
 
 ---
 
@@ -163,40 +165,43 @@ La consistencia visual es la regla de oro del diseño en este proyecto. Antes de
 Usar exclusivamente estos tokens. No introducir colores fuera de esta paleta sin consultar.
 
 ```
-// Fondos
-bg-zinc-950        → fondo raíz de la app
-bg-zinc-900        → fondo de cards, paneles, modales
-bg-zinc-800        → fondo de elementos secundarios, inputs, hover suave
+// Fondos (light mode — nunca bg-white puro)
+bg-stone-50        → fondo raíz de la app (blanco hueso/tiza)
+bg-white           → fondo de cards, modales y paneles elevados
+bg-stone-100       → fondo de elementos secundarios, hover suave, inputs
 
 // Textos
-text-white         → títulos y texto principal
-text-zinc-400      → texto secundario, labels, metadata
-text-zinc-500      → texto deshabilitado, placeholders
+text-stone-900     → títulos y texto principal
+text-stone-600     → texto secundario, labels, metadata
+text-stone-400     → texto deshabilitado, placeholders
 
-// Acento principal
-bg-violet-600      → botones primarios, elementos activos, highlights
-hover:bg-violet-500
-text-violet-400    → links, íconos activos
+// Acento principal — TEAL
+bg-teal-600        → botones primarios, elementos activos, highlights
+hover:bg-teal-700
+text-teal-600      → links, íconos activos, valores destacados
+bg-teal-50         → fondos suaves con acento (chips, badges activos)
+border-teal-200    → bordes con acento suave
 
 // Bordes
-border-zinc-800    → bordes de cards y contenedores
-border-zinc-700    → bordes en hover o foco
+border-stone-200   → bordes de cards y contenedores
+border-stone-300   → bordes en hover o foco
+divide-stone-100   → divisores internos en listas
 
 // Estados de asistencia TPA (consistentes en toda la app)
-presente          → bg-emerald-500/20  text-emerald-400  border-emerald-500/30
-aviso_ausencia    → bg-amber-500/20    text-amber-400    border-amber-500/30
-falto_sin_avisar  → bg-red-500/20      text-red-400      border-red-500/30
-recupera          → bg-blue-500/20     text-blue-400     border-blue-500/30
-vino_otra_clase   → bg-cyan-500/20     text-cyan-400     border-cyan-500/30
-cancelado         → bg-zinc-700/40     text-zinc-500     border-zinc-600/30
-pendiente         → bg-zinc-800        text-zinc-500     border-zinc-700
+presente          → bg-emerald-50   text-emerald-700  border-emerald-200
+aviso_ausencia    → bg-amber-50     text-amber-700    border-amber-200
+falto_sin_avisar  → bg-red-50       text-red-700      border-red-200
+recupera          → bg-blue-50      text-blue-700     border-blue-200
+vino_otra_clase   → bg-teal-50      text-teal-700     border-teal-200
+cancelado         → bg-stone-100    text-stone-400    border-stone-200
+pendiente         → bg-stone-50     text-stone-400    border-stone-200
 
 // Estados de pago
-pagado            → text-emerald-400
-pendiente         → text-amber-400
+pagado            → text-emerald-600
+pendiente         → text-amber-600
 
 // Alertas clínicas
-⚠️ warning        → bg-amber-500/10   text-amber-400   border-amber-500/20
+⚠️ warning        → bg-amber-50    text-amber-800   border-amber-200
 ```
 
 ---
@@ -204,12 +209,14 @@ pendiente         → text-amber-400
 ### Tipografía
 
 ```
+// Fuente: Inter (sans-serif, ya incluida en Next.js)
+
 // Jerarquía
-Título de página   → text-2xl font-semibold text-white
-Título de sección  → text-sm font-medium text-zinc-400 uppercase tracking-wider
-Título de card     → text-base font-medium text-white
-Texto de cuerpo    → text-sm text-zinc-300
-Metadata / label   → text-xs text-zinc-500
+Título de página   → text-2xl font-semibold text-stone-900
+Título de sección  → text-xs font-semibold text-stone-400 uppercase tracking-wider
+Título de card     → text-base font-medium text-stone-900
+Texto de cuerpo    → text-sm text-stone-700
+Metadata / label   → text-xs text-stone-400
 ```
 
 ---
@@ -220,6 +227,7 @@ Metadata / label   → text-xs text-zinc-500
 - Gap entre cards: `gap-3` en mobile, `gap-4` en desktop.
 - Padding interno de cards: `p-4` consistente.
 - Bordes redondeados: `rounded-xl` para cards y modales, `rounded-lg` para elementos internos, `rounded-md` para botones e inputs.
+- Sombras: `shadow-sm` para cards en reposo, `shadow-md` para cards en hover o modales. Preferir sombras suaves sobre bordes gruesos.
 
 ---
 
@@ -227,43 +235,44 @@ Metadata / label   → text-xs text-zinc-500
 
 #### Cards
 ```
-bg-zinc-900 border border-zinc-800 rounded-xl p-4
-hover: border-zinc-700 transition-colors duration-150
+bg-white border border-stone-200 rounded-xl p-4 shadow-sm
+hover:shadow-md hover:border-stone-300 transition-all duration-150
 ```
 
 #### Botones primarios
 ```
-bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium
+bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium
 px-4 py-2 rounded-lg transition-colors duration-150
 ```
 
 #### Botones secundarios
 ```
-bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium
-px-4 py-2 rounded-lg border border-zinc-700 transition-colors duration-150
+bg-white hover:bg-stone-50 text-stone-700 text-sm font-medium
+px-4 py-2 rounded-lg border border-stone-200 hover:border-stone-300
+transition-colors duration-150
 ```
 
 #### Botones destructivos
 ```
-bg-red-500/10 hover:bg-red-500/20 text-red-400 text-sm font-medium
-px-4 py-2 rounded-lg border border-red-500/20 transition-colors duration-150
+bg-red-50 hover:bg-red-100 text-red-600 text-sm font-medium
+px-4 py-2 rounded-lg border border-red-200 transition-colors duration-150
 ```
 
 #### Inputs y selects
 ```
-bg-zinc-800 border border-zinc-700 text-white text-sm
-px-3 py-2 rounded-lg placeholder:text-zinc-500
-focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/50
+bg-white border border-stone-200 text-stone-900 text-sm
+px-3 py-2 rounded-lg placeholder:text-stone-400
+focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20
 transition-colors duration-150
 ```
 
 #### Modales
 ```
 // Overlay
-fixed inset-0 bg-black/70 backdrop-blur-sm z-50
+fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50
 
 // Contenedor
-bg-zinc-900 border border-zinc-800 rounded-2xl
+bg-white border border-stone-200 rounded-2xl shadow-xl
 w-full max-w-lg mx-4 (mobile) / max-w-2xl (desktop)
 max-h-[90vh] overflow-y-auto
 ```
@@ -278,13 +287,13 @@ inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium 
 
 ### Íconos
 
-Usar exclusivamente `lucide-react`. Tamaño estándar: `size={16}` para íconos inline, `size={20}` para íconos de acción. No mezclar con otras librerías de íconos.
+Usar exclusivamente `lucide-react`. Tamaño estándar: `size={16}` para íconos inline, `size={20}` para íconos de acción. Color por defecto: `text-stone-400`, activo: `text-teal-600`. No mezclar con otras librerías de íconos.
 
 ---
 
 ### Animaciones y transiciones
 
-- Todas las transiciones de color/fondo: `transition-colors duration-150`.
+- Todas las transiciones: `transition-all duration-150`.
 - Aparición de modales: `animate-in fade-in-0 zoom-in-95 duration-200`.
 - No usar animaciones complejas que puedan percibirse como lentas en mobile.
 
@@ -294,7 +303,7 @@ Usar exclusivamente `lucide-react`. Tamaño estándar: `size={16}` para íconos 
 
 1. **Un componente = un estilo.** Si `TurnoCard` tiene cierto look, todos los elementos similares deben verse igual. No crear variantes ad-hoc.
 2. **Los colores de estado son globales.** El verde de "presente" en TPA es el mismo verde que "pagado" en pagos. No inventar nuevos colores para el mismo tipo de información.
-3. **Nunca fondo blanco.** La app es dark mode completo. Sin `bg-white` ni `text-black` en ningún componente.
+3. **Light mode siempre.** El fondo raíz es `bg-stone-50`. Las cards van sobre `bg-white`. Nunca invertir esta jerarquía.
 4. **Espaciado consistente.** No usar valores de padding/margin arbitrarios. Ceñirse a la escala de Tailwind (múltiplos de 4px).
 5. **Siempre feedback visual.** Todo elemento interactivo debe tener estado hover y, si aplica, estado de carga (skeleton o spinner). El usuario nunca debe quedarse sin saber si algo está procesando.
 6. **Mobile first.** Diseñar primero para pantalla de 390px, luego escalar a desktop. Nunca al revés.
@@ -306,17 +315,18 @@ Usar exclusivamente `lucide-react`. Tamaño estándar: `size={16}` para íconos 
 ### Flujo de trabajo
 1. **Esperar confirmación entre tareas.** No avanzar al siguiente módulo o funcionalidad sin que el usuario lo indique.
 2. **Archivos completos siempre.** Si modificás un archivo, devolvé el contenido completo, no fragmentos.
-3. **No modificar `lib/supabase.ts`** salvo que se lo pidan explícitamente.
-4. **No instalar dependencias nuevas** sin mencionar cuáles y para qué.
-5. **No crear rutas ni carpetas nuevas** fuera de la estructura definida sin consultar.
-6. **Ante una duda de arquitectura**, plantear las opciones con pros y contras antes de implementar.
-7. Si algo del código existente está mal o puede mejorar, **mencionarlo** aunque no haya sido pedido. No corregirlo sin avisar.
+3. **Revisión obligatoria al terminar cada tarea.** Después de completar cualquier tarea, revisar el código producido y los archivos relacionados, y reportar al usuario: (a) si hay algo que no funciona correctamente, (b) si hay algo que puede mejorarse técnicamente, (c) si hay algo que puede mejorarse visualmente. No corregir nada sin aprobación, solo reportar.
+4. **No modificar `lib/supabase.ts`** salvo que se lo pidan explícitamente.
+5. **No instalar dependencias nuevas** sin mencionar cuáles y para qué.
+6. **No crear rutas ni carpetas nuevas** fuera de la estructura definida sin consultar.
+7. **Ante una duda de arquitectura**, plantear las opciones con pros y contras antes de implementar.
+8. Si algo del código existente está mal o puede mejorar, **mencionarlo** aunque no haya sido pedido. No corregirlo sin avisar.
 
 ### Diseño
-8. **Funcionalidad primero, siempre.** Ninguna decisión estética puede comprometer que algo funcione correctamente.
-9. **Seguir el sistema de diseño al pie de la letra.** No introducir colores, tipografías, radios o espaciados fuera de los definidos en este archivo.
-10. **Consistencia sobre creatividad.** Si ya existe un patrón visual en el proyecto, replicarlo. No inventar variantes nuevas.
-11. **Dark mode obligatorio.** Sin `bg-white`, `bg-gray-50` ni `text-black` en ningún componente.
-12. **Todo elemento interactivo necesita estado hover y feedback de carga.** Sin excepción.
-13. Antes de crear un componente visual nuevo, verificar si puede reutilizarse o extenderse uno existente.
+9. **Funcionalidad primero, siempre.** Ninguna decisión estética puede comprometer que algo funcione correctamente.
+10. **Seguir el sistema de diseño al pie de la letra.** No introducir colores, tipografías, radios o espaciados fuera de los definidos en este archivo.
+11. **Consistencia sobre creatividad.** Si ya existe un patrón visual en el proyecto, replicarlo. No inventar variantes nuevas.
+12. **Light mode siempre.** El fondo raíz es `bg-stone-50`. Las cards van sobre `bg-white`. Sin excepciones.
+13. **Todo elemento interactivo necesita estado hover y feedback de carga.** Sin excepción.
+14. Antes de crear un componente visual nuevo, verificar si puede reutilizarse o extenderse uno existente.
 <!-- END:nextjs-agent-rules -->

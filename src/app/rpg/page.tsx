@@ -5,12 +5,12 @@ export default function AgendaRPGPage() {
     <div className="flex flex-col h-full space-y-8 animate-in fade-in duration-500">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Agenda RPG</h1>
-          <p className="text-zinc-400 mt-1 text-sm">Reeducación Postural Global • Martes y Jueves</p>
+          <h1 className="text-2xl font-semibold text-stone-900">Agenda RPG</h1>
+          <p className="text-stone-600 mt-1 text-sm">Reeducación Postural Global • Martes y Jueves</p>
         </div>
       </div>
       
-      <div className="flex-1 bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden flex flex-col">
+      <div className="flex-1 bg-white rounded-xl border border-stone-200 overflow-hidden flex flex-col shadow-sm">
         <CalendarMonthView />
       </div>
     </div>

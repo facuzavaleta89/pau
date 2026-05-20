@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { DollarSign, AlertCircle, CheckCircle, Calendar, ChevronLeft, ChevronRight, Save, User } from 'lucide-react';
+import { DollarSign, AlertCircle, CheckCircle, Calendar, ChevronLeft, ChevronRight, User } from 'lucide-react';
 import { getPacientesConPagos, upsertPago } from '@/lib/queries';
 import type { Pago, Paciente } from '@/types';
 import { format, parseISO } from 'date-fns';
@@ -58,8 +58,7 @@ export default function PagosPage() {
     const nuevoEstado = item.pago?.estado === 'pagado' ? 'pendiente' : 'pagado';
     
     try {
-      await upsertPago({
-        id: item.pago?.id, // If it already exists, use its id
+      const payload: any = {
         paciente_id: item.id,
         mes,
         año,
@@ -67,13 +66,20 @@ export default function PagosPage() {
         precio: item.pago?.precio || (item.tipo_clase === 'RPG' ? 12000 : 8000), // Default values
         estado: nuevoEstado,
         fecha_pago: nuevoEstado === 'pagado' ? format(new Date(), 'yyyy-MM-dd') : null
-      });
+      };
+
+      if (item.pago?.id) {
+        payload.id = item.pago.id;
+      }
+
+      await upsertPago(payload);
+
       // Refresh data
       const updatedData = await getPacientesConPagos(mes, año);
       setPacientesConPagos(updatedData as PacienteConPago[]);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error toggling pago:", error);
-      alert("No se pudo registrar el pago");
+      alert(`No se pudo registrar el pago: ${error.message || error.details || JSON.stringify(error)}`);
     } finally {
       setSavingId(null);
     }
@@ -82,8 +88,7 @@ export default function PagosPage() {
   const handleUpdateMontoPlan = async (item: PacienteConPago, precio: number, plan: string) => {
     setSavingId(item.id);
     try {
-      await upsertPago({
-        id: item.pago?.id,
+      const payload: any = {
         paciente_id: item.id,
         mes,
         año,
@@ -91,12 +96,20 @@ export default function PagosPage() {
         precio: precio,
         estado: item.pago?.estado || 'pendiente',
         fecha_pago: item.pago?.fecha_pago || null
-      });
+      };
+
+      if (item.pago?.id) {
+        payload.id = item.pago.id;
+      }
+
+      await upsertPago(payload);
+
       // Refresh
       const updatedData = await getPacientesConPagos(mes, año);
       setPacientesConPagos(updatedData as PacienteConPago[]);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating precio/plan:", error);
+      alert(`No se pudo actualizar el plan/importe: ${error.message || error.details || JSON.stringify(error)}`);
     } finally {
       setSavingId(null);
     }
@@ -127,25 +140,25 @@ export default function PagosPage() {
       {/* Title banner */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Pagos</h1>
-          <p className="text-zinc-400 mt-1 text-sm">Control mensual de facturación y cuotas de pacientes</p>
+          <h1 className="text-2xl font-semibold text-stone-900">Pagos</h1>
+          <p className="text-stone-600 mt-1 text-sm">Control mensual de facturación y cuotas de pacientes</p>
         </div>
         
         {/* Month Selector */}
-        <div className="flex bg-zinc-900 rounded-lg p-1 border border-zinc-800 self-start sm:self-auto">
+        <div className="flex bg-stone-100 rounded-lg p-1 border border-stone-200 self-start sm:self-auto">
           <button 
             onClick={handlePrevMonth}
-            className="p-1.5 rounded-md hover:bg-zinc-800 hover:text-white text-zinc-400 transition-colors"
+            className="p-1.5 rounded-md hover:bg-white hover:text-stone-900 text-stone-600 hover:shadow-sm transition-all cursor-pointer"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <span className="px-4 py-1.5 text-sm font-semibold text-white capitalize min-w-[140px] text-center flex items-center justify-center gap-2">
-            <Calendar className="w-4 h-4 text-violet-400" />
+          <span className="px-4 py-1.5 text-sm font-semibold text-stone-700 capitalize min-w-[140px] text-center flex items-center justify-center gap-2">
+            <Calendar className="w-4 h-4 text-teal-600" />
             {format(currentDate, 'MMMM yyyy', { locale: es })}
           </span>
           <button 
             onClick={handleNextMonth}
-            className="p-1.5 rounded-md hover:bg-zinc-800 hover:text-white text-zinc-400 transition-colors"
+            className="p-1.5 rounded-md hover:bg-white hover:text-stone-900 text-stone-600 hover:shadow-sm transition-all cursor-pointer"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
@@ -156,50 +169,50 @@ export default function PagosPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         
         {/* Total Cobrado */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex items-center justify-between">
+        <div className="bg-white border border-stone-200 rounded-xl p-5 flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-150">
           <div className="space-y-1">
-            <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Total Cobrado</span>
-            <p className="text-2xl font-bold text-emerald-400">${summary.totalCobrado.toLocaleString()}</p>
+            <span className="text-xs font-semibold text-stone-400 uppercase tracking-wider block">Total Cobrado</span>
+            <p className="text-2xl font-bold text-emerald-600">${summary.totalCobrado.toLocaleString()}</p>
           </div>
-          <div className="w-12 h-12 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+          <div className="w-12 h-12 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-sm">
             <CheckCircle className="w-6 h-6" />
           </div>
         </div>
 
         {/* Total Pendiente */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex items-center justify-between">
+        <div className="bg-white border border-stone-200 rounded-xl p-5 flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-150">
           <div className="space-y-1">
-            <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Total Pendiente</span>
-            <p className="text-2xl font-bold text-amber-400">${summary.totalPendiente.toLocaleString()}</p>
+            <span className="text-xs font-semibold text-stone-400 uppercase tracking-wider block">Total Pendiente</span>
+            <p className="text-2xl font-bold text-amber-600">${summary.totalPendiente.toLocaleString()}</p>
           </div>
-          <div className="w-12 h-12 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+          <div className="w-12 h-12 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shadow-sm">
             <DollarSign className="w-6 h-6" />
           </div>
         </div>
 
         {/* Deudores */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex items-center justify-between">
+        <div className="bg-white border border-stone-200 rounded-xl p-5 flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-150">
           <div className="space-y-1">
-            <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Deudores Activos</span>
-            <p className="text-2xl font-bold text-rose-400">{summary.deudoresCount} pacientes</p>
+            <span className="text-xs font-semibold text-stone-400 uppercase tracking-wider block">Deudores Activos</span>
+            <p className="text-2xl font-bold text-red-600">{summary.deudoresCount} pacientes</p>
           </div>
-          <div className="w-12 h-12 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+          <div className="w-12 h-12 rounded-lg bg-red-50 border border-red-200 flex items-center justify-center text-red-600 shadow-sm">
             <AlertCircle className="w-6 h-6" />
           </div>
         </div>
       </div>
 
       {/* Main Billing Table */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+      <div className="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-sm">
         {loading ? (
           <div className="flex justify-center items-center py-24">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-500"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm border-collapse">
+            <table className="w-full text-left text-sm border-collapse bg-white">
               <thead>
-                <tr className="border-b border-zinc-800 bg-zinc-900/50 text-zinc-400 font-medium">
+                <tr className="border-b border-stone-200 bg-stone-50 text-stone-400 font-semibold text-xs uppercase tracking-wider">
                   <th className="p-4 pl-6">Paciente</th>
                   <th className="p-4">Plan / Tratamiento</th>
                   <th className="p-4">Importe Mensual ($)</th>
@@ -207,7 +220,7 @@ export default function PagosPage() {
                   <th className="p-4 pr-6">Fecha Pago</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/60">
+              <tbody className="divide-y divide-stone-100">
                 {pacientesConPagos.map((item) => {
                   const defaultPrice = item.tipo_clase === 'RPG' ? 12000 : 8000;
                   const currentPrice = item.pago?.precio !== undefined && item.pago?.precio !== null ? item.pago.precio : defaultPrice;
@@ -215,20 +228,20 @@ export default function PagosPage() {
                   const isPaid = item.pago?.estado === 'pagado';
 
                   return (
-                    <tr key={item.id} className="hover:bg-zinc-950/40 transition-colors">
+                    <tr key={item.id} className="hover:bg-stone-50/50 transition-colors">
                       <td className="p-4 pl-6">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-lg bg-zinc-800 flex items-center justify-center text-xs font-semibold text-zinc-300">
-                            <User className="w-4 h-4 text-zinc-500" />
+                          <div className="w-7 h-7 rounded-lg bg-stone-50 border border-stone-200 flex items-center justify-center text-xs font-semibold text-stone-600 shadow-sm">
+                            <User className="w-4 h-4 text-stone-400" />
                           </div>
-                          <span className="font-semibold text-white">{item.nombre}</span>
+                          <span className="font-semibold text-stone-900">{item.nombre}</span>
                         </div>
                       </td>
                       <td className="p-4">
                         <select
                           value={currentPlan}
                           onChange={(e) => handleUpdateMontoPlan(item, currentPrice, e.target.value)}
-                          className="bg-zinc-800 border border-zinc-700 text-white text-xs px-2.5 py-1.5 rounded-lg focus:outline-none focus:border-violet-500"
+                          className="bg-white border border-stone-200 text-stone-900 text-xs px-2.5 py-1.5 rounded-lg focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
                         >
                           <option value="RPG">RPG (Sesiones)</option>
                           <option value="TPA">TPA (Clases)</option>
@@ -255,7 +268,7 @@ export default function PagosPage() {
                               setPacientesConPagos(temp);
                             }
                           }}
-                          className="bg-zinc-800 border border-zinc-700 text-white text-xs px-2.5 py-1.5 rounded-lg w-24 focus:outline-none focus:border-violet-500"
+                          className="bg-white border border-stone-200 text-stone-900 text-xs px-2.5 py-1.5 rounded-lg w-24 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
                         />
                       </td>
                       <td className="p-4">
@@ -263,10 +276,10 @@ export default function PagosPage() {
                           onClick={() => handleToggleEstado(item)}
                           disabled={savingId === item.id}
                           className={cn(
-                            "px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5",
+                            "px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5 shadow-sm cursor-pointer",
                             isPaid
-                              ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30"
-                              : "bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20"
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100/50"
+                              : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/50"
                           )}
                         >
                           {savingId === item.id ? (
@@ -278,7 +291,7 @@ export default function PagosPage() {
                           )}
                         </button>
                       </td>
-                      <td className="p-4 pr-6 text-zinc-400 text-xs">
+                      <td className="p-4 pr-6 text-stone-500 text-xs">
                         {item.pago?.fecha_pago 
                           ? format(parseISO(item.pago.fecha_pago), "d MMM, yyyy", { locale: es })
                           : '--'}
@@ -289,7 +302,7 @@ export default function PagosPage() {
 
                 {pacientesConPagos.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-16 text-center text-zinc-500">
+                    <td colSpan={5} className="py-16 text-center text-stone-400 bg-stone-50 rounded-xl border border-dashed border-stone-200">
                       No hay pacientes registrados para este mes.
                     </td>
                   </tr>

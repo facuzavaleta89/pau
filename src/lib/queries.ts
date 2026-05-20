@@ -112,6 +112,29 @@ export async function getHorariosTPA() {
   return data || [];
 }
 
+export async function createHorarioTPA(horario: { paciente_id: string; dia_semana: 'lunes' | 'miercoles' | 'viernes'; hora: string }) {
+  const { data, error } = await supabase
+    .from('horarios_tpa')
+    .insert([{ ...horario, activo: true }])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function deactivateHorarioTPA(id: string) {
+  const { data, error } = await supabase
+    .from('horarios_tpa')
+    .update({ activo: false })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
 export async function getClasesTPAPorRango(startDate: string, endDate: string) {
   const { data, error } = await supabase
     .from('clases_tpa')
@@ -223,7 +246,7 @@ export async function getPacientesConPagos(mes: number, año: number) {
 export async function upsertPago(pago: Partial<Pago>) {
   const { data, error } = await supabase
     .from('pagos')
-    .upsert([pago], { onConflict: 'paciente_id, mes, año' })
+    .upsert([pago])
     .select()
     .single();
 

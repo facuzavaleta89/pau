@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Clock, Plus, ChevronLeft, ChevronRight, User } from "lucide-react";
+import { Clock, ChevronLeft, ChevronRight, User } from "lucide-react";
 import { cn } from "@/components/layout/Navigation";
-import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, isSameWeek, parseISO } from 'date-fns';
+import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getHorariosTPA, getClasesTPAPorRango, getAsistenciasTPA } from "@/lib/queries";
 import type { HorarioTPA, ClaseTPA, AsistenciaTPA, EstadoAsistenciaTPA } from "@/types";
@@ -104,54 +104,55 @@ export function TpaWeeklyView() {
 
   const getStatusColor = (estado?: EstadoAsistenciaTPA) => {
     switch (estado) {
-      case 'presente': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-      case 'aviso_ausencia': return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
-      case 'falto_sin_avisar': return 'bg-red-500/20 text-red-400 border-red-500/30';
-      case 'recupera': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-      case 'cancelado': return 'bg-zinc-700/40 text-zinc-500 border-zinc-600/30';
-      default: return 'bg-zinc-800 text-zinc-500 border-zinc-700';
+      case 'presente': return 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100/50';
+      case 'aviso_ausencia': return 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/50';
+      case 'falto_sin_avisar': return 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100/50';
+      case 'recupera': return 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100/50';
+      case 'vino_otra_clase': return 'bg-teal-50 text-teal-700 border-teal-200 hover:bg-teal-100/50';
+      case 'cancelado': return 'bg-stone-100 text-stone-400 border-stone-200 hover:bg-stone-200/50';
+      default: return 'bg-stone-50 text-stone-400 border-stone-200 hover:bg-stone-100/50';
     }
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-white">
       {/* Week Header */}
-      <div className="flex items-center justify-between p-5 border-b border-zinc-800 bg-zinc-900">
+      <div className="flex items-center justify-between p-5 border-b border-stone-200 bg-white">
         <div className="flex items-center gap-4">
-          <h2 className="text-xl font-bold tracking-tight text-white w-64">
+          <h2 className="text-xl font-bold tracking-tight text-stone-900 w-64">
             {format(weekStart, "d MMM", { locale: es })} - {format(weekEnd, "d MMM yyyy", { locale: es })}
           </h2>
-          <div className="flex bg-zinc-950 rounded-lg p-1 border border-zinc-800">
-            <button onClick={handlePrevWeek} className="p-1.5 rounded-md hover:bg-zinc-800 hover:text-white text-zinc-400 transition-colors">
+          <div className="flex bg-stone-100 rounded-lg p-1 border border-stone-200">
+            <button onClick={handlePrevWeek} className="p-1.5 rounded-md hover:bg-white hover:text-stone-900 text-stone-600 hover:shadow-sm transition-all">
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <button onClick={handleToday} className="px-4 py-1.5 text-sm font-semibold text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors rounded-md">
+            <button onClick={handleToday} className="px-4 py-1.5 text-sm font-semibold text-stone-600 hover:text-stone-900 hover:bg-white hover:shadow-sm transition-all rounded-md">
               Hoy
             </button>
-            <button onClick={handleNextWeek} className="p-1.5 rounded-md hover:bg-zinc-800 hover:text-white text-zinc-400 transition-colors">
+            <button onClick={handleNextWeek} className="p-1.5 rounded-md hover:bg-white hover:text-stone-900 text-stone-600 hover:shadow-sm transition-all">
               <ChevronRight className="w-5 h-5" />
             </button>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto bg-zinc-950 p-6">
+      <div className="flex-1 overflow-auto bg-stone-50 p-6">
         {loading ? (
           <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-500"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
           </div>
         ) : (
           <div className="grid grid-cols-[100px_1fr_1fr_1fr] gap-6 max-w-7xl mx-auto">
             {/* Headers */}
-            <div className="col-start-2 text-center pb-4 border-b-2 border-zinc-800 font-bold text-zinc-400 text-lg">Lunes</div>
-            <div className="text-center pb-4 border-b-2 border-zinc-800 font-bold text-zinc-400 text-lg">Miércoles</div>
-            <div className="text-center pb-4 border-b-2 border-zinc-800 font-bold text-zinc-400 text-lg">Viernes</div>
+            <div className="col-start-2 text-center pb-4 border-b-2 border-stone-200 font-bold text-stone-400 text-xs uppercase tracking-wider">Lunes</div>
+            <div className="text-center pb-4 border-b-2 border-stone-200 font-bold text-stone-400 text-xs uppercase tracking-wider">Miércoles</div>
+            <div className="text-center pb-4 border-b-2 border-stone-200 font-bold text-stone-400 text-xs uppercase tracking-wider">Viernes</div>
 
             {/* Grid Rows */}
             {timeSlots.map((time) => (
               <div key={time} className="contents group">
                 {/* Time Label */}
-                <div className="flex items-center justify-end pr-4 text-zinc-500 font-bold text-lg">
+                <div className="flex items-center justify-end pr-4 text-stone-400 font-bold text-sm">
                   {time}
                 </div>
 
@@ -175,7 +176,7 @@ export function TpaWeeklyView() {
                   return (
                     <div 
                       key={`${time}-${dia.id}`} 
-                      className="bg-zinc-900 rounded-xl p-4 border border-zinc-800 shadow-sm hover:border-zinc-700 transition-colors cursor-pointer min-h-[160px]"
+                      className="bg-white rounded-xl p-4 border border-stone-200 shadow-sm hover:shadow-md hover:border-stone-300 transition-all cursor-pointer min-h-[160px] flex flex-col justify-between"
                       onClick={() => {
                         setModalData({
                           isOpen: true,
@@ -187,47 +188,49 @@ export function TpaWeeklyView() {
                         });
                       }}
                     >
-                      <div className="flex justify-between items-center mb-4">
-                        <div className="flex items-center gap-1.5 px-3 py-1 bg-zinc-950 rounded-md border border-zinc-800">
-                          <Clock className="w-3.5 h-3.5 text-zinc-500" />
-                          <span className="text-xs font-bold text-zinc-300">{time}</span>
-                        </div>
-                        <span className="text-xs font-semibold text-zinc-500 bg-zinc-950 px-2 py-1 rounded-md border border-zinc-800">
-                          {dayHorarios.length}/{maxSlots}
-                        </span>
-                      </div>
-                      
-                      <div className="flex flex-col gap-2">
-                        {dayHorarios.map((horario) => {
-                          const asistencia = classThisWeek 
-                            ? asistencias.find(a => a.clase_id === classThisWeek.id && a.paciente_id === horario.paciente_id)
-                            : null;
-                          
-                          const estado = asistencia?.estado;
-                          
-                          return (
-                            <div 
-                              key={horario.id}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedPacienteId(horario.paciente_id);
-                                setIsHistoryModalOpen(true);
-                              }}
-                              className={cn(
-                                "flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all border font-medium hover:brightness-110 hover:text-white active:scale-95 cursor-pointer",
-                                getStatusColor(estado as EstadoAsistenciaTPA)
-                              )}
-                            >
-                              <User className="w-4 h-4 opacity-70" />
-                              <span className="truncate w-full hover:underline">{horario.pacientes?.nombre}</span>
-                            </div>
-                          );
-                        })}
-                        {dayHorarios.length === 0 && (
-                          <div className="flex-1 flex items-center justify-center pt-6 opacity-40">
-                            <span className="text-sm text-zinc-500 font-medium border border-dashed border-zinc-700 rounded-lg px-4 py-2">Libre</span>
+                      <div>
+                        <div className="flex justify-between items-center mb-4">
+                          <div className="flex items-center gap-1.5 px-3 py-1 bg-stone-50 rounded-md border border-stone-200">
+                            <Clock className="w-3.5 h-3.5 text-stone-400" />
+                            <span className="text-xs font-bold text-stone-600">{time}</span>
                           </div>
-                        )}
+                          <span className="text-xs font-semibold text-stone-500 bg-stone-50 px-2 py-1 rounded-md border border-stone-200">
+                            {dayHorarios.length}/{maxSlots}
+                          </span>
+                        </div>
+                        
+                        <div className="flex flex-col gap-2">
+                          {dayHorarios.map((horario) => {
+                            const asistencia = classThisWeek 
+                              ? asistencias.find(a => a.clase_id === classThisWeek.id && a.paciente_id === horario.paciente_id)
+                              : null;
+                            
+                            const estado = asistencia?.estado;
+                            
+                            return (
+                              <div 
+                                key={horario.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedPacienteId(horario.paciente_id);
+                                  setIsHistoryModalOpen(true);
+                                }}
+                                className={cn(
+                                  "flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all border font-medium active:scale-95 cursor-pointer shadow-sm",
+                                  getStatusColor(estado as EstadoAsistenciaTPA)
+                                )}
+                              >
+                                <User className="w-3.5 h-3.5 opacity-75" />
+                                <span className="truncate w-full hover:underline">{horario.pacientes?.nombre}</span>
+                              </div>
+                            );
+                          })}
+                          {dayHorarios.length === 0 && (
+                            <div className="flex-1 flex items-center justify-center pt-6">
+                              <span className="text-xs text-stone-400 font-medium border border-dashed border-stone-200 rounded-lg px-4 py-2 bg-stone-50/50">Libre</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );

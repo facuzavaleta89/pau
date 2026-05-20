@@ -23,7 +23,7 @@ export default function Navigation() {
   return (
     <>
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 w-full bg-zinc-950 border-t border-zinc-800 z-50 pb-safe">
+      <nav className="md:hidden fixed bottom-0 w-full bg-white/90 backdrop-blur-md border-t border-stone-200 z-50 pb-safe shadow-lg">
         <div className="flex justify-around items-center h-16 px-2">
           {navItems.map((item) => {
             const isActive = pathname.startsWith(item.href);
@@ -34,11 +34,11 @@ export default function Navigation() {
                 href={item.href}
                 className={cn(
                   "flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors duration-150",
-                  isActive ? "text-violet-400" : "text-zinc-500 hover:text-zinc-300"
+                  isActive ? "text-teal-600" : "text-stone-500 hover:text-stone-700"
                 )}
               >
-                <Icon className={cn("w-5 h-5", isActive && "scale-110")} strokeWidth={isActive ? 2.5 : 2} />
-                <span className={cn("text-[10px]", isActive ? "font-semibold" : "font-medium")}>{item.name}</span>
+                <Icon className={cn("w-5 h-5", isActive && "scale-110 text-teal-600")} strokeWidth={isActive ? 2.5 : 2} />
+                <span className={cn("text-[10px]", isActive ? "font-semibold text-teal-600" : "font-medium text-stone-500")}>{item.name}</span>
               </Link>
             );
           })}
@@ -46,13 +46,13 @@ export default function Navigation() {
       </nav>
 
       {/* Desktop Sidebar Navigation */}
-      <nav className="hidden md:flex flex-col w-64 h-screen fixed bg-zinc-950 border-r border-zinc-800 z-40">
+      <nav className="hidden md:flex flex-col w-64 h-screen fixed bg-white border-r border-stone-200 z-40">
         <div className="p-8">
-          <h1 className="text-2xl font-bold tracking-tighter text-white flex items-center gap-2">
-            <span className="bg-violet-600 text-white p-1.5 rounded-lg shadow-sm">
+          <h1 className="text-2xl font-bold tracking-tighter text-stone-900 flex items-center gap-2">
+            <span className="bg-teal-600 text-white p-1.5 rounded-lg shadow-sm">
               <LayoutGrid className="w-5 h-5" />
             </span>
-            Pau<span className="text-zinc-500 font-normal">Kinesio</span>
+            Pau<span className="text-stone-500 font-normal">Kinesio</span>
           </h1>
         </div>
         <div className="flex flex-col space-y-1.5 px-4 flex-1">
@@ -64,14 +64,14 @@ export default function Navigation() {
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  "group flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors duration-150",
+                  "group flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-150",
                   isActive 
-                    ? "bg-violet-600 text-white" 
-                    : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-300"
+                    ? "bg-teal-50 text-teal-700 font-semibold" 
+                    : "text-stone-600 hover:bg-stone-50 hover:text-stone-900"
                 )}
               >
-                <Icon className={cn("w-5 h-5 transition-transform duration-150", isActive ? "scale-110" : "group-hover:scale-110")} strokeWidth={isActive ? 2.5 : 2} />
-                <span className={cn("font-medium tracking-tight", isActive ? "font-semibold" : "")}>{item.name}</span>
+                <Icon className={cn("w-5 h-5 transition-transform duration-150", isActive ? "scale-110 text-teal-600" : "text-stone-400 group-hover:scale-110 group-hover:text-stone-900")} strokeWidth={isActive ? 2.5 : 2} />
+                <span className="font-medium tracking-tight">{item.name}</span>
               </Link>
             );
           })}
