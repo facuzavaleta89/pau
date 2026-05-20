@@ -18,7 +18,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={`${inter.className} bg-gray-50 text-gray-900 antialiased`}>
+      <body className={`${inter.className} bg-zinc-950 text-white antialiased selection:bg-violet-500 selection:text-white`}>
         <div className="flex min-h-screen">
           <Navigation />
           <div className="flex-1 md:ml-64 pb-16 md:pb-0 flex flex-col min-h-screen">

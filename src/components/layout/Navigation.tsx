@@ -23,8 +23,8 @@ export default function Navigation() {
   return (
     <>
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 z-50 pb-safe">
-        <div className="flex justify-around items-center h-16">
+      <nav className="md:hidden fixed bottom-0 w-full bg-zinc-950 border-t border-zinc-800 z-50 pb-safe">
+        <div className="flex justify-around items-center h-16 px-2">
           {navItems.map((item) => {
             const isActive = pathname.startsWith(item.href);
             const Icon = item.icon;
@@ -33,12 +33,12 @@ export default function Navigation() {
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center justify-center w-full h-full space-y-1",
-                  isActive ? "text-blue-600" : "text-gray-500 hover:text-gray-900"
+                  "flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors duration-150",
+                  isActive ? "text-violet-400" : "text-zinc-500 hover:text-zinc-300"
                 )}
               >
-                <Icon className={cn("w-6 h-6", isActive && "animate-pulse")} />
-                <span className="text-[10px] font-medium">{item.name}</span>
+                <Icon className={cn("w-5 h-5", isActive && "scale-110")} strokeWidth={isActive ? 2.5 : 2} />
+                <span className={cn("text-[10px]", isActive ? "font-semibold" : "font-medium")}>{item.name}</span>
               </Link>
             );
           })}
@@ -46,13 +46,16 @@ export default function Navigation() {
       </nav>
 
       {/* Desktop Sidebar Navigation */}
-      <nav className="hidden md:flex flex-col w-64 h-screen fixed bg-slate-900 text-white border-r border-slate-800">
-        <div className="p-6">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
-            Pau Kinesio
+      <nav className="hidden md:flex flex-col w-64 h-screen fixed bg-zinc-950 border-r border-zinc-800 z-40">
+        <div className="p-8">
+          <h1 className="text-2xl font-bold tracking-tighter text-white flex items-center gap-2">
+            <span className="bg-violet-600 text-white p-1.5 rounded-lg shadow-sm">
+              <LayoutGrid className="w-5 h-5" />
+            </span>
+            Pau<span className="text-zinc-500 font-normal">Kinesio</span>
           </h1>
         </div>
-        <div className="flex flex-col space-y-2 px-4 flex-1">
+        <div className="flex flex-col space-y-1.5 px-4 flex-1">
           {navItems.map((item) => {
             const isActive = pathname.startsWith(item.href);
             const Icon = item.icon;
@@ -61,14 +64,14 @@ export default function Navigation() {
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  "flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200",
+                  "group flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors duration-150",
                   isActive 
-                    ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30" 
-                    : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                    ? "bg-violet-600 text-white" 
+                    : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-300"
                 )}
               >
-                <Icon className="w-5 h-5" />
-                <span className="font-medium">{item.name}</span>
+                <Icon className={cn("w-5 h-5 transition-transform duration-150", isActive ? "scale-110" : "group-hover:scale-110")} strokeWidth={isActive ? 2.5 : 2} />
+                <span className={cn("font-medium tracking-tight", isActive ? "font-semibold" : "")}>{item.name}</span>
               </Link>
             );
           })}
