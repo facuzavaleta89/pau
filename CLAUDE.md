@@ -75,7 +75,7 @@ src/
 | `pagos` | Pago mensual (mes, año, plan, precio, estado) |
 | `lista_espera` | Cola de espera (tabla creada, sin UI todavía) |
 
-Proyecto Supabase: **`pau`** (ref `dmwtoozbctnwccaaitos`), en la organización de gaiozavaleta@gmail.com.
+Proyecto Supabase: **`pau`** (ref `dmwtoozbctnwccaaitos`, región `us-east-2`, plan Free).
 
 El esquema actual está en **`supabase/migrations/20260520000000_esquema_inicial.sql`** (línea base reconstruida leyendo la base; **no se ejecuta** contra el proyecto existente). **Todo cambio de esquema va en un archivo de migración nuevo** con fecha posterior, nunca a mano en el dashboard sin registrarlo.
 
@@ -146,7 +146,7 @@ Verificá con `git status` y `git branch --show-current` qué archivos cambiaron
 1. Al empezar una sesión, leer PENDIENTES.md y decir (en `respuesta.md`) en qué tarea vas a trabajar.
 2. Trabajar **una fase o tarea por vez**. Para tareas grandes, presentar un plan corto antes de tocar código.
 3. Ante decisiones de producto o de arquitectura (sobre todo si dependen de Pau), plantear opciones con pros y contras y **preguntar**; no inventar reglas de negocio.
-4. Antes de dar una tarea por terminada: `npx tsc --noEmit` y `npm run lint` sin errores nuevos, y probar el flujo en viewport de celular (390px).
+4. Antes de dar una tarea por terminada: `npx tsc --noEmit`, `npm run lint` y `npm run build` sin errores nuevos. Si no tenés un navegador conectado para probar en viewport de celular (390px), **no digas que lo probaste**: dejá en `respuesta.md` una lista de pasos de prueba concretos para que Facu los haga en su celular o en el emulador del navegador.
 5. Al terminar: actualizar PENDIENTES.md (tildar lo hecho, agregar lo descubierto) y reportar en `respuesta.md` qué funciona, qué no y qué se podría mejorar.
 6. No instalar dependencias nuevas sin decir cuáles y para qué.
 7. Si ves algo mal en código existente, mencionarlo aunque no sea parte de la tarea.
