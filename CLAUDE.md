@@ -31,7 +31,10 @@ Antes de trabajar, leé en este orden:
 
 - Next.js 16 (App Router) + React 19 + TypeScript estricto
 - Tailwind CSS v4 (config en `src/app/globals.css`, no hay `tailwind.config`)
-- Supabase (PostgreSQL) vía `@supabase/supabase-js`, hoy **solo desde el cliente**
+- Supabase (PostgreSQL + Auth) vía `@supabase/supabase-js` y `@supabase/ssr`:
+  - **Datos:** desde el navegador, con `createBrowserClient` (`src/lib/supabase.ts`). La sesión vive en cookies.
+  - **Sesión:** `src/proxy.ts` (en Next 16 `middleware` pasó a llamarse `proxy`) refresca el token en cada request y redirige a `/login` si no hay sesión. Es un chequeo optimista: **la protección real de los datos es RLS**.
+  - Login con email + contraseña, una sola usuaria. Configuración del dashboard en `supabase/AUTH.md`.
 - `date-fns` v4 con locale `es`, `lucide-react` para íconos
 
 > Next 16 y Tailwind 4 tienen cambios respecto de versiones anteriores. Ante la duda, consultar la documentación en `node_modules/next/dist/docs/` o la oficial antes de asumir APIs viejas.
@@ -51,15 +54,27 @@ Variables de entorno en `.env.local` (nunca commitear): `NEXT_PUBLIC_SUPABASE_UR
 
 ```
 src/
-├── app/                      # rutas: /rpg, /tpa, /pacientes, /pagos ( / redirige a /rpg )
+├── proxy.ts                  # sesión: refresca token y redirige a /login (Next 16)
+├── app/
+│   ├── layout.tsx            # raíz: solo html/body
+│   ├── page.tsx              # / redirige a /rpg
+│   ├── login/                # pantalla de login (pública)
+│   └── (app)/                # grupo de rutas con sesión (no cambia las URLs)
+│       ├── layout.tsx        # Navigation + Header + SesionWatcher
+│       └── rpg/ tpa/ pacientes/ pagos/
 ├── components/
-│   ├── layout/               # Header, Navigation
-│   ├── pacientes/            # HistoriaClinicaModal (compartido entre módulos)
+│   ├── auth/                 # LoginForm, SesionWatcher
+│   ├── layout/               # Header (con Salir), Navigation
+│   ├── pacientes/            # HistoriaClinicaModal, EliminarPacienteDialog
 │   ├── rpg/                  # CalendarMonthView, TurnoCard, TurnoModal
-│   └── tpa/                  # TpaWeeklyView, TpaClaseModal
+│   ├── tpa/                  # TpaWeeklyView, TpaClaseModal
+│   └── ui/                   # componentes base (ConfirmDialog)
 ├── lib/
-│   ├── supabase.ts           # cliente Supabase
-│   └── queries.ts            # TODAS las operaciones con la DB
+│   ├── supabase.ts           # cliente de navegador (createBrowserClient)
+│   ├── supabase-proxy.ts     # cliente de servidor para proxy.ts (actualizarSesion)
+│   ├── auth.ts               # TODAS las operaciones de autenticación
+│   ├── queries.ts            # TODAS las operaciones con la DB
+│   └── errores.ts            # registrarError / mensajeError / ErrorApp
 └── types/index.ts            # tipos mapeados a las tablas
 ```
 
@@ -79,7 +94,11 @@ Proyecto Supabase: **`pau`** (ref `dmwtoozbctnwccaaitos`, región `us-east-2`, p
 
 El esquema actual está en **`supabase/migrations/20260520000000_esquema_inicial.sql`** (línea base reconstruida leyendo la base; **no se ejecuta** contra el proyecto existente). **Todo cambio de esquema va en un archivo de migración nuevo** con fecha posterior, nunca a mano en el dashboard sin registrarlo.
 
-⚠️ Las columnas `hora` son tipo `time`: la base devuelve `"HH:mm:ss"`. ⚠️ Hoy las políticas RLS permiten todo a cualquiera (ver PENDIENTES.md, Fase 0).
+⚠️ Las columnas `hora` son tipo `time`: la base devuelve `"HH:mm:ss"`.
+
+**RLS:** con la migración `20261017000001_rls_solo_usuaria_autorizada.sql` aplicada, cada tabla tiene una sola política (`"Solo usuaria autorizada"`): solo el rol `authenticated` y solo si el UID está en `private.usuarias_autorizadas`. `anon` no tiene permisos de tabla. Hasta que Facu aplique esa migración siguen las políticas abiertas de la línea base (ver PENDIENTES.md, Fase 0). Consecuencias para el código:
+- Sin sesión válida (o con un usuario no autorizado) un `select` devuelve `[]` y un `update`/`delete` afecta **0 filas sin error**. Por eso toda escritura en `queries.ts` termina en `.select()` y verifica las filas con `exigirUnaFila()`; no usar `.single()` en escrituras.
+- Funciones nuevas en la base: revocar siempre `execute` también `from public`, no solo de `anon`/`authenticated`.
 
 Estados válidos:
 - `asistencia_tpa.estado`: `presente | aviso_ausencia | falto_sin_avisar | recupera | vino_otra_clase | cancelado | pendiente`
@@ -89,7 +108,8 @@ Estados válidos:
 ## Convenciones de código
 
 - TypeScript estricto, **sin `any`** (usar `unknown` + narrowing para errores).
-- Tipos en `src/types/index.ts`. Queries solo en `src/lib/queries.ts`; nunca llamar a Supabase desde componentes.
+- Tipos en `src/types/index.ts`. Queries solo en `src/lib/queries.ts` y autenticación solo en `src/lib/auth.ts`; nunca llamar a Supabase desde componentes.
+- Errores: nunca `console.error(error)` directo (los errores de Postgres pueden traer filas con datos de salud). Usar `registrarError(contexto, error)` para loguear y `mensajeError(error)` para mostrarle algo a la usuaria; para mensajes propios, `throw new ErrorApp('…')` (todo en `src/lib/errores.ts`).
 - Utilidades compartidas en `src/lib/` (por ejemplo `cn()` va en `src/lib/utils.ts`, no en Navigation).
 - Etiquetas y colores de estados definidos **una sola vez** (`src/lib/estados.ts`) y reutilizados en toda la app.
 - Horas siempre normalizadas a `"HH:mm"` antes de comparar (Postgres `time` devuelve `"HH:mm:ss"`).
@@ -121,7 +141,7 @@ El control de versiones lo maneja **únicamente Facu**. El agente **nunca** ejec
 
 ```bash
 git status
-git add <archivo1> <archivo2> ...        # lista explícita, NUNCA "git add ." ni "-A"
+git add .
 git commit -m "<tipo>: <resumen en español>"
 git push -u origin <rama-actual>
 ```
@@ -134,7 +154,7 @@ git pull origin main
 git checkout -b <rama-de-la-siguiente-tarea>
 ```
 
-Verificá con `git status` y `git branch --show-current` qué archivos cambiaron y en qué rama está antes de armar los comandos. Nunca incluyas `respuesta.md`, `.env*` ni archivos con datos reales.
+`git add .` es seguro porque `.gitignore` excluye `respuesta.md`, `.env*`, `.next/` y `node_modules/`. **Antes de armar los comandos**, corré `git status` (y `git status --ignored` si dudás) y `git branch --show-current`, y revisá que no haya nada que no deba subirse: archivos con datos reales (exportaciones, CSV, backups), claves, archivos temporales. Si aparece algo así, no lo incluyas: agregalo a `.gitignore` o avisale a Facu en `respuesta.md` antes de dar los comandos.
 
 ## Base de datos: solo lectura para el agente
 

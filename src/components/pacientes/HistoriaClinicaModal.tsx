@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { X, User, ShieldAlert, Calendar, FileText, CheckCircle, Phone, Info } from 'lucide-react';
 import { getPacienteById, getSesionesRPGPorPaciente, getAsistenciasTPAPorPaciente } from '@/lib/queries';
+import { registrarError } from '@/lib/errores';
 import type { Paciente, SesionRPG, AsistenciaTPA } from '@/types';
 import { cn } from '@/components/layout/Navigation';
 import { format, parseISO } from 'date-fns';
@@ -35,7 +36,7 @@ export function HistoriaClinicaModal({ isOpen, onClose, pacienteId }: HistoriaCl
           setRpgSessions(rpgData);
           setTpaAttendances(tpaData);
         } catch (error) {
-          console.error("Error cargando historia clínica:", error);
+          registrarError("Error cargando historia clínica", error);
         } finally {
           setLoading(false);
         }

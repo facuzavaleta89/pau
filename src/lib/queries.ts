@@ -1,5 +1,15 @@
 import { supabase } from './supabase';
+import { ErrorApp } from './errores';
 import type { Paciente, SesionRPG, Pago, HorarioTPA, ClaseTPA, AsistenciaTPA } from '@/types';
+
+// Con RLS, una escritura que la base no permite (sesión vencida, usuario no
+// autorizado) puede no dar error: simplemente afecta 0 filas. Por eso toda
+// escritura pide las filas afectadas con .select() y las verifica acá, en
+// lugar de usar .single() (que con 0 filas da un error críptico).
+function exigirUnaFila<T>(data: T[] | null, mensaje: string): T {
+  if (!data || data.length !== 1) throw new ErrorApp(mensaje);
+  return data[0];
+}
 
 // ==========================================
 // PACIENTES
@@ -51,11 +61,10 @@ export async function createSesionRPG(sesion: Partial<SesionRPG>) {
   const { data, error } = await supabase
     .from('sesiones_rpg')
     .insert([sesion])
-    .select()
-    .single();
+    .select();
 
   if (error) throw error;
-  return data as SesionRPG;
+  return exigirUnaFila(data as SesionRPG[] | null, 'No se pudo crear el turno.');
 }
 
 export async function updateSesionRPG(id: string, updates: Partial<SesionRPG>) {
@@ -63,20 +72,21 @@ export async function updateSesionRPG(id: string, updates: Partial<SesionRPG>) {
     .from('sesiones_rpg')
     .update(updates)
     .eq('id', id)
-    .select()
-    .single();
+    .select();
 
   if (error) throw error;
-  return data as SesionRPG;
+  return exigirUnaFila(data as SesionRPG[] | null, 'No se pudo guardar el turno.');
 }
 
 export async function deleteSesionRPG(id: string) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('sesiones_rpg')
     .delete()
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
 
   if (error) throw error;
+  exigirUnaFila(data, 'No se pudo eliminar el turno.');
 }
 
 // ==========================================
@@ -116,11 +126,10 @@ export async function createHorarioTPA(horario: { paciente_id: string; dia_seman
   const { data, error } = await supabase
     .from('horarios_tpa')
     .insert([{ ...horario, activo: true }])
-    .select()
-    .single();
+    .select();
 
   if (error) throw error;
-  return data;
+  return exigirUnaFila(data as HorarioTPA[] | null, 'No se pudo inscribir al alumno.');
 }
 
 export async function deactivateHorarioTPA(id: string) {
@@ -128,11 +137,10 @@ export async function deactivateHorarioTPA(id: string) {
     .from('horarios_tpa')
     .update({ activo: false })
     .eq('id', id)
-    .select()
-    .single();
+    .select();
 
   if (error) throw error;
-  return data;
+  return exigirUnaFila(data as HorarioTPA[] | null, 'No se pudo desinscribir al alumno.');
 }
 
 export async function getClasesTPAPorRango(startDate: string, endDate: string) {
@@ -164,22 +172,20 @@ export async function upsertAsistenciaTPA(asistencia: Partial<AsistenciaTPA>) {
   const { data, error } = await supabase
     .from('asistencia_tpa')
     .upsert([asistencia], { onConflict: 'clase_id, paciente_id' })
-    .select()
-    .single();
+    .select();
 
   if (error) throw error;
-  return data;
+  return exigirUnaFila(data as AsistenciaTPA[] | null, 'No se pudo guardar la asistencia.');
 }
 
 export async function createClaseTPA(clase: Partial<ClaseTPA>) {
   const { data, error } = await supabase
     .from('clases_tpa')
     .insert([clase])
-    .select()
-    .single();
+    .select();
 
   if (error) throw error;
-  return data;
+  return exigirUnaFila(data as ClaseTPA[] | null, 'No se pudo crear la clase.');
 }
 
 // ==========================================
@@ -210,7 +216,7 @@ export async function getAsistenciasTPAPorPaciente(pacienteId: string) {
   if (error) throw error;
   
   // Sort manually by date-time descending
-  return (data || []).sort((a: any, b: any) => {
+  return ((data || []) as AsistenciaTPA[]).sort((a, b) => {
     const dateA = a.clases_tpa?.fecha ? new Date(a.clases_tpa.fecha + 'T' + (a.clases_tpa.hora || '00:00')) : new Date(0);
     const dateB = b.clases_tpa?.fecha ? new Date(b.clases_tpa.fecha + 'T' + (b.clases_tpa.hora || '00:00')) : new Date(0);
     return dateB.getTime() - dateA.getTime();
@@ -247,22 +253,20 @@ export async function upsertPago(pago: Partial<Pago>) {
   const { data, error } = await supabase
     .from('pagos')
     .upsert([pago])
-    .select()
-    .single();
+    .select();
 
   if (error) throw error;
-  return data as Pago;
+  return exigirUnaFila(data as Pago[] | null, 'No se pudo guardar el pago.');
 }
 
 export async function createPaciente(paciente: Partial<Paciente>) {
   const { data, error } = await supabase
     .from('pacientes')
     .insert([paciente])
-    .select()
-    .single();
+    .select();
 
   if (error) throw error;
-  return data as Paciente;
+  return exigirUnaFila(data as Paciente[] | null, 'No se pudo crear el paciente.');
 }
 
 export async function updatePaciente(id: string, updates: Partial<Paciente>) {
@@ -270,10 +274,53 @@ export async function updatePaciente(id: string, updates: Partial<Paciente>) {
     .from('pacientes')
     .update(updates)
     .eq('id', id)
-    .select()
-    .single();
+    .select();
 
   if (error) throw error;
-  return data as Paciente;
+  return exigirUnaFila(data as Paciente[] | null, 'No se pudo guardar el paciente.');
 }
 
+// Único punto de borrado de pacientes.
+// Hoy: borrado REAL. Las FK son ON DELETE CASCADE, así que se borran también
+// sus turnos, horarios, asistencias, pagos y lista de espera.
+// 🔴 Antes de la carga real se cambia a baja lógica (activo = false) + FK
+// ON DELETE RESTRICT, cambiando solo esta función (ver PENDIENTES.md).
+export async function eliminarPaciente(id: string) {
+  const { data, error } = await supabase
+    .from('pacientes')
+    .delete()
+    .eq('id', id)
+    .select('id');
+
+  if (error) throw error;
+  exigirUnaFila(data, 'No se pudo eliminar el paciente.');
+}
+
+export interface DatosPaciente {
+  turnos: number;
+  asistencias: number;
+  pagos: number;
+  horarios: number;
+}
+
+// Cuántos registros se borrarían junto con el paciente (para el diálogo de confirmación).
+export async function contarDatosPaciente(id: string): Promise<DatosPaciente> {
+  const contar = async (tabla: string) => {
+    const { count, error } = await supabase
+      .from(tabla)
+      .select('id', { count: 'exact', head: true })
+      .eq('paciente_id', id);
+
+    if (error) throw error;
+    return count ?? 0;
+  };
+
+  const [turnos, asistencias, pagos, horarios] = await Promise.all([
+    contar('sesiones_rpg'),
+    contar('asistencia_tpa'),
+    contar('pagos'),
+    contar('horarios_tpa'),
+  ]);
+
+  return { turnos, asistencias, pagos, horarios };
+}

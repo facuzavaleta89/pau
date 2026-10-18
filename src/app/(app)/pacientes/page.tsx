@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Search, UserPlus, FileText, Phone, Award, Edit2, X, Save, User } from 'lucide-react';
+import { Search, UserPlus, FileText, Phone, Award, Edit2, X, Save, User, Trash2 } from 'lucide-react';
 import { getPacientesActivos, createPaciente, updatePaciente } from '@/lib/queries';
+import { mensajeError, registrarError } from '@/lib/errores';
+import { EliminarPacienteDialog } from '@/components/pacientes/EliminarPacienteDialog';
 import type { Paciente, TipoClase } from '@/types';
 import { HistoriaClinicaModal } from '@/components/pacientes/HistoriaClinicaModal';
 import { cn } from '@/components/layout/Navigation';
@@ -18,6 +20,7 @@ export default function PacientesPage() {
 
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingPaciente, setEditingPaciente] = useState<Paciente | null>(null);
+  const [pacienteAEliminar, setPacienteAEliminar] = useState<Paciente | null>(null);
 
   // Form states
   const [nombre, setNombre] = useState('');
@@ -40,7 +43,7 @@ export default function PacientesPage() {
       const data = await getPacientesActivos();
       setPacientes(data);
     } catch (error) {
-      console.error("Error fetching pacientes:", error);
+      registrarError("Error cargando pacientes", error);
     } finally {
       setLoading(false);
     }
@@ -115,9 +118,9 @@ export default function PacientesPage() {
       }
       setIsFormModalOpen(false);
       fetchPacientes();
-    } catch (error: any) {
-      console.error("Error saving paciente:", error);
-      alert(`Hubo un error al guardar los datos del paciente: ${error.message || error.details || JSON.stringify(error)}`);
+    } catch (error: unknown) {
+      registrarError("Error guardando paciente", error);
+      alert(`Hubo un error al guardar los datos del paciente: ${mensajeError(error)}`);
     }
   };
 
@@ -463,7 +466,17 @@ export default function PacientesPage() {
               </div>
 
               {/* Action Buttons */}
-              <div className="p-5 border-t border-stone-200 bg-stone-50/50 flex justify-end gap-3 -mx-6 -mb-6 mt-4">
+              <div className="p-5 border-t border-stone-200 bg-stone-50/50 flex flex-wrap justify-end gap-3 -mx-6 -mb-6 mt-4">
+                {editingPaciente && (
+                  <button
+                    type="button"
+                    onClick={() => setPacienteAEliminar(editingPaciente)}
+                    className="mr-auto flex items-center gap-2 h-11 px-4 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-medium rounded-lg border border-red-200 transition-colors duration-150"
+                  >
+                    <Trash2 size={16} />
+                    Eliminar paciente
+                  </button>
+                )}
                 <button 
                   type="button"
                   onClick={() => setIsFormModalOpen(false)}
@@ -484,6 +497,16 @@ export default function PacientesPage() {
           </div>
         </div>
       )}
+
+      <EliminarPacienteDialog
+        paciente={pacienteAEliminar}
+        onCancelar={() => setPacienteAEliminar(null)}
+        onEliminado={() => {
+          setPacienteAEliminar(null);
+          setIsFormModalOpen(false);
+          fetchPacientes();
+        }}
+      />
 
     </div>
   );

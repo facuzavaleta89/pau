@@ -1,10 +1,28 @@
 "use client";
 
-import { Search, Bell } from 'lucide-react';
+import { Search, Bell, LogOut } from 'lucide-react';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { cerrarSesion } from '@/lib/auth';
+import { mensajeError, registrarError } from '@/lib/errores';
 
 export default function Header() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [saliendo, setSaliendo] = useState(false);
+  const router = useRouter();
+
+  const handleSalir = async () => {
+    setSaliendo(true);
+    try {
+      await cerrarSesion();
+      router.replace('/login');
+      router.refresh();
+    } catch (error: unknown) {
+      registrarError('Error al cerrar sesión', error);
+      alert(mensajeError(error)); // TODO Fase 0.5: Toast
+      setSaliendo(false);
+    }
+  };
 
   return (
     <header className="sticky top-0 z-40 w-full bg-stone-50/80 backdrop-blur-md border-b border-stone-200">
@@ -29,9 +47,18 @@ export default function Header() {
             <Bell className="h-5 w-5" />
             <span className="absolute top-2 right-2 h-2 w-2 bg-rose-500 rounded-full border-2 border-stone-50"></span>
           </button>
-          <div className="h-9 w-9 rounded-lg bg-teal-600 flex items-center justify-center text-white font-semibold text-sm cursor-pointer hover:bg-teal-700 transition-all">
+          <div className="h-9 w-9 rounded-lg bg-teal-600 flex items-center justify-center text-white font-semibold text-sm">
             P
           </div>
+          <button
+            onClick={handleSalir}
+            disabled={saliendo}
+            aria-label="Salir"
+            title="Salir"
+            className="h-11 w-11 flex items-center justify-center text-stone-500 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition-colors duration-150 disabled:opacity-50"
+          >
+            <LogOut size={20} />
+          </button>
         </div>
       </div>
     </header>

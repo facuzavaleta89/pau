@@ -18,6 +18,7 @@ import {
 import { es } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { getSesionesRPGPorRango } from '@/lib/queries';
+import { registrarError } from '@/lib/errores';
 import type { SesionRPG } from '@/types';
 import { cn } from '@/components/layout/Navigation';
 import { TurnoCard } from './TurnoCard';
@@ -50,7 +51,7 @@ export function CalendarMonthView() {
         );
         setSesiones(data);
       } catch (error) {
-        console.error('Error fetching sesiones:', error);
+        registrarError("Error fetching sesiones", error);
       } finally {
         setLoading(false);
       }
