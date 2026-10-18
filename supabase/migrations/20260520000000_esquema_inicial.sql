@@ -8,6 +8,9 @@
 --
 -- ⚠️ Las políticas RLS de este archivo son las que existen HOY y son INSEGURAS
 -- (permiten todo a cualquiera con la anon key). Se reemplazan en la Fase 0.
+--
+-- ⚠️ Todas las FK son ON DELETE CASCADE: borrar un paciente borra toda su historia.
+-- Pendiente de cambiar en Fase 0 (baja lógica + RESTRICT).
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
@@ -90,7 +93,7 @@ create trigger trigger_updated_at
 
 create table public.sesiones_rpg (
   id            uuid primary key default gen_random_uuid(),
-  paciente_id   uuid references public.pacientes (id),
+  paciente_id   uuid references public.pacientes (id) on delete cascade,
   fecha         date not null,
   hora          time without time zone not null,   -- devuelve "HH:mm:ss"
   tipo_sesion   text,
@@ -102,7 +105,7 @@ create table public.sesiones_rpg (
 
 create table public.horarios_tpa (
   id          uuid primary key default gen_random_uuid(),
-  paciente_id uuid references public.pacientes (id),
+  paciente_id uuid references public.pacientes (id) on delete cascade,
   dia_semana  text check (dia_semana = any (array['lunes', 'miercoles', 'viernes'])),
   hora        time without time zone not null,     -- devuelve "HH:mm:ss"
   activo      boolean default true,
@@ -119,8 +122,8 @@ create table public.clases_tpa (
 
 create table public.asistencia_tpa (
   id          uuid primary key default gen_random_uuid(),
-  clase_id    uuid references public.clases_tpa (id),
-  paciente_id uuid references public.pacientes (id),
+  clase_id    uuid references public.clases_tpa (id) on delete cascade,
+  paciente_id uuid references public.pacientes (id) on delete cascade,
   estado      text default 'pendiente' check (estado = any (array[
                 'presente', 'aviso_ausencia', 'falto_sin_avisar',
                 'recupera', 'vino_otra_clase', 'cancelado', 'pendiente'])),
@@ -131,7 +134,7 @@ create table public.asistencia_tpa (
 
 create table public.pagos (
   id          uuid primary key default gen_random_uuid(),
-  paciente_id uuid references public.pacientes (id),
+  paciente_id uuid references public.pacientes (id) on delete cascade,
   mes         integer not null check (mes >= 1 and mes <= 12),
   "año"       integer not null,
   plan        text,
@@ -144,7 +147,7 @@ create table public.pagos (
 
 create table public.lista_espera (
   id                uuid primary key default gen_random_uuid(),
-  paciente_id       uuid references public.pacientes (id),
+  paciente_id       uuid references public.pacientes (id) on delete cascade,
   tipo_clase        text check (tipo_clase = any (array['RPG', 'TPA'])),
   horario_preferido text,
   fecha_ingreso     date default current_date,
