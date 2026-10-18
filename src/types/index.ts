@@ -51,6 +51,8 @@ export interface HorarioTPA {
   dia_semana: DiaSemana;
   hora: string;
   activo: boolean;
+  /** Fecha de desinscripción ('yyyy-MM-dd'). Undefined si la migración 20261019000001 no está aplicada. */
+  fecha_baja?: string | null;
   created_at: string;
   // Relación opcional
   pacientes?: Pick<Paciente, 'nombre'>;
@@ -99,3 +101,35 @@ export interface ListaEspera {
   // Relación opcional
   pacientes?: Pick<Paciente, 'nombre'>;
 }
+
+// ---------------------------------------------------------------------
+// Modelo de la semana TPA (calculado en src/lib/tpa.ts, no es una tabla)
+// ---------------------------------------------------------------------
+
+export interface AlumnoCeldaTPA {
+  pacienteId: string;
+  nombre: string;
+  /** Estado registrado; 'pendiente' si no tiene asistencia. */
+  estado: EstadoAsistenciaTPA;
+  asistencia: AsistenciaTPA | null;
+  /** Era alumno fijo de este horario en esta fecha. */
+  esFijo: boolean;
+}
+
+export interface CeldaTPA {
+  /** `${fecha}_${hora}`: identifica la clase de esa fecha y hora. */
+  clave: string;
+  dia: DiaSemana;
+  fecha: string; // 'yyyy-MM-dd'
+  hora: string;  // 'HH:mm'
+  /** Es uno de los horarios habituales de Pau (HORARIOS_TPA). */
+  enHorarioHabitual: boolean;
+  clase: ClaseTPA | null;
+  /** Fijos de esa fecha + quienes tienen asistencia registrada (recupera, vino de otro horario…). */
+  alumnos: AlumnoCeldaTPA[];
+  cupo: number;
+  /** Fijos de HOY en este día y hora (para inscribir/desinscribir). */
+  fijosActuales: HorarioTPA[];
+}
+
+export type SemanaTPA = Record<DiaSemana, CeldaTPA[]>;

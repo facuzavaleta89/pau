@@ -27,8 +27,8 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-stone-50/80 backdrop-blur-md border-b border-stone-200">
-      <div className="flex h-16 items-center px-4 md:px-6 gap-4">
+    <header className="sticky top-0 z-40 w-full bg-stone-50/80 backdrop-blur-md border-b border-stone-200 pt-[env(safe-area-inset-top)]">
+      <div className="flex h-16 items-center px-4 md:px-6 gap-3 md:gap-4">
         {/* Search */}
         <div className="flex-1 flex items-center">
           <div className="relative w-full max-w-md group">
@@ -38,7 +38,7 @@ export default function Header() {
               placeholder="Buscar paciente..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white border border-stone-200 rounded-lg text-sm focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all outline-none placeholder:text-stone-400 text-stone-900"
+              className="w-full pl-10 pr-4 py-2 bg-white border border-stone-200 rounded-lg text-base md:text-sm focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all outline-none placeholder:text-stone-400 text-stone-900"
             />
           </div>
         </div>

@@ -128,8 +128,21 @@ Extraer a `src/components/ui/` para no repetir clases larguísimas en cada archi
 - Acción irreversible: prop `peligroso` → ícono `AlertTriangle` en círculo `bg-red-50` y botón **irreversible** (rojo sólido). El texto del botón nombra la acción ("Eliminar definitivamente"), nunca "Aceptar" o "Sí".
 - Los errores se muestran dentro del diálogo (no se cierra si falla).
 
-### Modales en celular
-En pantallas < 768px los modales se muestran como **bottom sheet** (pegados abajo, ancho completo, `rounded-t-2xl`), con el botón principal fijo al pie y alcanzable con el pulgar.
+### Modales en celular (`src/components/ui/Modal.tsx`)
+En pantallas < 768px los modales se muestran como **hoja desde abajo** (ancho completo, `rounded-t-2xl`, hasta 92% del alto) o, si son largos (ficha de paciente, clase TPA, historia clínica), en **pantalla completa** (`h-[100dvh]`). En ambos casos:
+- Título arriba con ✕ de 44px; contenido con scroll propio; **pie fijo** con los botones.
+- En el pie, en celular, Cancelar y Guardar ocupan mitad y mitad (`BOTON_PIE_SECUNDARIO` / `BOTON_PIE_PRIMARIO`); el principal queda a la derecha, al alcance del pulgar.
+- Respetan el área segura del iPhone (`env(safe-area-inset-*)`) arriba y abajo.
+- Tocar afuera **no** cierra (se perdería lo escrito); se cierra con ✕ o Cancelar.
+- Campos de formulario `text-base md:text-sm` (sin zoom en iOS) y de 44px de alto.
+
+### Layout general
+- Contenido con `px-4 py-6` en celular y `px-6 py-8` en compu, centrado con `max-w-7xl mx-auto`.
+- La columna de contenido lleva `min-w-0`: sin eso, cualquier hijo ancho estira la página y aparece el desplazamiento lateral.
+- Barra inferior del celular con `pb-[env(safe-area-inset-bottom)]` y textos cortos (`RPG`, `TPA`, `Pacientes`, `Pagos`) en `text-xs`.
+- **Sin conexión:** franja `bg-amber-50 text-amber-800 border-amber-200` con ícono `WifiOff` debajo del Header: "Sin conexión. Lo que ves puede no estar actualizado y no se puede guardar."
+- **Carga y error** (`EstadoCarga`): spinner teal mientras carga; si falla, card con borde rojo, "No se pudieron cargar los datos. Revisá la conexión." y botón "Reintentar". Nunca una lista vacía que parezca "no hay datos".
+- Navegación de semana/mes (`SemanaNav`): ‹ · etiqueta · Hoy · ›, botones de 44px, sobre `bg-stone-100 rounded-xl`.
 
 ---
 
@@ -151,17 +164,20 @@ En pantallas < 768px los modales se muestran como **bottom sheet** (pegados abaj
 
 ### Agenda RPG
 - **Desktop:** calendario mensual (lunes a domingo, martes y jueves resaltados).
-- **Celular:** el calendario de 7 columnas no entra. Mostrar **lista por día** (próximos martes/jueves) con navegación por semana, y el mensual como vista opcional.
-- Turno: hora, nombre (tocable → historia clínica), tipo de sesión, punto de pago, estado.
+- **Celular** (`RpgSemanaLista`): la semana como **lista por día**: martes y jueves siempre (otro día solo si tiene turnos), con "+ Turno" por día y navegación por semana. El calendario mensual no se muestra en celular.
+- Turno (`TurnoCard`): hora, nombre (tocable → historia clínica), tipo de sesión, punto de pago, color e ícono del estado.
 
 ### Agenda TPA
-- **Desktop:** grilla de 3 días × horarios reales (no una lista fija de 08 a 20).
-- **Celular:** selector de día (Lun / Mié / Vie) arriba y **lista de horarios** debajo; cada horario es una card con sus alumnos coloreados por estado y el cupo `3/4`.
-- Tocar el horario → registro rápido de asistencia; tocar un nombre → historia clínica.
+- **Desktop** (`TpaGrillaSemana`): grilla de 3 días × horarios reales (`HORARIOS_TPA`). Si un día no tiene clase en esa hora (viernes 19:00), celda punteada "Sin clase".
+- **Celular** (`TpaListaDia`): selector de día (Lun / Mié / Vie con la fecha, botones de 48px, el activo en teal) arriba y **lista de horarios** debajo. Al abrir, el día de hoy (o el próximo día de TPA).
+- Cada horario es la misma card en las dos vistas (`TpaHorarioCard`): hora, cupo `3/4` (teal si está completo), alumnos con color + ícono del estado, y botón "Registrar asistencia" / "Ver asistencia" (44px en celular). Un horario que no es de los habituales muestra "(fuera de horario)".
+- Tocar el botón → registro rápido de asistencia; tocar un nombre → historia clínica.
 - Alumnos que recuperan o vienen de otro horario se muestran en la card con su estado (azul/teal) aunque no sean fijos.
 
 ### Registro rápido de asistencia (modal)
-- Un alumno por fila, estados como **chips grandes** de un toque.
+- Un alumno por fila, estados como **chips grandes** de un toque (44px de alto).
+- El botón Guardar se habilita **solo si hay cambios** (incluido volver alguien a "Sin marcar"); si no, dice "Sin cambios". Las filas editadas muestran "Sin guardar".
+- Pestaña "Alumnos fijos" para inscribir/desinscribir (fijos de hoy). Al inscribir o desinscribir, el modal **no cambia de pestaña ni pierde las marcas sin guardar**.
 - Acción "Todos presentes" para el caso más común, y después se corrigen excepciones.
 - Botón "+ Agregar alumno" (recupera / viene de otro horario).
 - Campo de **nota de evolución por alumno** (expandible) — ej. "bajó la presión a mitad de clase".

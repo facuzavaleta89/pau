@@ -60,15 +60,23 @@ src/
 │   ├── page.tsx              # / redirige a /rpg
 │   ├── login/                # pantalla de login (pública)
 │   └── (app)/                # grupo de rutas con sesión (no cambia las URLs)
-│       ├── layout.tsx        # Navigation + Header + SesionWatcher
+│       ├── layout.tsx        # Navigation + Header + AvisoSinConexion + SesionWatcher + VerificadorAutorizacion
 │       └── rpg/ tpa/ pacientes/ pagos/
 ├── components/
 │   ├── auth/                 # LoginForm, SesionWatcher, VerificadorAutorizacion
-│   ├── layout/               # Header (con Salir), Navigation
-│   ├── pacientes/            # HistoriaClinicaModal, EliminarPacienteDialog
-│   ├── rpg/                  # CalendarMonthView, TurnoCard, TurnoModal
-│   ├── tpa/                  # TpaWeeklyView, TpaClaseModal
-│   └── ui/                   # componentes base: ConfirmDialog, ToastProvider (useToast), ToastItem
+│   ├── layout/               # Header (con Salir), Navigation, AvisoSinConexion
+│   ├── pacientes/            # HistoriaClinicaModal, PacienteFormModal, PacientesTabla (compu),
+│   │                         # PacientesListaCelular, EliminarPacienteDialog
+│   ├── rpg/                  # AgendaRPG (carga + modales), CalendarMonthView (compu),
+│   │                         # RpgSemanaLista (celular), TurnoCard, TurnoModal
+│   ├── tpa/                  # TpaAgenda (carga + modales), TpaGrillaSemana (compu), TpaListaDia (celular),
+│   │                         # TpaHorarioCard (ambas), TpaClaseModal, TpaAsistenciaLista, TpaInscripcion
+│   └── ui/                   # base: Modal, ConfirmDialog, ToastProvider (useToast), ToastItem,
+│                             # SemanaNav, EstadoCarga
+├── hooks/
+│   ├── useDatos.ts           # carga con clave + Toast y estado de error SIEMPRE que falla
+│   ├── useEsCelular.ts       # true / false / null (< 768px), sin cargar las dos vistas
+│   └── useConexion.ts        # navigator.onLine
 ├── lib/
 │   ├── supabase.ts           # cliente de navegador (createBrowserClient)
 │   ├── supabase-proxy.ts     # cliente de servidor para proxy.ts (actualizarSesion)
@@ -77,6 +85,7 @@ src/
 │   ├── errores.ts            # registrarError / mensajeError / ErrorApp
 │   ├── estados.ts            # etiquetas, colores e íconos de TODOS los estados
 │   ├── horas.ts              # normalizarHora ("HH:mm:ss" → "HH:mm")
+│   ├── tpa.ts                # HORARIOS_TPA, CUPO_TPA, DIAS_TPA y armarSemanaTPA (modelo de la semana)
 │   └── utils.ts              # cn()
 └── types/index.ts            # tipos mapeados a las tablas
 ```
@@ -118,6 +127,9 @@ Estados válidos:
 - Horas siempre `"HH:mm"` (Postgres `time` devuelve `"HH:mm:ss"`): toda función de `queries.ts` que lee filas con hora las pasa por `conHora()`; las consultas nuevas tienen que hacer lo mismo. Al comparar horas de otro origen, usar `normalizarHora()` (`src/lib/horas.ts`).
 - Fechas con `date-fns` (`addDays`, no sumar milisegundos).
 - Componentes funcionales, props con `interface`, un componente por archivo, idealmente < 150 líneas.
+- **Celular primero.** Ninguna pantalla puede desplazarse de costado en 390px. Si una vista de compu no entra (grilla, calendario, tabla), se hace una vista de celular aparte y se elige con `useEsCelular()` (si cada vista carga datos distintos) o con `md:hidden` / `hidden md:block` (si usan los mismos datos). Modales con el componente `Modal` (hoja desde abajo o pantalla completa en celular, pie fijo).
+- **Cargas de datos** con `useDatos()`: si falla, avisa con Toast y la pantalla muestra `EstadoCarga` con "Reintentar". Nunca una pantalla vacía que parezca "no hay datos".
+- **TPA:** quién está en cada horario de una semana lo calcula **solo** `armarSemanaTPA()` (fijos de esa fecha + asistencias registradas). No volver a filtrar `horarios_tpa` a mano en un componente.
 - Nada de `alert()` / `confirm()` nativos: `useToast()` (`toast.exito / error / aviso`) y `ConfirmDialog`. Los errores que se muestran salen de `mensajeError(error)`.
 - Todo lo visual sigue **DESIGN.md**.
 
