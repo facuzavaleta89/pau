@@ -108,6 +108,39 @@ Facu no puede copiar texto desde la consola. Por eso **toda respuesta, informe, 
 - En consola alcanza con una línea: "Listo, ver respuesta.md".
 - `respuesta.md` está en `.gitignore`: no se commitea.
 
+## ⚠️ Git: solo lectura
+
+El control de versiones lo maneja **únicamente Facu**. El agente **nunca** ejecuta comandos de git que modifiquen algo: nada de `add`, `commit`, `push`, `pull`, `fetch`, `merge`, `rebase`, `reset`, `checkout`, `switch`, `restore`, `branch`, `tag`, `stash`, `rm`, `mv`, `clean`, ni `gh`. Están bloqueados en `.claude/settings.json`; no intentes rodearlos con variantes (`git -C`, alias, scripts).
+
+- Permitido: `git status`, `git diff`, `git log`, `git show`, `git blame`.
+- Para mover o borrar archivos usá comandos del sistema (`mv`, `rm`), nunca `git mv` / `git rm`.
+
+**Flujo de Facu:** trabaja en una rama por tarea (`fase-N/descripcion-corta`). Ejecuta él los comandos de git en su terminal; el pull request y el merge los hace en GitHub.
+
+**Al terminar cada tarea**, cerrá `respuesta.md` con una sección **"Comandos git"** con un único bloque listo para copiar y pegar:
+
+```bash
+git status
+git add <archivo1> <archivo2> ...        # lista explícita, NUNCA "git add ." ni "-A"
+git commit -m "<tipo>: <resumen en español>"
+git push -u origin <rama-actual>
+```
+
+y debajo, en texto: "Después de hacer el merge del PR en GitHub:" con
+
+```bash
+git checkout main
+git pull origin main
+git checkout -b <rama-de-la-siguiente-tarea>
+```
+
+Verificá con `git status` y `git branch --show-current` qué archivos cambiaron y en qué rama está antes de armar los comandos. Nunca incluyas `respuesta.md`, `.env*` ni archivos con datos reales.
+
+## Base de datos: solo lectura para el agente
+
+- Para leer la base se usa **únicamente** el servidor MCP `supabase` (configurado con `read_only=true`). **Nunca** uses el conector "claude.ai Supabase", que tiene permiso de escritura.
+- Los cambios de esquema se escriben como archivos en `supabase/migrations/` y **los aplica Facu** después de revisarlos. El agente nunca los ejecuta contra la base.
+
 ## Flujo de trabajo para el agente
 
 1. Al empezar una sesión, leer PENDIENTES.md y decir (en `respuesta.md`) en qué tarea vas a trabajar.
