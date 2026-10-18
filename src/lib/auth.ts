@@ -36,3 +36,15 @@ export function escucharCierreInesperado(alCerrar: () => void): () => void {
   });
   return () => data.subscription.unsubscribe();
 }
+
+export type EstadoAutorizacion = 'autorizada' | 'no_autorizada' | 'desconocido';
+
+// ¿La usuaria logueada está en private.usuarias_autorizadas?
+// 'desconocido' si no se pudo saber (por ejemplo, la función
+// public.soy_autorizada() todavía no existe en la base, o no hay red):
+// en ese caso la app sigue como si estuviera autorizada y RLS protege igual.
+export async function verificarAutorizacion(): Promise<EstadoAutorizacion> {
+  const { data, error } = await supabase.rpc('soy_autorizada');
+  if (error || typeof data !== 'boolean') return 'desconocido';
+  return data ? 'autorizada' : 'no_autorizada';
+}

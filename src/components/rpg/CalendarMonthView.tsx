@@ -18,15 +18,17 @@ import {
 import { es } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { getSesionesRPGPorRango } from '@/lib/queries';
-import { registrarError } from '@/lib/errores';
+import { mensajeError, registrarError } from '@/lib/errores';
+import { useToast } from '@/components/ui/ToastProvider';
 import type { SesionRPG } from '@/types';
-import { cn } from '@/components/layout/Navigation';
+import { cn } from '@/lib/utils';
 import { TurnoCard } from './TurnoCard';
 import { TurnoModal } from './TurnoModal';
 import { HistoriaClinicaModal } from '../pacientes/HistoriaClinicaModal';
 
 export function CalendarMonthView() {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const toast = useToast();
   const [sesiones, setSesiones] = useState<SesionRPG[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -51,14 +53,15 @@ export function CalendarMonthView() {
         );
         setSesiones(data);
       } catch (error) {
-        registrarError("Error fetching sesiones", error);
+        registrarError("Error cargando turnos RPG", error);
+        toast.error(`No se pudo cargar la agenda RPG. ${mensajeError(error)}`);
       } finally {
         setLoading(false);
       }
     };
 
     fetchSesiones();
-  }, [currentDate]);
+  }, [currentDate, toast]);
 
   // Calendar generation
   const days = useMemo(() => {

@@ -63,18 +63,21 @@ src/
 │       ├── layout.tsx        # Navigation + Header + SesionWatcher
 │       └── rpg/ tpa/ pacientes/ pagos/
 ├── components/
-│   ├── auth/                 # LoginForm, SesionWatcher
+│   ├── auth/                 # LoginForm, SesionWatcher, VerificadorAutorizacion
 │   ├── layout/               # Header (con Salir), Navigation
 │   ├── pacientes/            # HistoriaClinicaModal, EliminarPacienteDialog
 │   ├── rpg/                  # CalendarMonthView, TurnoCard, TurnoModal
 │   ├── tpa/                  # TpaWeeklyView, TpaClaseModal
-│   └── ui/                   # componentes base (ConfirmDialog)
+│   └── ui/                   # componentes base: ConfirmDialog, ToastProvider (useToast), ToastItem
 ├── lib/
 │   ├── supabase.ts           # cliente de navegador (createBrowserClient)
 │   ├── supabase-proxy.ts     # cliente de servidor para proxy.ts (actualizarSesion)
 │   ├── auth.ts               # TODAS las operaciones de autenticación
 │   ├── queries.ts            # TODAS las operaciones con la DB
-│   └── errores.ts            # registrarError / mensajeError / ErrorApp
+│   ├── errores.ts            # registrarError / mensajeError / ErrorApp
+│   ├── estados.ts            # etiquetas, colores e íconos de TODOS los estados
+│   ├── horas.ts              # normalizarHora ("HH:mm:ss" → "HH:mm")
+│   └── utils.ts              # cn()
 └── types/index.ts            # tipos mapeados a las tablas
 ```
 
@@ -96,7 +99,7 @@ El esquema actual está en **`supabase/migrations/20260520000000_esquema_inicial
 
 ⚠️ Las columnas `hora` son tipo `time`: la base devuelve `"HH:mm:ss"`.
 
-**RLS:** con la migración `20261017000001_rls_solo_usuaria_autorizada.sql` aplicada, cada tabla tiene una sola política (`"Solo usuaria autorizada"`): solo el rol `authenticated` y solo si el UID está en `private.usuarias_autorizadas`. `anon` no tiene permisos de tabla. Hasta que Facu aplique esa migración siguen las políticas abiertas de la línea base (ver PENDIENTES.md, Fase 0). Consecuencias para el código:
+**RLS** (migración `20261017000001_rls_solo_usuaria_autorizada.sql`, aplicada): cada tabla tiene una sola política (`"Solo usuaria autorizada"`): solo el rol `authenticated` y solo si el UID está en `private.usuarias_autorizadas`. `anon` no tiene permisos de tabla. Las políticas de la línea base ya no existen. `public.soy_autorizada()` (migración `20261018000001`) le dice a la app si la usuaria logueada está autorizada. Consecuencias para el código:
 - Sin sesión válida (o con un usuario no autorizado) un `select` devuelve `[]` y un `update`/`delete` afecta **0 filas sin error**. Por eso toda escritura en `queries.ts` termina en `.select()` y verifica las filas con `exigirUnaFila()`; no usar `.single()` en escrituras.
 - Funciones nuevas en la base: revocar siempre `execute` también `from public`, no solo de `anon`/`authenticated`.
 
@@ -110,12 +113,12 @@ Estados válidos:
 - TypeScript estricto, **sin `any`** (usar `unknown` + narrowing para errores).
 - Tipos en `src/types/index.ts`. Queries solo en `src/lib/queries.ts` y autenticación solo en `src/lib/auth.ts`; nunca llamar a Supabase desde componentes.
 - Errores: nunca `console.error(error)` directo (los errores de Postgres pueden traer filas con datos de salud). Usar `registrarError(contexto, error)` para loguear y `mensajeError(error)` para mostrarle algo a la usuaria; para mensajes propios, `throw new ErrorApp('…')` (todo en `src/lib/errores.ts`).
-- Utilidades compartidas en `src/lib/` (por ejemplo `cn()` va en `src/lib/utils.ts`, no en Navigation).
-- Etiquetas y colores de estados definidos **una sola vez** (`src/lib/estados.ts`) y reutilizados en toda la app.
-- Horas siempre normalizadas a `"HH:mm"` antes de comparar (Postgres `time` devuelve `"HH:mm:ss"`).
+- Utilidades compartidas en `src/lib/` (`cn()` en `src/lib/utils.ts`).
+- Etiquetas, colores e íconos de estados definidos **una sola vez** en `src/lib/estados.ts` (`ESTADOS_ASISTENCIA`, `ESTADOS_SESION_RPG`, `ESTADOS_PAGO` y sus `ORDEN_*`). Nunca escribir clases de color de un estado a mano en un componente.
+- Horas siempre `"HH:mm"` (Postgres `time` devuelve `"HH:mm:ss"`): toda función de `queries.ts` que lee filas con hora las pasa por `conHora()`; las consultas nuevas tienen que hacer lo mismo. Al comparar horas de otro origen, usar `normalizarHora()` (`src/lib/horas.ts`).
 - Fechas con `date-fns` (`addDays`, no sumar milisegundos).
 - Componentes funcionales, props con `interface`, un componente por archivo, idealmente < 150 líneas.
-- Nada de `alert()` / `confirm()` nativos: usar componentes de toast y de confirmación propios.
+- Nada de `alert()` / `confirm()` nativos: `useToast()` (`toast.exito / error / aviso`) y `ConfirmDialog`. Los errores que se muestran salen de `mensajeError(error)`.
 - Todo lo visual sigue **DESIGN.md**.
 
 ## ⚠️ Cómo responder: siempre en `respuesta.md`

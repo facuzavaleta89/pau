@@ -5,8 +5,11 @@ import { X, Calendar as CalendarIcon, Clock, Save, User, CheckCircle2 } from 'lu
 import type { SesionRPG, Paciente, EstadoPago, EstadoSesionRPG } from '@/types';
 import { getPacientesActivos, createSesionRPG, updateSesionRPG } from '@/lib/queries';
 import { mensajeError, registrarError } from '@/lib/errores';
+import { useToast } from '@/components/ui/ToastProvider';
 import { format } from 'date-fns';
-import { cn } from '@/components/layout/Navigation';
+import { cn } from '@/lib/utils';
+import { normalizarHora } from '@/lib/horas';
+import { ESTADOS_PAGO, ESTADOS_SESION_RPG, ORDEN_ESTADOS_PAGO, ORDEN_ESTADOS_SESION_RPG } from '@/lib/estados';
 
 interface TurnoModalProps {
   isOpen: boolean;
@@ -20,6 +23,7 @@ export function TurnoModal({ isOpen, onClose, turno, selectedDate, onSave }: Tur
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const toast = useToast();
 
   // Form State
   const [pacienteId, setPacienteId] = useState('');
@@ -39,6 +43,7 @@ export function TurnoModal({ isOpen, onClose, turno, selectedDate, onSave }: Tur
           setPacientes(data);
         } catch (error) {
           registrarError("Error cargando pacientes", error);
+          toast.error(`No se pudo cargar la lista de pacientes. ${mensajeError(error)}`);
         } finally {
           setLoading(false);
         }
@@ -48,7 +53,7 @@ export function TurnoModal({ isOpen, onClose, turno, selectedDate, onSave }: Tur
       if (turno) {
         setPacienteId(turno.paciente_id);
         setFecha(turno.fecha);
-        setHora(turno.hora);
+        setHora(normalizarHora(turno.hora));
         setTipoSesion(turno.tipo_sesion || 'RPG');
         setEstadoPago(turno.estado_pago);
         setEstadoSesion(turno.estado_sesion);
@@ -63,13 +68,16 @@ export function TurnoModal({ isOpen, onClose, turno, selectedDate, onSave }: Tur
         setNota('');
       }
     }
-  }, [isOpen, turno, selectedDate]);
+  }, [isOpen, turno, selectedDate, toast]);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pacienteId) return alert("Selecciona un paciente");
+    if (!pacienteId) {
+      toast.aviso("Elegí un paciente.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -89,11 +97,12 @@ export function TurnoModal({ isOpen, onClose, turno, selectedDate, onSave }: Tur
         await createSesionRPG(payload as Partial<SesionRPG>);
       }
       
+      toast.exito(turno?.id ? 'Turno guardado' : 'Turno creado');
       if (onSave) onSave();
       onClose();
     } catch (error: unknown) {
       registrarError("Error guardando turno", error);
-      alert(`Error al guardar el turno: ${mensajeError(error)}`);
+      toast.error(`No se pudo guardar el turno. ${mensajeError(error)}`);
     } finally {
       setSaving(false);
     }
@@ -176,9 +185,9 @@ export function TurnoModal({ isOpen, onClose, turno, selectedDate, onSave }: Tur
                 onChange={(e) => setEstadoSesion(e.target.value as EstadoSesionRPG)}
                 className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-stone-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-colors"
               >
-                <option value="pendiente">Pendiente</option>
-                <option value="realizada">Realizada</option>
-                <option value="cancelada">Cancelada</option>
+                {ORDEN_ESTADOS_SESION_RPG.map(valor => (
+                  <option key={valor} value={valor}>{ESTADOS_SESION_RPG[valor].label}</option>
+                ))}
               </select>
             </div>
             <div className="space-y-1.5">
@@ -190,8 +199,9 @@ export function TurnoModal({ isOpen, onClose, turno, selectedDate, onSave }: Tur
                 onChange={(e) => setEstadoPago(e.target.value as EstadoPago)}
                 className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-stone-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-colors"
               >
-                <option value="pendiente">Pendiente</option>
-                <option value="pagado">Pagado</option>
+                {ORDEN_ESTADOS_PAGO.map(valor => (
+                  <option key={valor} value={valor}>{ESTADOS_PAGO[valor].label}</option>
+                ))}
               </select>
             </div>
           </div>

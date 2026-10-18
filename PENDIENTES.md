@@ -1,6 +1,6 @@
 # PENDIENTES.md — Estado y plan de trabajo
 
-_Última revisión: 18/10/2026 — implementación del código de la Fase 0 (rama `fase-0/implementacion`). Base Supabase `pau` (`dmwtoozbctnwccaaitos`, Postgres 17, plan Free, región us-east-2)._
+_Última revisión: 18/10/2026 — Fase 0 completa (RLS aplicada, probada y deployada) y Fase 0.5 implementada (rama `fase-0-5/base-tecnica`). Base Supabase `pau` (`dmwtoozbctnwccaaitos`, Postgres 17, plan Free, región us-east-2)._
 
 ## Estado actual (resumen)
 
@@ -11,38 +11,39 @@ _Última revisión: 18/10/2026 — implementación del código de la Fase 0 (ram
 - Historia clínica en modal (solo lectura): ficha, historial RPG + TPA, alertas por palabra clave.
 - Pacientes: listado, búsqueda local, alta y edición de ficha.
 - Pagos: lista mensual, toggle pagado/pendiente, plan e importe.
-- Login (email + contraseña), `proxy.ts`, Salir y borrado de pacientes con confirmación (Fase 0, falta aplicar la migración RLS y probar).
-- `tsc` y `build` sin errores. `npm run lint`: **13 errores y 7 warnings** (2 `no-explicit-any` en `pagos/page`, 5 `set-state-in-effect`, 6 comillas sin escapar; warnings: 5 imports sin usar y 2 dependencias de `useEffect`).
+- Seguridad (Fase 0): login, `proxy.ts`, RLS solo para la usuaria autorizada, Salir, borrado de pacientes con confirmación. Deployada en Vercel.
+- Base técnica (Fase 0.5): horas normalizadas, `estados.ts`, Toast, `ConfirmDialog`, aviso de usuario no autorizado (falta aplicar su migración).
+- `tsc` y `build` sin errores. `npm run lint`: **13 errores y 6 warnings**, todos en código anterior (2 `no-explicit-any` en `pagos/page`, 5 `set-state-in-effect`, 6 comillas sin escapar; warnings: 3 imports sin usar y 3 dependencias de `useEffect`).
 
-**Lo más importante que falta:** la **seguridad** (hoy no hay login y la base está abierta), las **notas de evolución clase a clase** (el pedido central de Pau), poder agregar a una clase a quien **recupera o viene de otro horario**, y que la app **se pueda usar en el celular**.
+**Lo más importante que falta:** las **notas de evolución clase a clase** (el pedido central de Pau), poder agregar a una clase a quien **recupera o viene de otro horario**, y que la app **se pueda usar en el celular**.
 
 **Decisiones tomadas (Facu, 17/10/2026):** login con email y contraseña, una sola usuaria (Pau); los datos actuales son de prueba y se borran; plan Supabase Free; el deploy de Vercel se borró y se rehace al final de la Fase 0; el repo es público (pasarlo a privado queda fuera de esta fase); borrado de pacientes real con confirmación por ahora, baja lógica antes de la carga real.
 
 ---
 
-## Fase 0 — Seguridad (bloqueante antes de que Pau cargue un solo paciente real)
+## Fase 0 — Seguridad ✅ completa (18/10/2026)
 
-Estado al 18/10/2026: **código implementado** (falta que Facu lo pruebe). Migraciones 000002, 000003 y 000004 **aplicadas** por Facu; la 000001 (RLS) **todavía no**: se aplica después de probar el login en local. Configuración de Auth documentada en `supabase/AUTH.md`.
+Migraciones 000001 a 000004 aplicadas por Facu, usuaria de Pau autorizada, pruebas de flujos (compu y celular) y de `curl` hechas, deploy en Vercel con Site URL y Redirect URLs configuradas. Configuración de Auth en `supabase/AUTH.md`.
 
 - [x] **Autenticación (código).** `@supabase/ssr` (N14) con `createBrowserClient`; `src/proxy.ts` + `src/lib/supabase-proxy.ts` (refresca la sesión y redirige a `/login?next=…`); grupo de rutas `(app)`; `/login`; `SesionWatcher` (sesión cerrada sola → login con aviso); botón Salir con `scope: 'local'`; auth centralizada en `src/lib/auth.ts`.
-- [ ] **Reemplazar las políticas RLS** (`20261017000001_rls_solo_usuaria_autorizada.sql`) — ⏳ escrita, **falta aplicarla** + el `insert` del UID de Pau (ver `supabase/AUTH.md`). Hoy cada tabla tiene *"Permitir todo a publico"*: cualquiera con la anon key lee, modifica y borra todo. Nuevo: políticas solo para `authenticated` y solo si el UID está en `private.usuarias_autorizadas`; se le quitan a `anon` los permisos de tabla. `lista_espera` recibe la misma política.
-- [x] **Deshabilitar el registro público y el sign-in anónimo** en Supabase Auth y crear el usuario de Pau (Facu, 18/10/2026).
+- [x] **Reemplazar las políticas RLS** (`20261017000001_rls_solo_usuaria_autorizada.sql`, aplicada + `insert` de Pau): políticas solo para `authenticated` y solo si el UID está en `private.usuarias_autorizadas`; `anon` sin permisos de tabla; `lista_espera` con la misma política.
+- [x] **Deshabilitar el registro público y el sign-in anónimo** en Supabase Auth y crear el usuario de Pau (Facu, 18/10/2026). ⚠️ En la primera prueba el registro seguía habilitado (son dos interruptores distintos); se corrigió y se borró la cuenta creada. Ver `supabase/AUTH.md`.
 - [x] **Advisors de seguridad** (aplicada por Facu) (`20261017000002_endurecer_funciones.sql`): `search_path` fijo en `update_updated_at`; revocar `execute` de `rls_auto_enable()` a `public`, `anon` y `authenticated`.
 - [x] **Unique en `horarios_tpa`** (aplicada por Facu) (`20261017000003_unique_horarios_tpa.sql`): índice único parcial `(paciente_id, dia_semana, hora) where activo` (N7).
 - [x] **Borrar los datos de prueba** (aplicada por Facu) (`20261017000004_borrar_datos_prueba.sql`, con protección: aborta si hay filas posteriores al 20/05/2026).
 - [x] **Borrado de pacientes con confirmación.** Borrado real (FK `ON DELETE CASCADE`). Botón "Eliminar paciente" en el formulario de edición → `EliminarPacienteDialog` (usa `ConfirmDialog` de `src/components/ui/`) con contadores de turnos, asistencias, pagos y horarios. Lógica en `eliminarPaciente` + `contarDatosPaciente` de `queries.ts`.
-- [ ] **Probar** (Facu): login en local sin RLS → aplicar RLS + UID → curl sin sesión, con un usuario que no es Pau y con la sesión de Pau; flujos en celular (390px). Lista paso a paso en `respuesta.md` del 18/10/2026.
-- [x] **Fallas silenciosas por RLS:** todas las escrituras de `queries.ts` terminan en `.select()` y verifican con `exigirUnaFila()` (sin `.single()`); `SesionWatcher` y el proxy llevan al login si la sesión se cae. Las **lecturas** siguen pudiendo devolver `[]` en silencio si la sesión es inválida (mitigado por el proxy).
+- [x] **Probar** (Facu, 18/10/2026): flujos con RLS activo en compu y celular (login, pacientes, RPG, TPA, pagos, borrado, salir, sesión cerrada en otra pestaña, cookies borradas); `curl` sin sesión → `42501`, registro → `signup_disabled`, anónimo → `anonymous_provider_disabled`.
+- [x] **Fallas silenciosas por RLS:** todas las escrituras de `queries.ts` terminan en `.select()` y verifican con `exigirUnaFila()` (sin `.single()`); `SesionWatcher` y el proxy llevan al login si la sesión se cae. Para las lecturas, el aviso de usuario no autorizado (Fase 0.5).
 - [x] **No loguear datos de salud:** todos los `console.error` reemplazados por `registrarError()` (en producción solo contexto + código) y los `alert()` muestran `mensajeError()` en vez de `error.details` (`src/lib/errores.ts`).
 - [x] **Documentar la configuración de Auth** (`supabase/AUTH.md`) y actualizar CLAUDE.md (RLS, `proxy.ts`, `(app)`, `auth.ts`, `errores.ts`, `git add .`) y DESIGN.md (login, Toast, botón irreversible).
-- [ ] **Volver a deployar en Vercel** al final de la fase, con login funcionando y las variables de entorno cargadas. Después, actualizar Site URL y Redirect URLs en Supabase (`supabase/AUTH.md`).
-- [ ] **Mantener activo el proyecto de Supabase.** El plan Free lo pausa tras 7 días sin actividad (por ejemplo, vacaciones de Pau). Propuesta, al deployar: un **Vercel Cron Job** diario (el plan Hobby permite uno por día) que llame a una ruta `src/app/api/mantener-activo/route.ts`. La ruta (a) exige el header `Authorization: Bearer ${CRON_SECRET}` que manda Vercel; (b) queda excluida del redirect del proxy; (c) llama a una función mínima `public.ping()` (`select 1`, sin datos, `execute` solo para `anon`) creada en una migración nueva. Alternativa sin código: GitHub Actions con `schedule`, pero GitHub desactiva los workflows programados tras 60 días sin commits. ⚠️ Sin verificar: qué cuenta exactamente como "actividad" para Supabase. Confirmarlo en su documentación antes de implementar.
+- [x] **Volver a deployar en Vercel**, con login funcionando y las variables de entorno cargadas; Site URL y Redirect URLs actualizadas en Supabase (Facu, 18/10/2026).
 - [x] **Versionar el esquema.** Línea base `supabase/migrations/20260520000000_esquema_inicial.sql`, corregida con los `ON DELETE CASCADE` reales (N1). **No ejecutarla** contra el proyecto existente; los cambios van en migraciones nuevas.
 - [x] **Constraints clave:** existen `unique (clase_id, paciente_id)` en `asistencia_tpa`, `unique (fecha, hora)` en `clases_tpa` y `unique (paciente_id, mes, año)` en `pagos`.
 - [x] **`.gitignore` corregido** (N13): incluye `respuesta.md`; `gitignore` (sin punto) y `respuesta.md` fuera del repo.
 - [x] Sin claves ni `.env` en el historial de git (verificado en el diagnóstico).
 
-### Bloqueantes antes de la carga real de pacientes (final de Fase 0 / antes de Fase 5)
+### Bloqueantes antes de la carga real de pacientes (antes de Fase 5)
+- [ ] 🔴 **Mantener activo el proyecto de Supabase** (decidido: Vercel Cron + `public.ping()`). El plan Free lo pausa tras 7 días sin actividad (por ejemplo, vacaciones de Pau). Plan: un **Vercel Cron Job** diario (el plan Hobby permite uno por día) que llame a una ruta `src/app/api/mantener-activo/route.ts`. La ruta (a) exige el header `Authorization: Bearer ${CRON_SECRET}` que manda Vercel; (b) queda excluida del redirect del proxy; (c) llama a una función mínima `public.ping()` (`select 1`, sin datos, `execute` solo para `anon`) creada en una migración nueva. Alternativa sin código: GitHub Actions con `schedule`, pero GitHub desactiva los workflows programados tras 60 días sin commits. ⚠️ Sin verificar: qué cuenta exactamente como "actividad" para Supabase. Confirmarlo en su documentación antes de implementar.
 - [ ] 🔴 **Cambiar la contraseña de prueba de Pau por una larga** (16+ caracteres, en un gestor de contraseñas) desde Authentication → Users.
 - [ ] 🔴 **Pasar a baja lógica** (archivar con `pacientes.activo`) y cambiar las FK a `ON DELETE RESTRICT`. Reemplazar el cuerpo de `eliminarPaciente` por "archivar", agregar "Dar de baja / Reactivar" en la ficha y una vista de archivados. Incluye N6 (editar fuerza `activo: true`; los inactivos no aparecen en el select de `TurnoModal`).
 - [ ] 🔴 **Backup antes de la carga real.** El plan Free no da acceso a backups: exportación propia (`supabase db dump` o CSV por tabla) antes de cargar y después, periódicamente. Definir dónde se guarda (con datos de salud: nunca en el repo).
@@ -56,11 +57,17 @@ Estado al 18/10/2026: **código implementado** (falta que Facu lo pruebe). Migra
 
 Sacado de Fase 4 lo que Fase 1 necesita, para no multiplicar código duplicado y `alert()` en las pantallas nuevas.
 
-- [ ] **`normalizarHora()`** en `src/lib/` y usarla en todas las comparaciones y en los `<input type="time">` (bug #1 y N10).
-- [ ] **`src/lib/estados.ts`**: etiquetas y colores de estados una sola vez (hoy duplicados en `TpaClaseModal`, `TpaWeeklyView`, `HistoriaClinicaModal`).
-- [ ] **`cn()`** de `Navigation.tsx` a `src/lib/utils.ts`.
-- [ ] **Toast** en `src/components/ui/` (diseño en DESIGN.md) y reemplazar todos los `alert()`; reemplazar el `confirm()` de desinscribir en `TpaClaseModal` por `ConfirmDialog` (ya existe desde la Fase 0).
-- [ ] **Sacar la campana falsa** del Header (punto rojo fijo, bug #6).
+Estado al 18/10/2026: **implementada** (rama `fase-0-5/base-tecnica`), falta que Facu la pruebe y aplique la migración `20261018000001`.
+
+- [x] **`normalizarHora()`** en `src/lib/horas.ts`. `queries.ts` devuelve todas las horas como `"HH:mm"` (`conHora()`), y además se usa en las comparaciones de `TpaWeeklyView` y en el `<input type="time">` de `TurnoModal` (bug #1 y N10).
+- [x] **`src/lib/estados.ts`**: etiquetas, colores e íconos de asistencia TPA, sesión RPG y pago, usados en grilla TPA, modal TPA, historia clínica, `TurnoCard`, `TurnoModal` y Pagos. "Sin marcar" ahora con borde punteado y texto más oscuro (antes casi no se veía).
+- [x] **`cn()`** en `src/lib/utils.ts`.
+- [x] **Toast** (`ToastProvider` + `ToastItem` en `src/components/ui/`, `useToast()`): reemplaza todos los `alert()`, confirma guardados y avisa errores de carga (antes solo `console.error`). Desinscribir usa `ConfirmDialog`.
+- [x] **Sacar la campana falsa** del Header (bug #6).
+- [x] **Volver a "Sin marcar" y no crear clases vacías** (bug #2): "sin marcar" = sin fila de asistencia; al guardar se marcan/desmarcan solo los cambios, no se crea la clase si nadie quedó marcado y se borra si quedó vacía.
+- [x] **Modal TPA con datos vivos** (parte de N3): los alumnos, la clase y las asistencias del modal se derivan del estado actual, no de una copia congelada.
+- [ ] **Aviso de usuario no autorizado** — código hecho (`VerificadorAutorizacion`); ⏳ falta aplicar `20261018000001_funcion_soy_autorizada.sql`. Mientras no esté aplicada, la app no muestra el aviso y funciona igual.
+- [ ] **Probar** (Facu): lista en `respuesta.md` del 18/10/2026.
 
 ## Fase 1 — Núcleo de lo que pidió Pau
 
@@ -80,17 +87,17 @@ Sacado de Fase 4 lo que Fase 1 necesita, para no multiplicar código duplicado y
 ### TPA
 - [ ] **Armar la grilla de cada semana desde las asistencias registradas** (y los fijos solo para semanas sin registrar), no desde los fijos de hoy (N2). Requisito previo del ítem siguiente.
 - [ ] **Agregar alumno no fijo a una clase** (recupera / viene de otro horario). Hoy `recupera` y `vino_otra_clase` solo se pueden asignar a fijos de ese horario. Debe mostrarse en la grilla de esa semana.
-- [ ] El modal de asistencia recibe una copia congelada de los alumnos y se resetea en cada render (N3).
+- [ ] Modal de asistencia (resto de N3): al inscribir o desinscribir desde la pestaña "Alumnos", se recargan los datos y se pierden las marcas de asistencia sin guardar.
 - [ ] **Horarios reales configurables** en lugar de 08:00–20:00 fijo + los de la DB. Los de Pau: lunes y miércoles 10:30, 11:30, 12:30, 16, 17, 18, 19; viernes igual sin 19.
 - [ ] **Cupo configurable** (hoy hardcodeado en 5 y solo visual; su grilla tiene 4) y controlarlo al inscribir (N7).
-- [ ] Poder volver un estado a "sin marcar"; no crear una clase vacía si todo queda pendiente (bug #2).
+- [x] Poder volver un estado a "sin marcar"; no crear una clase vacía si todo queda pendiente (bug #2, Fase 0.5).
 - [ ] Botón "Todos presentes" en el registro rápido.
 - [ ] Cancelar una clase entera (feriado, enfermedad) en un toque.
 
 ### RPG
 - [ ] Tipo de sesión como lista (RPG, masajes, evaluación inicial; editable), no texto libre con default "RPG".
 - [ ] Botón eliminar turno (la query `deleteSesionRPG` existe, no hay UI).
-- [ ] El tooltip de `TurnoCard` dice "Mes pagado/pendiente", pero en RPG el pago es por sesión.
+- [x] El tooltip de `TurnoCard` decía "Mes pagado/pendiente"; ahora "Sesión: pagado/pendiente" (Fase 0.5).
 - [ ] Crear paciente nuevo rápido desde el modal de turno.
 
 ### Historia clínica
@@ -125,9 +132,9 @@ Sacado de Fase 4 lo que Fase 1 necesita, para no multiplicar código duplicado y
 - [ ] Resto de componentes UI base en `src/components/ui/` (Button, Input, Modal, Badge).
 - [ ] Instalar `tw-animate-css` o quitar las clases `animate-in` (bug #8).
 - [ ] Limpiar `globals.css` (variables Geist sin uso) y el comentario suelto en `layout.tsx`.
-- [ ] `TpaWeeklyView`: calcular fechas con `addDays` en lugar de sumar milisegundos.
-- [ ] Manejo de errores visible en las cargas (hoy solo `console.error`).
-- [ ] Historia clínica: datos del paciente anterior si falla la carga, estados en crudo, pestaña que no se resetea (N8).
+- [x] `TpaWeeklyView`: calcular fechas con `addDays` en lugar de sumar milisegundos (Fase 0.5).
+- [x] Manejo de errores visible en las cargas: Toast de error en todas las pantallas (Fase 0.5).
+- [ ] Historia clínica: datos del paciente anterior si falla la carga y pestaña que no se resetea (N8). Los estados ya no se muestran en crudo (Fase 0.5).
 - [ ] `CalendarMonthView`: refresco sin `catch`, esqueleto solo en una celda, días de relleno sin turnos (N9).
 - [ ] `TpaClaseModal`: pasar el id del día (`miercoles`) en vez de derivarlo del texto (N12).
 - [ ] Tipos de `src/types/index.ts` con la nulabilidad real de la base (o generarlos con Supabase).
@@ -171,12 +178,12 @@ Para Fase 1 bloquean la 1, 2, 3, 6 y 9; para Fase 2, la 4 y la 5.
 | N6 | 0 (bloqueante carga) | `pacientes/page.tsx:107` | No hay baja de pacientes; editar fuerza `activo: true`; inactivos no aparecen en `TurnoModal`. |
 | N13 | 0 | raíz | `.gitignore` no ignoraba `respuesta.md`. ✅ Corregido. |
 | N14 | 0 | `package.json` | `@supabase/ssr` ya instalado y sin usar: se usa para el login. |
-| 1 | 0.5 | `TpaWeeklyView` / `TpaClaseModal` | **Confirmado:** horas `"HH:mm:ss"` de la base vs `"HH:mm"` de la grilla → filas duplicadas (una `08:00` vacía y otra `08:00:00` con los alumnos); si inscribís desde la fila `08:00`, el alumno "salta" a la otra. **Riesgo futuro (hoy no reproducible):** asistencia que se guarda pero no se ve, y error de unique al re-guardar una clase, en cuanto se puedan agregar no fijos o se normalice a medias. |
-| N10 | 0.5 | `TurnoModal.tsx:50` | La hora llega como `"HH:mm:ss"` al `<input type="time">`. Mismo origen que #1. |
-| 6 | 0.5 / 3 | `Header` | Campana con punto rojo fijo (sacarla en 0.5); buscador que no busca (Fase 3). |
+| 1 | 0.5 ✅ | `TpaWeeklyView` / `TpaClaseModal` | **Corregido en Fase 0.5** (`normalizarHora` + `conHora` en queries). Era: horas `"HH:mm:ss"` de la base vs `"HH:mm"` de la grilla → filas duplicadas (una `08:00` vacía y otra `08:00:00` con los alumnos); si inscribís desde la fila `08:00`, el alumno "salta" a la otra. **Riesgo futuro (hoy no reproducible):** asistencia que se guarda pero no se ve, y error de unique al re-guardar una clase, en cuanto se puedan agregar no fijos o se normalice a medias. |
+| N10 | 0.5 ✅ | `TurnoModal.tsx:50` | La hora llega como `"HH:mm:ss"` al `<input type="time">`. Mismo origen que #1. |
+| 6 | 0.5 ✅ / 3 | `Header` | Campana falsa: sacada en 0.5. Buscador que no busca: Fase 3. |
 | N2 | 1 | `TpaWeeklyView.tsx:161, 203-205` | Cualquier semana muestra los fijos **de hoy**, no quienes estuvieron. Las asistencias de no fijos nunca se verían. |
-| N3 | 1 | `TpaWeeklyView` + `TpaClaseModal` | Modal con copia congelada de alumnos; el efecto se re-ejecuta en cada render y borra marcas sin guardar. |
-| 2 | 1 | `TpaClaseModal.tsx:96` | Volver a "pendiente" no se guarda; si todo queda pendiente se crea igual una clase vacía. |
+| N3 | 0.5 / 1 | `TpaWeeklyView` + `TpaClaseModal` | Modal con copia congelada de alumnos: ✅ corregido en 0.5 (datos derivados + `useMemo`). Queda: inscribir/desinscribir borra marcas sin guardar (Fase 1). |
+| 2 | 0.5 ✅ | `TpaClaseModal` | Volver a "pendiente" no se guardaba y se creaba una clase vacía. Corregido en 0.5. |
 | 4 | 1 | `HistoriaClinicaModal` | No muestra `evaluacion_inicial`. |
 | 5 | 1 / 3 | `HistoriaClinicaModal` | Alertas por palabra clave sobre **todo** el historial, aunque el texto dice "recientes". |
 | N11 | 1 | `Navigation.tsx:26` | `pb-safe` no existe en Tailwind 4: en iPhone la barra queda sobre la barra de inicio. |

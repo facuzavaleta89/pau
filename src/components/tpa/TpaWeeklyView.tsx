@@ -1,20 +1,23 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Clock, ChevronLeft, ChevronRight, User } from "lucide-react";
-import { cn } from "@/components/layout/Navigation";
-import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO } from 'date-fns';
+import { Clock, ChevronLeft, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getHorariosTPA, getClasesTPAPorRango, getAsistenciasTPA } from "@/lib/queries";
-import { registrarError } from "@/lib/errores";
-import type { HorarioTPA, ClaseTPA, AsistenciaTPA, EstadoAsistenciaTPA } from "@/types";
+import { mensajeError, registrarError } from "@/lib/errores";
+import { normalizarHora } from "@/lib/horas";
+import { ESTADOS_ASISTENCIA } from "@/lib/estados";
+import { useToast } from "@/components/ui/ToastProvider";
+import type { HorarioTPA, ClaseTPA, AsistenciaTPA } from "@/types";
 import { TpaClaseModal } from "./TpaClaseModal";
 import { HistoriaClinicaModal } from "@/components/pacientes/HistoriaClinicaModal";
 
 const DIAS_SEMANA = [
-  { id: 'lunes', label: 'Lunes' },
-  { id: 'miercoles', label: 'Miércoles' },
-  { id: 'viernes', label: 'Viernes' }
+  { id: 'lunes', label: 'Lunes', offset: 0 },
+  { id: 'miercoles', label: 'Miércoles', offset: 2 },
+  { id: 'viernes', label: 'Viernes', offset: 4 }
 ] as const;
 
 export function TpaWeeklyView() {
@@ -30,22 +33,23 @@ export function TpaWeeklyView() {
   const [selectedPacienteId, setSelectedPacienteId] = useState<string | null>(null);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   
-  // Modal states
+  // Modal: solo guarda qué celda está abierta. Los alumnos, la clase y las
+  // asistencias se derivan de los datos actuales (no una copia congelada),
+  // así el modal se actualiza al inscribir/desinscribir o al recargar.
   const [modalData, setModalData] = useState<{
     isOpen: boolean;
-    horarios: HorarioTPA[];
-    claseExistente: ClaseTPA | null;
     fecha: string;
     hora: string;
+    diaId: string;
     diaSemana: string;
   }>({
     isOpen: false,
-    horarios: [],
-    claseExistente: null,
     fecha: '',
     hora: '',
+    diaId: '',
     diaSemana: ''
   });
+  const toast = useToast();
 
   const fetchWeekData = async () => {
     setLoading(true);
@@ -72,7 +76,8 @@ export function TpaWeeklyView() {
         setAsistencias([]);
       }
     } catch (error) {
-      registrarError("Error fetching TPA data", error);
+      registrarError("Error cargando la semana TPA", error);
+      toast.error(`No se pudo cargar la agenda TPA. ${mensajeError(error)}`);
     } finally {
       setLoading(false);
     }
@@ -95,25 +100,29 @@ export function TpaWeeklyView() {
       times.add(`${i.toString().padStart(2, '0')}:00`);
     }
 
-    horarios.forEach(h => times.add(h.hora));
-    clases.forEach(c => times.add(c.hora)); // Include times if a class was created outside fixed schedule
+    horarios.forEach(h => times.add(normalizarHora(h.hora)));
+    clases.forEach(c => times.add(normalizarHora(c.hora))); // Include times if a class was created outside fixed schedule
     return Array.from(times).sort();
   }, [horarios, clases]);
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
 
-  const getStatusColor = (estado?: EstadoAsistenciaTPA) => {
-    switch (estado) {
-      case 'presente': return 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100/50';
-      case 'aviso_ausencia': return 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/50';
-      case 'falto_sin_avisar': return 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100/50';
-      case 'recupera': return 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100/50';
-      case 'vino_otra_clase': return 'bg-teal-50 text-teal-700 border-teal-200 hover:bg-teal-100/50';
-      case 'cancelado': return 'bg-stone-100 text-stone-400 border-stone-200 hover:bg-stone-200/50';
-      default: return 'bg-stone-50 text-stone-400 border-stone-200 hover:bg-stone-100/50';
-    }
-  };
+  const mismaHora = (a: string, b: string) => normalizarHora(a) === normalizarHora(b);
+
+  // Datos de la celda abierta en el modal, siempre tomados del estado actual.
+  const modalHorarios = useMemo(
+    () => horarios.filter(h => h.dia_semana === modalData.diaId && mismaHora(h.hora, modalData.hora)),
+    [horarios, modalData.diaId, modalData.hora]
+  );
+  const modalClase = useMemo(
+    () => clases.find(c => c.fecha === modalData.fecha && mismaHora(c.hora, modalData.hora)) ?? null,
+    [clases, modalData.fecha, modalData.hora]
+  );
+  const modalAsistencias = useMemo(
+    () => (modalClase ? asistencias.filter(a => a.clase_id === modalClase.id) : []),
+    [asistencias, modalClase]
+  );
 
   return (
     <div className="flex flex-col h-full bg-white">
@@ -159,20 +168,14 @@ export function TpaWeeklyView() {
 
                 {/* Day Columns */}
                 {DIAS_SEMANA.map((dia) => {
-                  const dayHorarios = horarios.filter(h => h.hora === time && h.dia_semana === dia.id);
+                  const dayHorarios = horarios.filter(h => mismaHora(h.hora, time) && h.dia_semana === dia.id);
                   const maxSlots = 5;
                   
-                  // Calculate exact date for this column
-                  let dayOffset = 0;
-                  if (dia.id === 'lunes') dayOffset = 0;
-                  if (dia.id === 'miercoles') dayOffset = 2;
-                  if (dia.id === 'viernes') dayOffset = 4;
-                  
-                  // In JS, startOfWeek with weekStartsOn: 1 means Monday is day 1. 
-                  const cellDate = format(new Date(weekStart.getTime() + dayOffset * 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
+                  // Fecha exacta de esta columna (la semana arranca el lunes)
+                  const cellDate = format(addDays(weekStart, dia.offset), 'yyyy-MM-dd');
                   
                   // Check if a class exists for this date and time
-                  const classThisWeek = clases.find(c => c.fecha === cellDate && c.hora === time);
+                  const classThisWeek = clases.find(c => c.fecha === cellDate && mismaHora(c.hora, time));
                   
                   return (
                     <div 
@@ -181,10 +184,9 @@ export function TpaWeeklyView() {
                       onClick={() => {
                         setModalData({
                           isOpen: true,
-                          horarios: dayHorarios,
-                          claseExistente: classThisWeek || null,
                           fecha: cellDate,
                           hora: time,
+                          diaId: dia.id,
                           diaSemana: dia.label
                         });
                       }}
@@ -206,7 +208,8 @@ export function TpaWeeklyView() {
                               ? asistencias.find(a => a.clase_id === classThisWeek.id && a.paciente_id === horario.paciente_id)
                               : null;
                             
-                            const estado = asistencia?.estado;
+                            const estado = ESTADOS_ASISTENCIA[asistencia?.estado ?? 'pendiente'];
+                            const IconoEstado = estado.icono;
                             
                             return (
                               <div 
@@ -216,12 +219,13 @@ export function TpaWeeklyView() {
                                   setSelectedPacienteId(horario.paciente_id);
                                   setIsHistoryModalOpen(true);
                                 }}
+                                title={estado.label}
                                 className={cn(
-                                  "flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all border font-medium active:scale-95 cursor-pointer shadow-sm",
-                                  getStatusColor(estado as EstadoAsistenciaTPA)
+                                  "flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all border font-medium active:scale-95 cursor-pointer shadow-sm hover:shadow-md",
+                                  estado.clases
                                 )}
                               >
-                                <User className="w-3.5 h-3.5 opacity-75" />
+                                <IconoEstado className="w-3.5 h-3.5 shrink-0" aria-label={estado.label} />
                                 <span className="truncate w-full hover:underline">{horario.pacientes?.nombre}</span>
                               </div>
                             );
@@ -245,9 +249,9 @@ export function TpaWeeklyView() {
       <TpaClaseModal 
         isOpen={modalData.isOpen}
         onClose={() => setModalData(prev => ({ ...prev, isOpen: false }))}
-        horarios={modalData.horarios}
-        claseExistente={modalData.claseExistente}
-        asistenciasActuales={asistencias.filter(a => a.clase_id === modalData.claseExistente?.id)}
+        horarios={modalHorarios}
+        claseExistente={modalClase}
+        asistenciasActuales={modalAsistencias}
         fecha={modalData.fecha}
         hora={modalData.hora}
         diaSemana={modalData.diaSemana}
