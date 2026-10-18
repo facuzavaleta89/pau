@@ -10,7 +10,9 @@
 -- (permiten todo a cualquiera con la anon key). Se reemplazan en la Fase 0.
 --
 -- ⚠️ Todas las FK son ON DELETE CASCADE: borrar un paciente borra toda su historia.
--- Pendiente de cambiar en Fase 0 (baja lógica + RESTRICT).
+-- Decisión vigente: en Fase 0 se mantiene el borrado real (con confirmación en la app).
+-- Pasar a baja lógica + ON DELETE RESTRICT es BLOQUEANTE antes de cargar pacientes reales
+-- (ver PENDIENTES.md).
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
