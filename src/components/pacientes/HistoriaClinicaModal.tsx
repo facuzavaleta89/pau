@@ -75,18 +75,19 @@ export function HistoriaClinicaModal({ isOpen, onClose, pacienteId }: HistoriaCl
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white border border-stone-200 w-full max-w-4xl h-[85vh] rounded-2xl shadow-xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 text-stone-900">
+    <div className="fixed inset-0 z-[60] flex md:items-center justify-center md:p-4 bg-stone-900/50 backdrop-blur-sm">
+      {/* Celular: pantalla completa. Compu: modal centrado. */}
+      <div role="dialog" aria-modal="true" className="bg-white w-full h-[100dvh] md:h-[85vh] md:max-w-4xl md:border md:border-stone-200 md:rounded-2xl shadow-xl overflow-hidden flex flex-col text-stone-900">
         
         {/* Header */}
-        <div className="px-6 py-5 border-b border-stone-200 flex items-start justify-between bg-white">
-          <div>
-            <div className="flex items-center gap-3">
-              <h2 className="text-xl font-bold text-stone-900 tracking-tight">
+        <div className="px-4 md:px-6 pb-3 md:py-5 pt-[max(0.75rem,env(safe-area-inset-top))] border-b border-stone-200 flex items-start justify-between gap-3 bg-white">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h2 className="text-lg md:text-xl font-bold text-stone-900 tracking-tight">
                 {paciente ? paciente.nombre : 'Cargando Historia Clínica...'}
               </h2>
               {alertsCount > 0 && (
-                <span className="flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-0.5 rounded-full text-xs font-semibold shadow-sm animate-pulse">
+                <span className="flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-0.5 rounded-full text-xs font-semibold">
                   <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
                   {alertsCount} {alertsCount === 1 ? 'alerta' : 'alertas'}
                 </span>
@@ -100,7 +101,8 @@ export function HistoriaClinicaModal({ isOpen, onClose, pacienteId }: HistoriaCl
           </div>
           <button 
             onClick={onClose} 
-            className="p-2 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-full transition-colors"
+            aria-label="Cerrar"
+            className="shrink-0 -mr-2 h-11 w-11 flex items-center justify-center text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -113,11 +115,11 @@ export function HistoriaClinicaModal({ isOpen, onClose, pacienteId }: HistoriaCl
         ) : (
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-stone-50">
             {/* Sidebar Tabs */}
-            <div className="w-full md:w-56 bg-white border-r border-stone-200 flex md:flex-col p-2 gap-1 overflow-x-auto md:overflow-x-visible">
+            <div className="shrink-0 w-full md:w-56 bg-white border-b md:border-b-0 md:border-r border-stone-200 flex md:flex-col p-2 gap-1 overflow-x-auto md:overflow-x-visible">
               <button
                 onClick={() => setActiveTab('ficha')}
                 className={cn(
-                  "flex items-center gap-2.5 px-4 py-3 rounded-lg text-sm font-semibold transition-all w-full shrink-0 md:shrink cursor-pointer",
+                  "flex items-center gap-2.5 px-4 min-h-11 rounded-lg text-sm font-semibold transition-all md:w-full shrink-0 md:shrink whitespace-nowrap cursor-pointer",
                   activeTab === 'ficha' 
                     ? "bg-teal-600 text-white shadow-sm" 
                     : "text-stone-500 hover:bg-stone-50 hover:text-stone-900"
@@ -129,7 +131,7 @@ export function HistoriaClinicaModal({ isOpen, onClose, pacienteId }: HistoriaCl
               <button
                 onClick={() => setActiveTab('historial')}
                 className={cn(
-                  "flex items-center gap-2.5 px-4 py-3 rounded-lg text-sm font-semibold transition-all w-full shrink-0 md:shrink cursor-pointer",
+                  "flex items-center gap-2.5 px-4 min-h-11 rounded-lg text-sm font-semibold transition-all md:w-full shrink-0 md:shrink whitespace-nowrap cursor-pointer",
                   activeTab === 'historial' 
                     ? "bg-teal-600 text-white shadow-sm" 
                     : "text-stone-500 hover:bg-stone-50 hover:text-stone-900"
@@ -141,7 +143,7 @@ export function HistoriaClinicaModal({ isOpen, onClose, pacienteId }: HistoriaCl
               <button
                 onClick={() => setActiveTab('alertas')}
                 className={cn(
-                  "flex items-center gap-2.5 px-4 py-3 rounded-lg text-sm font-semibold transition-all w-full shrink-0 md:shrink relative cursor-pointer",
+                  "flex items-center gap-2.5 px-4 min-h-11 rounded-lg text-sm font-semibold transition-all md:w-full shrink-0 md:shrink whitespace-nowrap relative cursor-pointer",
                   activeTab === 'alertas' 
                     ? "bg-teal-600 text-white shadow-sm" 
                     : "text-stone-500 hover:bg-stone-50 hover:text-stone-900"
@@ -156,7 +158,7 @@ export function HistoriaClinicaModal({ isOpen, onClose, pacienteId }: HistoriaCl
             </div>
 
             {/* Content Area */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-stone-50">
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 md:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-6 bg-stone-50">
               
               {/* Tab 1: Ficha del Paciente */}
               {activeTab === 'ficha' && paciente && (

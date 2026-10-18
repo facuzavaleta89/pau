@@ -1,6 +1,8 @@
 import { supabase } from './supabase';
 import { ErrorApp } from './errores';
 import { normalizarHora } from './horas';
+import type { DatosSemanaTPA } from './tpa';
+import { format } from 'date-fns';
 import type { Paciente, SesionRPG, Pago, HorarioTPA, ClaseTPA, AsistenciaTPA } from '@/types';
 
 // Con RLS, una escritura que la base no permite (sesión vencida, usuario no
@@ -115,6 +117,8 @@ export async function getPagosMesActual(mes: number, año: number) {
 // TPA (TERAPIA POSTURAL ACTIVA)
 // ==========================================
 
+// Todos los horarios, activos e inactivos: para armar una semana pasada hace
+// falta saber quién era fijo en esa fecha (ver eraFijoEn en src/lib/tpa.ts).
 export async function getHorariosTPA() {
   const { data, error } = await supabase
     .from('horarios_tpa')
@@ -122,11 +126,20 @@ export async function getHorariosTPA() {
       *,
       pacientes (nombre, telefono)
     `)
-    .eq('activo', true)
     .order('hora', { ascending: true });
 
   if (error) throw error;
   return ((data || []) as HorarioTPA[]).map(conHora);
+}
+
+// Todo lo necesario para armar una semana de TPA (armarSemanaTPA).
+export async function cargarSemanaTPA(desde: string, hasta: string): Promise<DatosSemanaTPA> {
+  const [horarios, clases] = await Promise.all([
+    getHorariosTPA(),
+    getClasesTPAPorRango(desde, hasta),
+  ]);
+  const asistencias = await getAsistenciasTPA(clases.map((c) => c.id));
+  return { horarios, clases, asistencias };
 }
 
 export async function createHorarioTPA(horario: { paciente_id: string; dia_semana: 'lunes' | 'miercoles' | 'viernes'; hora: string }) {
@@ -139,12 +152,18 @@ export async function createHorarioTPA(horario: { paciente_id: string; dia_seman
   return conHora(exigirUnaFila(data as HorarioTPA[] | null, 'No se pudo inscribir al alumno.'));
 }
 
+// Desinscribe guardando la fecha de baja (sigue siendo fijo en las fechas anteriores).
 export async function deactivateHorarioTPA(id: string) {
-  const { data, error } = await supabase
+  const desactivar = (cambios: { activo: false; fecha_baja?: string }) => supabase
     .from('horarios_tpa')
-    .update({ activo: false })
+    .update(cambios)
     .eq('id', id)
     .select();
+
+  let { data, error } = await desactivar({ activo: false, fecha_baja: format(new Date(), 'yyyy-MM-dd') });
+  // PGRST204 = la columna no existe: la migración 20261019000001 todavía no está
+  // aplicada. Se desinscribe igual, sin fecha. Borrar este fallback cuando esté aplicada.
+  if (error?.code === 'PGRST204') ({ data, error } = await desactivar({ activo: false }));
 
   if (error) throw error;
   return conHora(exigirUnaFila(data as HorarioTPA[] | null, 'No se pudo desinscribir al alumno.'));
@@ -172,7 +191,7 @@ export async function getAsistenciasTPA(claseIds: string[]) {
     .in('clase_id', claseIds);
 
   if (error) throw error;
-  return data || [];
+  return (data || []) as AsistenciaTPA[];
 }
 
 export async function upsertAsistenciaTPA(asistencia: Partial<AsistenciaTPA>) {

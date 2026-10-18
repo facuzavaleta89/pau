@@ -6,10 +6,10 @@ import { Calendar, Users, CreditCard, LayoutGrid } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
-  { name: 'Agenda RPG', href: '/rpg', icon: Calendar },
-  { name: 'Agenda TPA', href: '/tpa', icon: LayoutGrid },
-  { name: 'Pacientes', href: '/pacientes', icon: Users },
-  { name: 'Pagos', href: '/pagos', icon: CreditCard },
+  { name: 'Agenda RPG', corto: 'RPG', href: '/rpg', icon: Calendar },
+  { name: 'Agenda TPA', corto: 'TPA', href: '/tpa', icon: LayoutGrid },
+  { name: 'Pacientes', corto: 'Pacientes', href: '/pacientes', icon: Users },
+  { name: 'Pagos', corto: 'Pagos', href: '/pagos', icon: CreditCard },
 ];
 
 export default function Navigation() {
@@ -18,7 +18,8 @@ export default function Navigation() {
   return (
     <>
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 w-full bg-white/90 backdrop-blur-md border-t border-stone-200 z-50 pb-safe shadow-lg">
+      {/* pb con env(): deja libre la barra de inicio del iPhone (N11; `pb-safe` no existe en Tailwind 4). */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white/90 backdrop-blur-md border-t border-stone-200 z-40 pb-[env(safe-area-inset-bottom)] shadow-lg">
         <div className="flex justify-around items-center h-16 px-2">
           {navItems.map((item) => {
             const isActive = pathname.startsWith(item.href);
@@ -33,7 +34,7 @@ export default function Navigation() {
                 )}
               >
                 <Icon className={cn("w-5 h-5", isActive && "scale-110 text-teal-600")} strokeWidth={isActive ? 2.5 : 2} />
-                <span className={cn("text-[10px]", isActive ? "font-semibold text-teal-600" : "font-medium text-stone-500")}>{item.name}</span>
+                <span className={cn("text-xs", isActive ? "font-semibold text-teal-600" : "font-medium text-stone-500")}>{item.corto}</span>
               </Link>
             );
           })}

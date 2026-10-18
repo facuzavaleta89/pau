@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { X, Calendar as CalendarIcon, Clock, Save, User, CheckCircle2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Save, User, CheckCircle2 } from 'lucide-react';
+import { Modal, BOTON_PIE_PRIMARIO, BOTON_PIE_SECUNDARIO } from '@/components/ui/Modal';
 import type { SesionRPG, Paciente, EstadoPago, EstadoSesionRPG } from '@/types';
 import { getPacientesActivos, createSesionRPG, updateSesionRPG } from '@/lib/queries';
 import { mensajeError, registrarError } from '@/lib/errores';
@@ -108,28 +109,25 @@ export function TurnoModal({ isOpen, onClose, turno, selectedDate, onSave }: Tur
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl border border-stone-200 w-full max-w-md shadow-xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
-        
-        {/* Header */}
-        <div className="px-6 py-5 border-b border-stone-200 flex items-start justify-between bg-white">
-          <div>
-            <h3 className="text-xl font-bold text-stone-900 capitalize tracking-tight">
-              {turno ? 'Editar Turno RPG' : 'Nuevo Turno RPG'}
-            </h3>
-            <p className="text-sm font-medium text-stone-600 mt-1">Completa los detalles de la sesión</p>
-          </div>
-          <button 
-            onClick={onClose}
-            className="p-2 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-full transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+  const pie = (
+    <>
+      <button type="button" onClick={onClose} className={BOTON_PIE_SECUNDARIO}>
+        Cancelar
+      </button>
+      <button type="submit" form="turno-form" disabled={saving || loading} className={BOTON_PIE_PRIMARIO}>
+        {saving ? (
+          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+        ) : (
+          <Save size={16} />
+        )}
+        Guardar
+      </button>
+    </>
+  );
 
-        {/* Body */}
-        <form id="turno-form" onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1 space-y-5">
+  return (
+    <Modal titulo={turno ? 'Editar turno RPG' : 'Nuevo turno RPG'} onCerrar={onClose} pie={pie} ancho="md">
+        <form id="turno-form" onSubmit={handleSubmit} className="p-4 md:p-6 space-y-5 text-base md:text-sm">
           
           <div className="space-y-1.5">
             <label className="text-sm font-semibold text-stone-600 flex items-center gap-1.5">
@@ -220,31 +218,6 @@ export function TurnoModal({ isOpen, onClose, turno, selectedDate, onSave }: Tur
           </div>
 
         </form>
-
-        {/* Footer */}
-        <div className="p-5 border-t border-stone-200 bg-white flex justify-end gap-3">
-          <button 
-            type="button"
-            onClick={onClose}
-            className="px-5 py-2.5 text-sm font-semibold text-stone-700 hover:bg-stone-50 bg-white border border-stone-200 rounded-lg transition-colors"
-          >
-            Cancelar
-          </button>
-          <button 
-            type="submit"
-            form="turno-form"
-            disabled={saving || loading}
-            className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-6 py-2.5 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none shadow-sm"
-          >
-            {saving ? (
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <Save className="w-5 h-5" />
-            )}
-            Guardar
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

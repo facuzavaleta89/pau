@@ -1,227 +1,116 @@
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
-import { 
-  format, 
-  addMonths, 
-  subMonths, 
-  startOfMonth, 
-  endOfMonth, 
-  eachDayOfInterval, 
-  isSameMonth, 
-  isToday,
-  isTuesday,
-  isThursday,
-  startOfWeek,
-  endOfWeek
+import { useMemo } from 'react';
+import {
+  format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isTuesday, isThursday,
+  startOfWeek, endOfWeek,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
-import { getSesionesRPGPorRango } from '@/lib/queries';
-import { mensajeError, registrarError } from '@/lib/errores';
-import { useToast } from '@/components/ui/ToastProvider';
+import { Plus } from 'lucide-react';
 import type { SesionRPG } from '@/types';
 import { cn } from '@/lib/utils';
+import { SemanaNav } from '@/components/ui/SemanaNav';
 import { TurnoCard } from './TurnoCard';
-import { TurnoModal } from './TurnoModal';
-import { HistoriaClinicaModal } from '../pacientes/HistoriaClinicaModal';
 
-export function CalendarMonthView() {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const toast = useToast();
-  const [sesiones, setSesiones] = useState<SesionRPG[]>([]);
-  const [loading, setLoading] = useState(true);
-  
-  // Modal states
-  const [isTurnoModalOpen, setIsTurnoModalOpen] = useState(false);
-  const [selectedTurno, setSelectedTurno] = useState<SesionRPG | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
-  
-  const [isHistoriaModalOpen, setIsHistoriaModalOpen] = useState(false);
-  const [selectedPacienteId, setSelectedPacienteId] = useState<string | null>(null);
+interface CalendarMonthViewProps {
+  mes: Date;
+  sesiones: SesionRPG[];
+  cargando: boolean;
+  onAnterior: () => void;
+  onHoy: () => void;
+  onSiguiente: () => void;
+  onNuevoTurno: (dia?: Date) => void;
+  onEditarTurno: (turno: SesionRPG) => void;
+  onAbrirPaciente: (pacienteId: string) => void;
+}
 
-  // Fetch data when month changes
-  useEffect(() => {
-    const fetchSesiones = async () => {
-      setLoading(true);
-      try {
-        const start = startOfMonth(currentDate);
-        const end = endOfMonth(currentDate);
-        const data = await getSesionesRPGPorRango(
-          format(start, 'yyyy-MM-dd'),
-          format(end, 'yyyy-MM-dd')
-        );
-        setSesiones(data);
-      } catch (error) {
-        registrarError("Error cargando turnos RPG", error);
-        toast.error(`No se pudo cargar la agenda RPG. ${mensajeError(error)}`);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSesiones();
-  }, [currentDate, toast]);
-
-  // Calendar generation
+// Vista de compu: calendario mensual (lunes a domingo, martes y jueves resaltados).
+export function CalendarMonthView({
+  mes, sesiones, cargando, onAnterior, onHoy, onSiguiente, onNuevoTurno, onEditarTurno, onAbrirPaciente,
+}: CalendarMonthViewProps) {
   const days = useMemo(() => {
-    const start = startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 });
-    const end = endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 });
+    const start = startOfWeek(startOfMonth(mes), { weekStartsOn: 1 });
+    const end = endOfWeek(endOfMonth(mes), { weekStartsOn: 1 });
     return eachDayOfInterval({ start, end });
-  }, [currentDate]);
-
-  const handlePreviousMonth = () => setCurrentDate(subMonths(currentDate, 1));
-  const handleNextMonth = () => setCurrentDate(addMonths(currentDate, 1));
-  const handleToday = () => setCurrentDate(new Date());
-
-  const openNewTurno = (date?: Date) => {
-    setSelectedTurno(null);
-    setSelectedDate(date);
-    setIsTurnoModalOpen(true);
-  };
-
-  const openEditTurno = (turno: SesionRPG) => {
-    setSelectedTurno(turno);
-    setIsTurnoModalOpen(true);
-  };
-
-  const openHistoriaClinica = (pacienteId: string) => {
-    setSelectedPacienteId(pacienteId);
-    setIsHistoriaModalOpen(true);
-  };
+  }, [mes]);
 
   return (
-    <div className="flex flex-col h-full bg-white">
-      {/* Calendar Header */}
-      <div className="flex items-center justify-between p-5 border-b border-stone-200 bg-white">
-        <div className="flex items-center gap-4">
-          <h2 className="text-xl font-bold tracking-tight text-stone-900 capitalize w-48">
-            {format(currentDate, 'MMMM yyyy', { locale: es })}
-          </h2>
-          <div className="flex bg-stone-100 rounded-lg p-1 border border-stone-200">
-            <button 
-              onClick={handlePreviousMonth}
-              className="p-1.5 rounded-md hover:bg-white hover:text-stone-900 text-stone-600 hover:shadow-sm transition-all"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <button 
-              onClick={handleToday}
-              className="px-4 py-1.5 text-sm font-semibold text-stone-600 hover:text-stone-900 hover:bg-white hover:shadow-sm transition-all rounded-md"
-            >
-              Hoy
-            </button>
-            <button 
-              onClick={handleNextMonth}
-              className="p-1.5 rounded-md hover:bg-white hover:text-stone-900 text-stone-600 hover:shadow-sm transition-all"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
+    <div className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between gap-4 p-4 border-b border-stone-200">
+        <div className="w-full max-w-sm">
+          <SemanaNav
+            etiqueta={format(mes, 'MMMM yyyy', { locale: es })}
+            onAnterior={onAnterior}
+            onHoy={onHoy}
+            onSiguiente={onSiguiente}
+            textoAnterior="Mes anterior"
+            textoSiguiente="Mes siguiente"
+          />
         </div>
-        <button 
-          onClick={() => openNewTurno()}
-          className="bg-teal-600 hover:bg-teal-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors active:scale-95 flex items-center gap-2 shadow-sm"
+        <button
+          type="button"
+          onClick={() => onNuevoTurno()}
+          className="h-11 shrink-0 bg-teal-600 hover:bg-teal-700 text-white px-4 rounded-lg text-sm font-medium transition-colors duration-150 flex items-center gap-2"
         >
-          <span className="text-lg leading-none">+</span> <span className="hidden sm:inline">Nuevo Turno</span>
+          <Plus size={16} /> Nuevo turno
         </button>
       </div>
 
-      {/* Calendar Grid */}
-      <div className="flex-1 flex flex-col overflow-auto bg-stone-50">
-        <div className="grid grid-cols-7 border-b border-stone-200 bg-stone-50 sticky top-0 z-10">
+      <div className={cn('transition-opacity duration-150', cargando && 'opacity-60')} aria-busy={cargando}>
+        <div className="grid grid-cols-7 border-b border-stone-200 bg-stone-50">
           {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((day) => (
             <div key={day} className="py-3 text-center text-xs font-semibold text-stone-400 uppercase tracking-wider">
               {day}
             </div>
           ))}
         </div>
-        <div className="flex-1 grid grid-cols-7 auto-rows-fr bg-stone-200 gap-[1px]">
-          {days.map((day, dayIdx) => {
-            const isCurrentMonth = isSameMonth(day, currentDate);
+        <div className="grid grid-cols-7 auto-rows-fr bg-stone-200 gap-px">
+          {days.map((day) => {
+            const isCurrentMonth = isSameMonth(day, mes);
             const isActiveDay = isTuesday(day) || isThursday(day);
             const daySesiones = sesiones.filter(s => s.fecha === format(day, 'yyyy-MM-dd'));
 
             return (
-              <div 
+              <div
                 key={day.toString()}
                 className={cn(
-                  "min-h-[120px] p-2 transition-all group relative flex flex-col justify-between",
+                  "min-h-[120px] min-w-0 p-2 flex flex-col gap-2",
                   !isCurrentMonth && "bg-stone-50/40 text-stone-400",
                   isCurrentMonth && isActiveDay && "bg-white",
                   isCurrentMonth && !isActiveDay && "bg-stone-50/60"
                 )}
               >
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className={cn(
-                      "w-7 h-7 flex items-center justify-center rounded-full text-xs font-bold transition-all",
-                      isToday(day) ? "bg-teal-600 text-white shadow-sm" : 
-                      (!isCurrentMonth ? "text-stone-400" : "text-stone-900")
-                    )}>
-                      {format(day, 'd')}
-                    </span>
-                    {isActiveDay && isCurrentMonth && (
-                      <button 
-                        onClick={() => openNewTurno(day)}
-                        className="p-1 text-stone-400 hover:text-teal-600 hover:bg-stone-100 rounded-full transition-colors opacity-0 group-hover:opacity-100 md:opacity-100"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                  
-                  <div className="space-y-2">
-                    {loading && dayIdx === 15 ? (
-                      <div className="animate-pulse space-y-2">
-                        <div className="h-16 bg-stone-200 rounded-xl w-full"></div>
-                      </div>
-                    ) : (
-                      daySesiones.map(turno => (
-                        <TurnoCard 
-                          key={turno.id}
-                          turno={turno}
-                          onClick={() => openEditTurno(turno)}
-                          onPacienteClick={(e) => {
-                            e.stopPropagation();
-                            openHistoriaClinica(turno.paciente_id);
-                          }}
-                        />
-                      ))
-                    )}
-                  </div>
+                <div className="flex justify-between items-center">
+                  <span className={cn(
+                    "w-7 h-7 flex items-center justify-center rounded-full text-xs font-bold",
+                    isToday(day) ? "bg-teal-600 text-white" : (!isCurrentMonth ? "text-stone-400" : "text-stone-900")
+                  )}>
+                    {format(day, 'd')}
+                  </span>
+                  {isActiveDay && (
+                    <button
+                      type="button"
+                      onClick={() => onNuevoTurno(day)}
+                      aria-label={`Nuevo turno el ${format(day, "d 'de' MMMM", { locale: es })}`}
+                      className="h-8 w-8 flex items-center justify-center text-stone-400 hover:text-teal-600 hover:bg-stone-100 rounded-full transition-colors duration-150"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  )}
                 </div>
+                {daySesiones.map(turno => (
+                  <TurnoCard
+                    key={turno.id}
+                    turno={turno}
+                    onClick={() => onEditarTurno(turno)}
+                    onPacienteClick={() => onAbrirPaciente(turno.paciente_id)}
+                  />
+                ))}
               </div>
             );
           })}
         </div>
       </div>
-
-      <TurnoModal 
-        isOpen={isTurnoModalOpen} 
-        onClose={() => setIsTurnoModalOpen(false)} 
-        turno={selectedTurno}
-        selectedDate={selectedDate}
-        onSave={() => {
-          // Manually trigger fetch logic
-          const fetchSesiones = async () => {
-            const start = startOfMonth(currentDate);
-            const end = endOfMonth(currentDate);
-            const data = await getSesionesRPGPorRango(
-              format(start, 'yyyy-MM-dd'),
-              format(end, 'yyyy-MM-dd')
-            );
-            setSesiones(data);
-          };
-          fetchSesiones();
-        }}
-      />
-
-      <HistoriaClinicaModal 
-        isOpen={isHistoriaModalOpen}
-        onClose={() => setIsHistoriaModalOpen(false)}
-        pacienteId={selectedPacienteId}
-      />
     </div>
   );
 }
