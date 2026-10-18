@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { X, Calendar as CalendarIcon, Clock, Save, User, CheckCircle2 } from 'lucide-react';
 import type { SesionRPG, Paciente, EstadoPago, EstadoSesionRPG } from '@/types';
 import { getPacientesActivos, createSesionRPG, updateSesionRPG } from '@/lib/queries';
+import { mensajeError, registrarError } from '@/lib/errores';
 import { format } from 'date-fns';
 import { cn } from '@/components/layout/Navigation';
 
@@ -37,7 +38,7 @@ export function TurnoModal({ isOpen, onClose, turno, selectedDate, onSave }: Tur
           const data = await getPacientesActivos();
           setPacientes(data);
         } catch (error) {
-          console.error("Error cargando pacientes:", error);
+          registrarError("Error cargando pacientes", error);
         } finally {
           setLoading(false);
         }
@@ -90,9 +91,9 @@ export function TurnoModal({ isOpen, onClose, turno, selectedDate, onSave }: Tur
       
       if (onSave) onSave();
       onClose();
-    } catch (error: any) {
-      console.error("Error guardando turno:", error);
-      alert(`Error al guardar el turno: ${error.message || error.details || JSON.stringify(error)}`);
+    } catch (error: unknown) {
+      registrarError("Error guardando turno", error);
+      alert(`Error al guardar el turno: ${mensajeError(error)}`);
     } finally {
       setSaving(false);
     }

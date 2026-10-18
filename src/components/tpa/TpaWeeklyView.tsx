@@ -6,6 +6,7 @@ import { cn } from "@/components/layout/Navigation";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getHorariosTPA, getClasesTPAPorRango, getAsistenciasTPA } from "@/lib/queries";
+import { registrarError } from "@/lib/errores";
 import type { HorarioTPA, ClaseTPA, AsistenciaTPA, EstadoAsistenciaTPA } from "@/types";
 import { TpaClaseModal } from "./TpaClaseModal";
 import { HistoriaClinicaModal } from "@/components/pacientes/HistoriaClinicaModal";
@@ -71,7 +72,7 @@ export function TpaWeeklyView() {
         setAsistencias([]);
       }
     } catch (error) {
-      console.error("Error fetching TPA data:", error);
+      registrarError("Error fetching TPA data", error);
     } finally {
       setLoading(false);
     }

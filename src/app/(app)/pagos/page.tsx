@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { DollarSign, AlertCircle, CheckCircle, Calendar, ChevronLeft, ChevronRight, User } from 'lucide-react';
 import { getPacientesConPagos, upsertPago } from '@/lib/queries';
+import { mensajeError, registrarError } from '@/lib/errores';
 import type { Pago, Paciente } from '@/types';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -27,7 +28,7 @@ export default function PagosPage() {
       const data = await getPacientesConPagos(mes, año);
       setPacientesConPagos(data as PacienteConPago[]);
     } catch (error) {
-      console.error("Error fetching pagos:", error);
+      registrarError("Error fetching pagos", error);
     } finally {
       setLoading(false);
     }
@@ -77,9 +78,9 @@ export default function PagosPage() {
       // Refresh data
       const updatedData = await getPacientesConPagos(mes, año);
       setPacientesConPagos(updatedData as PacienteConPago[]);
-    } catch (error: any) {
-      console.error("Error toggling pago:", error);
-      alert(`No se pudo registrar el pago: ${error.message || error.details || JSON.stringify(error)}`);
+    } catch (error: unknown) {
+      registrarError("Error toggling pago", error);
+      alert(`No se pudo registrar el pago: ${mensajeError(error)}`);
     } finally {
       setSavingId(null);
     }
@@ -107,9 +108,9 @@ export default function PagosPage() {
       // Refresh
       const updatedData = await getPacientesConPagos(mes, año);
       setPacientesConPagos(updatedData as PacienteConPago[]);
-    } catch (error: any) {
-      console.error("Error updating precio/plan:", error);
-      alert(`No se pudo actualizar el plan/importe: ${error.message || error.details || JSON.stringify(error)}`);
+    } catch (error: unknown) {
+      registrarError("Error updating precio/plan", error);
+      alert(`No se pudo actualizar el plan/importe: ${mensajeError(error)}`);
     } finally {
       setSavingId(null);
     }

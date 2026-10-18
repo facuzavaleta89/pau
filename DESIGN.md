@@ -93,12 +93,30 @@ Extraer a `src/components/ui/` para no repetir clases larguísimas en cada archi
 | **Card** | `bg-white border border-stone-200 rounded-xl p-4 shadow-sm hover:shadow-md hover:border-stone-300 transition-all duration-150` |
 | **Button primary** | `bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors duration-150 disabled:opacity-50` |
 | **Button secondary** | `bg-white hover:bg-stone-50 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg border border-stone-200 hover:border-stone-300` |
-| **Button danger** | `bg-red-50 hover:bg-red-100 text-red-600 text-sm font-medium px-4 py-2 rounded-lg border border-red-200` |
-| **Input / Select / Textarea** | `bg-white border border-stone-200 text-stone-900 text-sm px-3 py-2 rounded-lg placeholder:text-stone-400 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20` |
+| **Button danger** | `bg-red-50 hover:bg-red-100 text-red-600 text-sm font-medium px-4 py-2 rounded-lg border border-red-200` — acciones que **abren** una confirmación o que se pueden deshacer (ej. "Eliminar paciente" en el formulario, "Quitar de la lista"). |
+| **Button irreversible** | `bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-4 h-11 rounded-lg disabled:opacity-50` — **solo** dentro de un `ConfirmDialog`, para la acción que no tiene vuelta atrás ("Eliminar definitivamente"). Nunca como botón suelto en una pantalla. |
+| **Input / Select / Textarea** | `bg-white border border-stone-200 text-stone-900 text-sm px-3 py-2 rounded-lg placeholder:text-stone-400 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20`. En formularios que se usan desde el celular, `text-base` (16px): con menos, iOS hace zoom al enfocar el campo. |
 | **Badge de estado** | `inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border` + colores de estado |
 | **Modal** | overlay `fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50`; panel `bg-white border border-stone-200 rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto` |
-| **Toast** | para confirmar guardados y mostrar errores (reemplaza `alert()`) |
-| **ConfirmDialog** | para acciones destructivas (reemplaza `confirm()`) |
+| **Toast** | para confirmar guardados y mostrar errores (reemplaza `alert()`). Ver detalle abajo. |
+| **ConfirmDialog** | `src/components/ui/ConfirmDialog.tsx` (ya existe). Para acciones destructivas (reemplaza `confirm()`). Ver detalle abajo. |
+
+### Toast (se implementa en Fase 0.5)
+- **Posición:** celular, arriba al centro (`top-4 inset-x-4`), para no tapar la barra inferior ni el botón principal de los bottom sheets. Desktop, abajo a la derecha (`bottom-6 right-6`, `max-w-sm`).
+- **Estilo:** `bg-white border rounded-xl shadow-md px-4 py-3 text-sm flex items-start gap-3`, con ícono a la izquierda:
+  - éxito → `border-emerald-200`, ícono `CheckCircle2 text-emerald-600` ("Asistencia guardada")
+  - error → `border-red-200`, ícono `AlertCircle text-red-600` (el texto sale de `mensajeError()`, nunca el error crudo)
+  - aviso → `border-amber-200`, ícono `AlertTriangle text-amber-600`
+- **Duración:** éxito 3 s; error y aviso quedan hasta que se cierran (botón ✕ de 44px). Máximo 3 a la vez; el más nuevo arriba.
+- **Accesibilidad:** contenedor con `role="status"` (`aria-live="polite"`) para éxito y `role="alert"` para errores.
+- Nada de toasts para acciones que ya muestran su resultado en pantalla (ej. un chip que cambia de color).
+
+### ConfirmDialog
+- Celular: bottom sheet (`rounded-t-2xl`, botones apilados al pie, Cancelar abajo). Desktop: modal centrado `max-w-md`.
+- El foco arranca en **Cancelar**. Escape y tocar afuera cancelan (salvo mientras procesa).
+- Título en pregunta ("¿Eliminar a Juana Pérez?"), mensaje que diga **qué se pierde** (con cantidades si se puede) y "No se puede deshacer." en `font-semibold text-red-700` cuando corresponda.
+- Acción irreversible: prop `peligroso` → ícono `AlertTriangle` en círculo `bg-red-50` y botón **irreversible** (rojo sólido). El texto del botón nombra la acción ("Eliminar definitivamente"), nunca "Aceptar" o "Sí".
+- Los errores se muestran dentro del diálogo (no se cierra si falla).
 
 ### Modales en celular
 En pantallas < 768px los modales se muestran como **bottom sheet** (pegados abajo, ancho completo, `rounded-t-2xl`), con el botón principal fijo al pie y alcanzable con el pulgar.
@@ -106,6 +124,17 @@ En pantallas < 768px los modales se muestran como **bottom sheet** (pegados abaj
 ---
 
 ## Patrones por pantalla
+
+### Login
+- Pantalla propia, **sin** navegación ni header. Fondo `bg-stone-50`, contenido centrado vertical y horizontalmente, columna `max-w-sm` con `px-4`.
+- Arriba, la marca igual que en la sidebar (cuadrado teal con `LayoutGrid` + "Pau**Kinesio**").
+- Card `bg-white border border-stone-200 rounded-2xl shadow-sm p-6` con: título "Ingresar" (título de página), email, contraseña con botón de 44px para mostrar/ocultar (`Eye`/`EyeOff`), y botón primario de ancho completo y `h-11`, con spinner y texto "Ingresando…" mientras carga.
+- Campos `h-11` y `text-base`. `autocomplete="email"` y `"current-password"` para que el celular ofrezca la contraseña guardada.
+- Mensajes arriba de los campos: error `bg-red-50 text-red-700 border-red-200` ("Email o contraseña incorrectos.", siempre genérico); sesión cerrada `bg-amber-50 text-amber-800 border-amber-200` ("Tu sesión se cerró. Volvé a entrar.").
+- No hay "Registrarse". "Olvidé mi contraseña" no existe por ahora (ver `supabase/AUTH.md`).
+
+### Salir
+- Botón de ícono `LogOut` (44 × 44 px) en el Header, en celular y desktop, con `aria-label="Salir"`. Sin confirmación: salir no pierde datos y volver a entrar es rápido.
 
 ### Agenda RPG
 - **Desktop:** calendario mensual (lunes a domingo, martes y jueves resaltados).

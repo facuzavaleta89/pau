@@ -5,6 +5,7 @@ import { X, Save, Clock, Calendar as CalendarIcon, User, Users, Trash2, Plus, Us
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { createClaseTPA, upsertAsistenciaTPA, getPacientesActivos, createHorarioTPA, deactivateHorarioTPA } from "@/lib/queries";
+import { mensajeError, registrarError } from "@/lib/errores";
 import type { HorarioTPA, ClaseTPA, AsistenciaTPA, EstadoAsistenciaTPA, Paciente } from "@/types";
 import { cn } from "@/components/layout/Navigation";
 
@@ -67,7 +68,7 @@ export function TpaClaseModal({
         .then(data => {
           setTodosPacientes(data as Paciente[]);
         })
-        .catch(err => console.error("Error loading patient list in TPA modal:", err));
+        .catch(err => registrarError("Error loading patient list in TPA modal", err));
       
       // Default to attendance tab
       setActiveTab('asistencia');
@@ -106,9 +107,9 @@ export function TpaClaseModal({
       
       onGuardado();
       onClose();
-    } catch (error: any) {
-      console.error("Error saving clase TPA:", error);
-      alert(`Hubo un error al guardar la asistencia: ${error.message || error.details || JSON.stringify(error)}`);
+    } catch (error: unknown) {
+      registrarError("Error saving clase TPA", error);
+      alert(`Hubo un error al guardar la asistencia: ${mensajeError(error)}`);
     } finally {
       setSaving(false);
     }
@@ -138,9 +139,9 @@ export function TpaClaseModal({
 
       setSelectedPacienteId('');
       onGuardado(); // Triggers parent fetch which refreshes grid and updates modal props
-    } catch (err: any) {
-      console.error("Error enrolling student:", err);
-      alert(`No se pudo inscribir al alumno: ${err.message || err.details || JSON.stringify(err)}`);
+    } catch (err: unknown) {
+      registrarError("Error enrolling student", err);
+      alert(`No se pudo inscribir al alumno: ${mensajeError(err)}`);
     } finally {
       setInscribing(false);
     }
@@ -154,9 +155,9 @@ export function TpaClaseModal({
     try {
       await deactivateHorarioTPA(horarioId);
       onGuardado(); // Refresh parent data
-    } catch (err: any) {
-      console.error("Error de-enrolling student:", err);
-      alert(`No se pudo desinscribir al alumno: ${err.message || err.details || JSON.stringify(err)}`);
+    } catch (err: unknown) {
+      registrarError("Error de-enrolling student", err);
+      alert(`No se pudo desinscribir al alumno: ${mensajeError(err)}`);
     }
   };
 
