@@ -34,7 +34,7 @@ Bordes
 
 ### Estados de asistencia TPA — fuente única
 
-Definirlos **una sola vez** en `src/lib/estados.ts` (label, clases de color, ícono) y usarlos en grilla, modal e historia clínica. Hoy están duplicados en 3 archivos.
+Definidos **una sola vez** en `src/lib/estados.ts` (label, clases de color, ícono) y usados en grilla, modal e historia clínica. Si esta tabla cambia, se cambia `estados.ts` (y viceversa).
 
 | Estado | Label | Clases |
 |---|---|---|
@@ -43,16 +43,26 @@ Definirlos **una sola vez** en `src/lib/estados.ts` (label, clases de color, íc
 | `falto_sin_avisar` | Faltó | `bg-red-50 text-red-700 border-red-200` |
 | `recupera` | Recupera | `bg-blue-50 text-blue-700 border-blue-200` |
 | `vino_otra_clase` | De otro horario | `bg-teal-50 text-teal-700 border-teal-200` |
-| `cancelado` | Cancelado | `bg-stone-100 text-stone-400 border-stone-200` |
-| `pendiente` | Sin marcar | `bg-stone-50 text-stone-400 border-stone-200` |
+| `cancelado` | Cancelado | `bg-stone-100 text-stone-500 border-stone-300` |
+| `pendiente` | Sin marcar | `bg-white text-stone-600 border-dashed border-stone-400` |
 
 > Pendiente de confirmar con Pau: en su Word usa **rojo para "faltó avisando"**. Si prefiere conservar su código de colores, se cambia solo en `estados.ts`.
 
-Además del color, cada estado lleva **ícono o texto** (accesibilidad: no depender solo del color).
+Además del color, cada estado lleva **ícono o texto** (accesibilidad: no depender solo del color). Íconos: presente `Check`, avisó `MessageSquare`, faltó `X`, recupera `RotateCcw`, de otro horario `ArrowLeftRight`, cancelado `Ban`, sin marcar `CircleDashed`.
+
+"Sin marcar" usa **borde punteado** sobre blanco: tiene que distinguirse a simple vista del fondo de las cards (`bg-white` / `bg-stone-50`). Antes era `bg-stone-50 text-stone-400` y casi no se veía. "Cancelado" pasó a `text-stone-500 border-stone-300` por contraste.
+
+### Estados de sesión RPG
+| Estado | Label | Clases | Ícono |
+|---|---|---|---|
+| `pendiente` | Pendiente | `bg-white text-stone-700 border-stone-200` | `Clock` |
+| `realizada` | Realizada | `bg-emerald-50 text-emerald-700 border-emerald-200` | `CircleCheck` |
+| `cancelada` | Cancelada | `bg-stone-100 text-stone-500 border-stone-300` | `CircleX` |
 
 ### Pago
-- pagado → `text-emerald-600` (punto o badge verde)
-- pendiente → `text-amber-600`
+- pagado → badge `bg-emerald-50 text-emerald-700 border-emerald-200`, punto `bg-emerald-500`
+- pendiente → badge `bg-amber-50 text-amber-700 border-amber-200`, punto `bg-amber-500`
+- En RPG el pago es **por sesión**: el texto es "Sesión: pagado / pendiente", nunca "Mes".
 
 ### Alertas clínicas
 `bg-amber-50 text-amber-800 border-amber-200`, ícono `ShieldAlert`. **Sin `animate-pulse`**: una alerta que titila todo el tiempo cansa y pierde valor.
@@ -101,7 +111,7 @@ Extraer a `src/components/ui/` para no repetir clases larguísimas en cada archi
 | **Toast** | para confirmar guardados y mostrar errores (reemplaza `alert()`). Ver detalle abajo. |
 | **ConfirmDialog** | `src/components/ui/ConfirmDialog.tsx` (ya existe). Para acciones destructivas (reemplaza `confirm()`). Ver detalle abajo. |
 
-### Toast (se implementa en Fase 0.5)
+### Toast (`src/components/ui/ToastProvider.tsx`, `useToast()`)
 - **Posición:** celular, arriba al centro (`top-4 inset-x-4`), para no tapar la barra inferior ni el botón principal de los bottom sheets. Desktop, abajo a la derecha (`bottom-6 right-6`, `max-w-sm`).
 - **Estilo:** `bg-white border rounded-xl shadow-md px-4 py-3 text-sm flex items-start gap-3`, con ícono a la izquierda:
   - éxito → `border-emerald-200`, ícono `CheckCircle2 text-emerald-600` ("Asistencia guardada")
@@ -132,6 +142,9 @@ En pantallas < 768px los modales se muestran como **bottom sheet** (pegados abaj
 - Campos `h-11` y `text-base`. `autocomplete="email"` y `"current-password"` para que el celular ofrezca la contraseña guardada.
 - Mensajes arriba de los campos: error `bg-red-50 text-red-700 border-red-200` ("Email o contraseña incorrectos.", siempre genérico); sesión cerrada `bg-amber-50 text-amber-800 border-amber-200` ("Tu sesión se cerró. Volvé a entrar.").
 - No hay "Registrarse". "Olvidé mi contraseña" no existe por ahora (ver `supabase/AUTH.md`).
+
+### Usuario no autorizado
+- Si la usuaria logueada no está autorizada (`public.soy_autorizada()` = false), el contenido de la página se reemplaza por una card `bg-white border border-amber-200 rounded-2xl p-6` con ícono `ShieldX` (círculo `bg-amber-50`), título "Tu usuario no está autorizado", explicación en lenguaje simple ("no se muestra ningún paciente ni turno") y botón secundario "Salir" de ancho completo. Navegación y Header siguen visibles.
 
 ### Salir
 - Botón de ícono `LogOut` (44 × 44 px) en el Header, en celular y desktop, con `aria-label="Salir"`. Sin confirmación: salir no pierde datos y volver a entrar es rápido.

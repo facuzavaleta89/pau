@@ -4,10 +4,12 @@ import { useState, useEffect, useMemo } from 'react';
 import { DollarSign, AlertCircle, CheckCircle, Calendar, ChevronLeft, ChevronRight, User } from 'lucide-react';
 import { getPacientesConPagos, upsertPago } from '@/lib/queries';
 import { mensajeError, registrarError } from '@/lib/errores';
+import { useToast } from '@/components/ui/ToastProvider';
 import type { Pago, Paciente } from '@/types';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { cn } from '@/components/layout/Navigation';
+import { cn } from '@/lib/utils';
+import { ESTADOS_PAGO } from '@/lib/estados';
 
 interface PacienteConPago extends Paciente {
   pago: Pago | null;
@@ -18,6 +20,7 @@ export default function PagosPage() {
   const [pacientesConPagos, setPacientesConPagos] = useState<PacienteConPago[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const toast = useToast();
 
   const mes = currentDate.getMonth() + 1; // 1-indexed
   const año = currentDate.getFullYear();
@@ -28,7 +31,8 @@ export default function PagosPage() {
       const data = await getPacientesConPagos(mes, año);
       setPacientesConPagos(data as PacienteConPago[]);
     } catch (error) {
-      registrarError("Error fetching pagos", error);
+      registrarError("Error cargando pagos", error);
+      toast.error(`No se pudieron cargar los pagos. ${mensajeError(error)}`);
     } finally {
       setLoading(false);
     }
@@ -79,8 +83,8 @@ export default function PagosPage() {
       const updatedData = await getPacientesConPagos(mes, año);
       setPacientesConPagos(updatedData as PacienteConPago[]);
     } catch (error: unknown) {
-      registrarError("Error toggling pago", error);
-      alert(`No se pudo registrar el pago: ${mensajeError(error)}`);
+      registrarError("Error cambiando estado de pago", error);
+      toast.error(`No se pudo registrar el pago. ${mensajeError(error)}`);
     } finally {
       setSavingId(null);
     }
@@ -109,8 +113,8 @@ export default function PagosPage() {
       const updatedData = await getPacientesConPagos(mes, año);
       setPacientesConPagos(updatedData as PacienteConPago[]);
     } catch (error: unknown) {
-      registrarError("Error updating precio/plan", error);
-      alert(`No se pudo actualizar el plan/importe: ${mensajeError(error)}`);
+      registrarError("Error actualizando plan/importe", error);
+      toast.error(`No se pudo actualizar el plan o el importe. ${mensajeError(error)}`);
     } finally {
       setSavingId(null);
     }
@@ -226,7 +230,7 @@ export default function PagosPage() {
                   const defaultPrice = item.tipo_clase === 'RPG' ? 12000 : 8000;
                   const currentPrice = item.pago?.precio !== undefined && item.pago?.precio !== null ? item.pago.precio : defaultPrice;
                   const currentPlan = item.pago?.plan || item.tipo_clase || 'RPG';
-                  const isPaid = item.pago?.estado === 'pagado';
+                  const estadoPago = ESTADOS_PAGO[item.pago?.estado ?? 'pendiente'];
 
                   return (
                     <tr key={item.id} className="hover:bg-stone-50/50 transition-colors">
@@ -278,17 +282,13 @@ export default function PagosPage() {
                           disabled={savingId === item.id}
                           className={cn(
                             "px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5 shadow-sm cursor-pointer",
-                            isPaid
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100/50"
-                              : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/50"
+                            estadoPago.clases
                           )}
                         >
                           {savingId === item.id ? (
                             <div className="w-3.5 h-3.5 border border-current border-t-transparent rounded-full animate-spin" />
-                          ) : isPaid ? (
-                            "Cobrado"
                           ) : (
-                            "Pendiente"
+                            estadoPago.label
                           )}
                         </button>
                       </td>

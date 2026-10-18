@@ -1,15 +1,17 @@
 "use client";
 
-import { Search, Bell, LogOut } from 'lucide-react';
+import { Search, LogOut } from 'lucide-react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { cerrarSesion } from '@/lib/auth';
 import { mensajeError, registrarError } from '@/lib/errores';
+import { useToast } from '@/components/ui/ToastProvider';
 
 export default function Header() {
   const [searchQuery, setSearchQuery] = useState('');
   const [saliendo, setSaliendo] = useState(false);
   const router = useRouter();
+  const toast = useToast();
 
   const handleSalir = async () => {
     setSaliendo(true);
@@ -19,7 +21,7 @@ export default function Header() {
       router.refresh();
     } catch (error: unknown) {
       registrarError('Error al cerrar sesión', error);
-      alert(mensajeError(error)); // TODO Fase 0.5: Toast
+      toast.error(mensajeError(error));
       setSaliendo(false);
     }
   };
@@ -43,10 +45,6 @@ export default function Header() {
 
         {/* Actions */}
         <div className="flex items-center gap-3 md:gap-4">
-          <button className="relative p-2.5 text-stone-500 hover:text-stone-900 transition-all rounded-lg hover:bg-stone-100">
-            <Bell className="h-5 w-5" />
-            <span className="absolute top-2 right-2 h-2 w-2 bg-rose-500 rounded-full border-2 border-stone-50"></span>
-          </button>
           <div className="h-9 w-9 rounded-lg bg-teal-600 flex items-center justify-center text-white font-semibold text-sm">
             P
           </div>

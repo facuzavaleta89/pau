@@ -4,10 +4,16 @@ import { useState, useEffect } from "react";
 import { X, Save, Clock, Calendar as CalendarIcon, User, Users, Trash2, Plus, UserMinus } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
-import { createClaseTPA, upsertAsistenciaTPA, getPacientesActivos, createHorarioTPA, deactivateHorarioTPA } from "@/lib/queries";
+import {
+  createClaseTPA, upsertAsistenciaTPA, deleteAsistenciaTPA, eliminarClaseTPASiVacia,
+  getPacientesActivos, createHorarioTPA, deactivateHorarioTPA,
+} from "@/lib/queries";
 import { mensajeError, registrarError } from "@/lib/errores";
 import type { HorarioTPA, ClaseTPA, AsistenciaTPA, EstadoAsistenciaTPA, Paciente } from "@/types";
-import { cn } from "@/components/layout/Navigation";
+import { cn } from "@/lib/utils";
+import { ESTADOS_ASISTENCIA, ORDEN_ESTADOS_ASISTENCIA } from "@/lib/estados";
+import { useToast } from "@/components/ui/ToastProvider";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 interface TpaClaseModalProps {
   isOpen: boolean;
@@ -20,16 +26,6 @@ interface TpaClaseModalProps {
   diaSemana: string;
   onGuardado: () => void; // Callback to refresh grid
 }
-
-const ESTADOS: { value: EstadoAsistenciaTPA | 'pendiente'; label: string; color: string; bg: string }[] = [
-  { value: 'pendiente', label: 'Pendiente', color: 'text-stone-400', bg: 'bg-stone-50 border-stone-200' },
-  { value: 'presente', label: 'Presente', color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200 animate-in fade-in duration-200' },
-  { value: 'aviso_ausencia', label: 'Avisó', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200 animate-in fade-in duration-200' },
-  { value: 'falto_sin_avisar', label: 'Faltó', color: 'text-red-700', bg: 'bg-red-50 border-red-200 animate-in fade-in duration-200' },
-  { value: 'recupera', label: 'Recupera', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200 animate-in fade-in duration-200' },
-  { value: 'vino_otra_clase', label: 'Vino Otra', color: 'text-teal-700', bg: 'bg-teal-50 border-teal-200 animate-in fade-in duration-200' },
-  { value: 'cancelado', label: 'Cancelado', color: 'text-stone-400', bg: 'bg-stone-100 border-stone-200 animate-in fade-in duration-200' }
-];
 
 export function TpaClaseModal({
   isOpen,
@@ -46,17 +42,20 @@ export function TpaClaseModal({
   const [saving, setSaving] = useState(false);
   
   // Local state for attendance checklist
-  const [localAsistencias, setLocalAsistencias] = useState<Record<string, EstadoAsistenciaTPA | 'pendiente'>>({});
+  const [localAsistencias, setLocalAsistencias] = useState<Record<string, EstadoAsistenciaTPA>>({});
   
   // States for student enrollment
   const [todosPacientes, setTodosPacientes] = useState<Paciente[]>([]);
   const [selectedPacienteId, setSelectedPacienteId] = useState<string>('');
   const [inscribing, setInscribing] = useState(false);
+  const [aDesinscribir, setADesinscribir] = useState<HorarioTPA | null>(null);
+  const [desinscribiendo, setDesinscribiendo] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     if (isOpen) {
       // Initialize local state based on passed asistencias
-      const initial: Record<string, EstadoAsistenciaTPA | 'pendiente'> = {};
+      const initial: Record<string, EstadoAsistenciaTPA> = {};
       horarios.forEach(h => {
         const asistencia = asistenciasActuales.find(a => a.paciente_id === h.paciente_id);
         initial[h.paciente_id] = asistencia?.estado || 'pendiente';
@@ -77,39 +76,57 @@ export function TpaClaseModal({
 
   if (!isOpen) return null;
 
+  // "Sin marcar" (pendiente) = no tener fila de asistencia. Al guardar:
+  // - se marcan (upsert) los que tienen un estado;
+  // - se desmarcan (delete) los que vuelven a "Sin marcar" y tenían fila;
+  // - no se crea la clase si nadie quedó marcado, y se borra si quedó vacía.
   const handleGuardarAsistencia = async () => {
+    const estadoGuardado = (pacienteId: string): EstadoAsistenciaTPA =>
+      asistenciasActuales.find(a => a.paciente_id === pacienteId)?.estado ?? 'pendiente';
+
+    const aMarcar = horarios.filter(h => {
+      const estado = localAsistencias[h.paciente_id] ?? 'pendiente';
+      return estado !== 'pendiente' && estado !== estadoGuardado(h.paciente_id);
+    });
+    const aDesmarcar = horarios.filter(h =>
+      (localAsistencias[h.paciente_id] ?? 'pendiente') === 'pendiente' &&
+      estadoGuardado(h.paciente_id) !== 'pendiente'
+    );
+
+    if (aMarcar.length === 0 && aDesmarcar.length === 0) {
+      if (!claseExistente) toast.aviso('No marcaste a nadie: no se guardó la clase.');
+      onClose();
+      return;
+    }
+
     setSaving(true);
     try {
       let claseId = claseExistente?.id;
-      
-      // If no class exists yet, create it first
-      if (!claseId) {
-        const newClase = await createClaseTPA({
-          fecha,
-          hora
-        });
-        claseId = newClase.id;
+      if (!claseId && aMarcar.length > 0) {
+        const nuevaClase = await createClaseTPA({ fecha, hora });
+        claseId = nuevaClase.id;
       }
 
-      // Upsert all changed attendances
-      const promesas = horarios.map(async (h) => {
-        const estado = localAsistencias[h.paciente_id];
-        if (estado && estado !== 'pendiente') {
-          await upsertAsistenciaTPA({
-            clase_id: claseId,
+      if (claseId) {
+        const idClase = claseId;
+        await Promise.all([
+          ...aMarcar.map(h => upsertAsistenciaTPA({
+            clase_id: idClase,
             paciente_id: h.paciente_id,
-            estado: estado as EstadoAsistenciaTPA
-          });
-        }
-      });
+            estado: localAsistencias[h.paciente_id],
+          })),
+          ...aDesmarcar.map(h => deleteAsistenciaTPA(idClase, h.paciente_id)),
+        ]);
+        if (aDesmarcar.length > 0) await eliminarClaseTPASiVacia(idClase);
+      }
 
-      await Promise.all(promesas);
-      
+      toast.exito('Asistencia guardada');
       onGuardado();
       onClose();
     } catch (error: unknown) {
-      registrarError("Error saving clase TPA", error);
-      alert(`Hubo un error al guardar la asistencia: ${mensajeError(error)}`);
+      registrarError("Error guardando asistencia TPA", error);
+      toast.error(`No se pudo guardar la asistencia. ${mensajeError(error)}`);
+      onGuardado(); // pudo guardarse una parte: refrescar la grilla
     } finally {
       setSaving(false);
     }
@@ -120,7 +137,7 @@ export function TpaClaseModal({
 
     // Check if student is already in this slot
     if (horarios.some(h => h.paciente_id === selectedPacienteId)) {
-      alert("Este alumno ya está inscripto en este horario.");
+      toast.aviso("Este alumno ya está inscripto en este horario.");
       return;
     }
 
@@ -138,26 +155,29 @@ export function TpaClaseModal({
       });
 
       setSelectedPacienteId('');
+      toast.exito('Alumno inscripto');
       onGuardado(); // Triggers parent fetch which refreshes grid and updates modal props
     } catch (err: unknown) {
-      registrarError("Error enrolling student", err);
-      alert(`No se pudo inscribir al alumno: ${mensajeError(err)}`);
+      registrarError("Error inscribiendo alumno", err);
+      toast.error(`No se pudo inscribir al alumno. ${mensajeError(err)}`);
     } finally {
       setInscribing(false);
     }
   };
 
-  const handleDesinscribir = async (horarioId: string) => {
-    if (!confirm("¿Estás seguro de que deseas desinscribir a este alumno de este horario semanal fijo?")) {
-      return;
-    }
-
+  const handleConfirmarDesinscribir = async () => {
+    if (!aDesinscribir) return;
+    setDesinscribiendo(true);
     try {
-      await deactivateHorarioTPA(horarioId);
+      await deactivateHorarioTPA(aDesinscribir.id);
+      toast.exito('Alumno desinscripto');
+      setADesinscribir(null);
       onGuardado(); // Refresh parent data
     } catch (err: unknown) {
-      registrarError("Error de-enrolling student", err);
-      alert(`No se pudo desinscribir al alumno: ${mensajeError(err)}`);
+      registrarError("Error desinscribiendo alumno", err);
+      toast.error(`No se pudo desinscribir al alumno. ${mensajeError(err)}`);
+    } finally {
+      setDesinscribiendo(false);
     }
   };
 
@@ -243,16 +263,18 @@ export function TpaClaseModal({
                       </div>
                       
                       <div className="flex flex-wrap gap-1.5">
-                        {ESTADOS.map((estado) => {
-                          const isSelected = currentState === estado.value;
+                        {ORDEN_ESTADOS_ASISTENCIA.map((valor) => {
+                          const estado = ESTADOS_ASISTENCIA[valor];
+                          const isSelected = currentState === valor;
                           return (
                             <button
-                              key={estado.value}
-                              onClick={() => setLocalAsistencias(prev => ({ ...prev, [horario.paciente_id]: estado.value }))}
+                              key={valor}
+                              onClick={() => setLocalAsistencias(prev => ({ ...prev, [horario.paciente_id]: valor }))}
+                              aria-pressed={isSelected}
                               className={cn(
                                 "px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border shadow-sm cursor-pointer",
-                                isSelected 
-                                  ? cn(estado.bg, estado.color, "ring-1 ring-teal-500/20") 
+                                isSelected
+                                  ? cn(estado.clases, "ring-2 ring-teal-500/30 font-semibold")
                                   : "bg-white text-stone-500 border-stone-200 hover:bg-stone-50 hover:text-stone-900"
                               )}
                             >
@@ -320,7 +342,7 @@ export function TpaClaseModal({
                         <span className="font-semibold text-stone-900 text-sm">{horario.pacientes?.nombre}</span>
                       </div>
                       <button
-                        onClick={() => handleDesinscribir(horario.id)}
+                        onClick={() => setADesinscribir(horario)}
                         className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all border border-transparent hover:border-red-100 cursor-pointer"
                         title="Desinscribir alumno"
                       >
@@ -382,6 +404,21 @@ export function TpaClaseModal({
           </>
         )}
       </div>
+
+      <ConfirmDialog
+        abierto={aDesinscribir !== null}
+        titulo={`¿Desinscribir a ${aDesinscribir?.pacientes?.nombre ?? 'este alumno'}?`}
+        mensaje={
+          <p>
+            Deja de ser alumno fijo de los <span className="lowercase">{diaSemana}</span> a las {hora}.
+            Sus asistencias ya registradas no se borran.
+          </p>
+        }
+        textoConfirmar="Desinscribir"
+        cargando={desinscribiendo}
+        onConfirmar={handleConfirmarDesinscribir}
+        onCancelar={() => setADesinscribir(null)}
+      />
     </div>
   );
 }

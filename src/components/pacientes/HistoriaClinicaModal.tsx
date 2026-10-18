@@ -3,9 +3,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { X, User, ShieldAlert, Calendar, FileText, CheckCircle, Phone, Info } from 'lucide-react';
 import { getPacienteById, getSesionesRPGPorPaciente, getAsistenciasTPAPorPaciente } from '@/lib/queries';
-import { registrarError } from '@/lib/errores';
+import { mensajeError, registrarError } from '@/lib/errores';
+import { useToast } from '@/components/ui/ToastProvider';
 import type { Paciente, SesionRPG, AsistenciaTPA } from '@/types';
-import { cn } from '@/components/layout/Navigation';
+import { cn } from '@/lib/utils';
+import { ESTADOS_ASISTENCIA, ESTADOS_PAGO, ESTADOS_SESION_RPG } from '@/lib/estados';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -21,6 +23,7 @@ export function HistoriaClinicaModal({ isOpen, onClose, pacienteId }: HistoriaCl
   const [rpgSessions, setRpgSessions] = useState<SesionRPG[]>([]);
   const [tpaAttendances, setTpaAttendances] = useState<AsistenciaTPA[]>([]);
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     if (isOpen && pacienteId) {
@@ -37,13 +40,14 @@ export function HistoriaClinicaModal({ isOpen, onClose, pacienteId }: HistoriaCl
           setTpaAttendances(tpaData);
         } catch (error) {
           registrarError("Error cargando historia clínica", error);
+          toast.error(`No se pudo cargar la historia clínica. ${mensajeError(error)}`);
         } finally {
           setLoading(false);
         }
       };
       loadDatos();
     }
-  }, [isOpen, pacienteId]);
+  }, [isOpen, pacienteId, toast]);
 
   // --- ALERTS SYSTEM ---
   const hasThreeConsecutiveAbsences = useMemo(() => {
@@ -233,7 +237,7 @@ export function HistoriaClinicaModal({ isOpen, onClose, pacienteId }: HistoriaCl
                                   {format(parseISO(session.fecha), "d 'de' MMMM, yyyy", { locale: es })}
                                 </span>
                                 <span className="text-xs text-stone-600 bg-stone-50 border border-stone-200 px-2 py-0.5 rounded">
-                                  {session.hora.substring(0,5)} hs
+                                  {session.hora} hs
                                 </span>
                               </div>
                               {session.nota && (
@@ -245,18 +249,15 @@ export function HistoriaClinicaModal({ isOpen, onClose, pacienteId }: HistoriaCl
                             <div className="flex items-center gap-3">
                               <span className={cn(
                                 "px-2.5 py-0.5 rounded-full text-xs font-semibold border",
-                                session.estado_sesion === 'realizada' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                session.estado_sesion === 'cancelada' ? 'bg-stone-100 text-stone-400 border-stone-200' :
-                                'bg-stone-50 text-stone-500 border-stone-200'
+                                ESTADOS_SESION_RPG[session.estado_sesion ?? 'pendiente'].clases
                               )}>
-                                {session.estado_sesion}
+                                {ESTADOS_SESION_RPG[session.estado_sesion ?? 'pendiente'].label}
                               </span>
                               <span className={cn(
                                 "px-2.5 py-0.5 rounded-full text-xs font-semibold border",
-                                session.estado_pago === 'pagado' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                'bg-amber-50 text-amber-700 border-amber-200'
+                                ESTADOS_PAGO[session.estado_pago ?? 'pendiente'].clases
                               )}>
-                                {session.estado_pago}
+                                {ESTADOS_PAGO[session.estado_pago ?? 'pendiente'].label}
                               </span>
                             </div>
                           </div>
@@ -282,7 +283,7 @@ export function HistoriaClinicaModal({ isOpen, onClose, pacienteId }: HistoriaCl
                                     : 'Fecha no registrada'}
                                 </span>
                                 <span className="text-xs text-stone-600 bg-stone-50 border border-stone-200 px-2 py-0.5 rounded">
-                                  {att.clases_tpa?.hora ? att.clases_tpa.hora.substring(0,5) : '--:--'} hs
+                                  {att.clases_tpa?.hora ?? '--:--'} hs
                                 </span>
                               </div>
                               {att.nota && (
@@ -293,15 +294,9 @@ export function HistoriaClinicaModal({ isOpen, onClose, pacienteId }: HistoriaCl
                             </div>
                             <span className={cn(
                               "px-2.5 py-0.5 rounded-full text-xs font-semibold border self-start sm:self-center",
-                              att.estado === 'presente' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                              att.estado === 'aviso_ausencia' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                              att.estado === 'falto_sin_avisar' ? 'bg-red-50 text-red-700 border-red-200' :
-                              att.estado === 'recupera' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                              att.estado === 'vino_otra_clase' ? 'bg-teal-50 text-teal-700 border-teal-200' :
-                              att.estado === 'cancelado' ? 'bg-stone-100 text-stone-400 border-stone-200' :
-                              'bg-stone-50 text-stone-400 border-stone-200'
+                              ESTADOS_ASISTENCIA[att.estado ?? 'pendiente'].clases
                             )}>
-                              {att.estado}
+                              {ESTADOS_ASISTENCIA[att.estado ?? 'pendiente'].label}
                             </span>
                           </div>
                         ))}

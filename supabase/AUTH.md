@@ -24,6 +24,35 @@ La configuración de Auth vive en el **dashboard** de Supabase y no queda versio
 | Minimum password length | 12 o más, si la opción está disponible |
 | Otros proveedores (Google, GitHub, etc.) | **Todos desactivados** |
 
+> ⚠️ **"Allow new users to sign up" y "Allow anonymous sign-ins" son dos interruptores distintos.** Desactivar uno no desactiva el otro. En la primera prueba (18/10/2026) los anónimos estaban desactivados pero el registro seguía habilitado, y se pudo crear una cuenta con la anon key. Después de tocar cualquiera de los dos, **verificar ambos con `curl`** (abajo).
+
+### Verificar con `curl` que estén desactivados
+
+```bash
+export URL=https://<ref-del-proyecto>.supabase.co
+export ANON=<anon key>
+
+# 1. Registro público ("Allow new users to sign up")
+curl -s -w "\nHTTP %{http_code}\n" -X POST "$URL/auth/v1/signup" -H "apikey: $ANON" \
+  -H "Content-Type: application/json" -d '{"email":"prueba-registro@example.com","password":"una-clave-larga-123"}'
+# Esperado: HTTP 422 con "error_code":"signup_disabled"
+# ❌ Si devuelve 200 con un usuario: el registro está HABILITADO. Desactivarlo y borrar
+#    ese usuario en Authentication → Users.
+
+# 2. Ingreso anónimo ("Allow anonymous sign-ins")
+curl -s -w "\nHTTP %{http_code}\n" -X POST "$URL/auth/v1/signup" -H "apikey: $ANON" \
+  -H "Content-Type: application/json" -d '{}'
+# Esperado: HTTP 422 con "error_code":"anonymous_provider_disabled"
+# ❌ Si devuelve 200 con un access_token: los anónimos están HABILITADOS. Desactivarlos y
+#    borrar el usuario anónimo creado.
+
+# 3. Datos sin sesión (RLS + permisos de anon)
+curl -s -w "\nHTTP %{http_code}\n" "$URL/rest/v1/pacientes?select=id" -H "apikey: $ANON" -H "Authorization: Bearer $ANON"
+# Esperado: HTTP 401 con "code":"42501" (permission denied)
+```
+
+Aunque alguno de los dos quedara habilitado por error, la segunda capa (lista de autorizadas) impide que esa cuenta vea datos. Igual hay que corregirlo: las cuentas basura ocupan Auth y la app le mostraría a esa persona el aviso de "no autorizado".
+
 ### Authentication → URL Configuration
 | Opción | Valor |
 |---|---|
@@ -52,6 +81,8 @@ Solo `public` y `graphql_public`. **`private` no tiene que estar expuesto.**
    from private.usuarias_autorizadas a
    join auth.users u on u.id = a.user_id;
    ```
+
+4. **Verificar desde la app** (con la migración `20261018000001_funcion_soy_autorizada.sql` aplicada): un usuario logueado que no está en la lista ve el aviso "Tu usuario no está autorizado" en lugar de pantallas vacías. Desde SQL, como ese usuario, `select public.soy_autorizada();` devuelve `true`/`false`; solo la puede ejecutar `authenticated`.
 
 **Quitar el acceso** a alguien: `delete from private.usuarias_autorizadas where user_id = '<uid>';` Su sesión sigue existiendo, pero deja de ver datos de inmediato. Para cerrarle la sesión también, borrar o banear el usuario en Authentication → Users.
 

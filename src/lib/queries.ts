@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { ErrorApp } from './errores';
+import { normalizarHora } from './horas';
 import type { Paciente, SesionRPG, Pago, HorarioTPA, ClaseTPA, AsistenciaTPA } from '@/types';
 
 // Con RLS, una escritura que la base no permite (sesión vencida, usuario no
@@ -9,6 +10,12 @@ import type { Paciente, SesionRPG, Pago, HorarioTPA, ClaseTPA, AsistenciaTPA } f
 function exigirUnaFila<T>(data: T[] | null, mensaje: string): T {
   if (!data || data.length !== 1) throw new ErrorApp(mensaje);
   return data[0];
+}
+
+// Postgres devuelve las columnas `time` como "HH:mm:ss"; la app usa "HH:mm".
+// Toda fila con hora que sale de este archivo pasa por acá.
+function conHora<T extends { hora: string }>(fila: T): T {
+  return { ...fila, hora: normalizarHora(fila.hora) };
 }
 
 // ==========================================
@@ -54,7 +61,7 @@ export async function getSesionesRPGPorRango(startDate: string, endDate: string)
     .order('hora', { ascending: true });
 
   if (error) throw error;
-  return data as SesionRPG[];
+  return (data as SesionRPG[]).map(conHora);
 }
 
 export async function createSesionRPG(sesion: Partial<SesionRPG>) {
@@ -64,7 +71,7 @@ export async function createSesionRPG(sesion: Partial<SesionRPG>) {
     .select();
 
   if (error) throw error;
-  return exigirUnaFila(data as SesionRPG[] | null, 'No se pudo crear el turno.');
+  return conHora(exigirUnaFila(data as SesionRPG[] | null, 'No se pudo crear el turno.'));
 }
 
 export async function updateSesionRPG(id: string, updates: Partial<SesionRPG>) {
@@ -75,7 +82,7 @@ export async function updateSesionRPG(id: string, updates: Partial<SesionRPG>) {
     .select();
 
   if (error) throw error;
-  return exigirUnaFila(data as SesionRPG[] | null, 'No se pudo guardar el turno.');
+  return conHora(exigirUnaFila(data as SesionRPG[] | null, 'No se pudo guardar el turno.'));
 }
 
 export async function deleteSesionRPG(id: string) {
@@ -119,7 +126,7 @@ export async function getHorariosTPA() {
     .order('hora', { ascending: true });
 
   if (error) throw error;
-  return data || [];
+  return ((data || []) as HorarioTPA[]).map(conHora);
 }
 
 export async function createHorarioTPA(horario: { paciente_id: string; dia_semana: 'lunes' | 'miercoles' | 'viernes'; hora: string }) {
@@ -129,7 +136,7 @@ export async function createHorarioTPA(horario: { paciente_id: string; dia_seman
     .select();
 
   if (error) throw error;
-  return exigirUnaFila(data as HorarioTPA[] | null, 'No se pudo inscribir al alumno.');
+  return conHora(exigirUnaFila(data as HorarioTPA[] | null, 'No se pudo inscribir al alumno.'));
 }
 
 export async function deactivateHorarioTPA(id: string) {
@@ -140,7 +147,7 @@ export async function deactivateHorarioTPA(id: string) {
     .select();
 
   if (error) throw error;
-  return exigirUnaFila(data as HorarioTPA[] | null, 'No se pudo desinscribir al alumno.');
+  return conHora(exigirUnaFila(data as HorarioTPA[] | null, 'No se pudo desinscribir al alumno.'));
 }
 
 export async function getClasesTPAPorRango(startDate: string, endDate: string) {
@@ -151,7 +158,7 @@ export async function getClasesTPAPorRango(startDate: string, endDate: string) {
     .lte('fecha', endDate);
 
   if (error) throw error;
-  return data || [];
+  return ((data || []) as ClaseTPA[]).map(conHora);
 }
 
 export async function getAsistenciasTPA(claseIds: string[]) {
@@ -185,7 +192,42 @@ export async function createClaseTPA(clase: Partial<ClaseTPA>) {
     .select();
 
   if (error) throw error;
-  return exigirUnaFila(data as ClaseTPA[] | null, 'No se pudo crear la clase.');
+  return conHora(exigirUnaFila(data as ClaseTPA[] | null, 'No se pudo crear la clase.'));
+}
+
+// Vuelve a un alumno a "sin marcar": "sin marcar" es no tener fila de asistencia.
+export async function deleteAsistenciaTPA(claseId: string, pacienteId: string) {
+  const { data, error } = await supabase
+    .from('asistencia_tpa')
+    .delete()
+    .eq('clase_id', claseId)
+    .eq('paciente_id', pacienteId)
+    .select('id');
+
+  if (error) throw error;
+  exigirUnaFila(data, 'No se pudo desmarcar la asistencia.');
+}
+
+// Borra la clase si quedó sin ninguna asistencia (todos "sin marcar"),
+// para no dejar clases vacías. Devuelve true si la borró.
+export async function eliminarClaseTPASiVacia(claseId: string): Promise<boolean> {
+  const { count, error: errorCount } = await supabase
+    .from('asistencia_tpa')
+    .select('id', { count: 'exact', head: true })
+    .eq('clase_id', claseId);
+
+  if (errorCount) throw errorCount;
+  if ((count ?? 0) > 0) return false;
+
+  const { data, error } = await supabase
+    .from('clases_tpa')
+    .delete()
+    .eq('id', claseId)
+    .select('id');
+
+  if (error) throw error;
+  exigirUnaFila(data, 'No se pudo borrar la clase vacía.');
+  return true;
 }
 
 // ==========================================
@@ -201,7 +243,7 @@ export async function getSesionesRPGPorPaciente(pacienteId: string) {
     .order('hora', { ascending: false });
 
   if (error) throw error;
-  return data || [];
+  return ((data || []) as SesionRPG[]).map(conHora);
 }
 
 export async function getAsistenciasTPAPorPaciente(pacienteId: string) {
@@ -216,7 +258,10 @@ export async function getAsistenciasTPAPorPaciente(pacienteId: string) {
   if (error) throw error;
   
   // Sort manually by date-time descending
-  return ((data || []) as AsistenciaTPA[]).sort((a, b) => {
+  const asistencias = ((data || []) as AsistenciaTPA[]).map((a) =>
+    a.clases_tpa ? { ...a, clases_tpa: conHora(a.clases_tpa) } : a
+  );
+  return asistencias.sort((a, b) => {
     const dateA = a.clases_tpa?.fecha ? new Date(a.clases_tpa.fecha + 'T' + (a.clases_tpa.hora || '00:00')) : new Date(0);
     const dateB = b.clases_tpa?.fecha ? new Date(b.clases_tpa.fecha + 'T' + (b.clases_tpa.hora || '00:00')) : new Date(0);
     return dateB.getTime() - dateA.getTime();

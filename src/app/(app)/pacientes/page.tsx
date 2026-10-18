@@ -4,15 +4,17 @@ import { useState, useEffect } from 'react';
 import { Search, UserPlus, FileText, Phone, Award, Edit2, X, Save, User, Trash2 } from 'lucide-react';
 import { getPacientesActivos, createPaciente, updatePaciente } from '@/lib/queries';
 import { mensajeError, registrarError } from '@/lib/errores';
+import { useToast } from '@/components/ui/ToastProvider';
 import { EliminarPacienteDialog } from '@/components/pacientes/EliminarPacienteDialog';
 import type { Paciente, TipoClase } from '@/types';
 import { HistoriaClinicaModal } from '@/components/pacientes/HistoriaClinicaModal';
-import { cn } from '@/components/layout/Navigation';
+import { cn } from '@/lib/utils';
 
 export default function PacientesPage() {
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const toast = useToast();
 
   // Modal states
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
@@ -44,6 +46,7 @@ export default function PacientesPage() {
       setPacientes(data);
     } catch (error) {
       registrarError("Error cargando pacientes", error);
+      toast.error(`No se pudieron cargar los pacientes. ${mensajeError(error)}`);
     } finally {
       setLoading(false);
     }
@@ -91,7 +94,10 @@ export default function PacientesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nombre) return alert("El nombre es obligatorio");
+    if (!nombre.trim()) {
+      toast.aviso("El nombre es obligatorio.");
+      return;
+    }
 
     const payload: Partial<Paciente> = {
       nombre,
@@ -116,11 +122,12 @@ export default function PacientesPage() {
       } else {
         await createPaciente(payload);
       }
+      toast.exito(editingPaciente ? 'Ficha guardada' : 'Paciente creado');
       setIsFormModalOpen(false);
       fetchPacientes();
     } catch (error: unknown) {
       registrarError("Error guardando paciente", error);
-      alert(`Hubo un error al guardar los datos del paciente: ${mensajeError(error)}`);
+      toast.error(`No se pudo guardar el paciente. ${mensajeError(error)}`);
     }
   };
 
@@ -502,6 +509,7 @@ export default function PacientesPage() {
         paciente={pacienteAEliminar}
         onCancelar={() => setPacienteAEliminar(null)}
         onEliminado={() => {
+          toast.exito('Paciente eliminado');
           setPacienteAEliminar(null);
           setIsFormModalOpen(false);
           fetchPacientes();
