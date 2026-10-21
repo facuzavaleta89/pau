@@ -3,7 +3,7 @@ import { ErrorApp } from './errores';
 import { normalizarHora } from './horas';
 import type { DatosSemanaTPA } from './tpa';
 import { format } from 'date-fns';
-import type { Paciente, SesionRPG, Pago, HorarioTPA, ClaseTPA, AsistenciaTPA } from '@/types';
+import type { Paciente, SesionRPG, Pago, HorarioTPA, ClaseTPA, AsistenciaTPA, DiaSemana } from '@/types';
 
 // Con RLS, una escritura que la base no permite (sesión vencida, usuario no
 // autorizado) puede no dar error: simplemente afecta 0 filas. Por eso toda
@@ -12,6 +12,30 @@ import type { Paciente, SesionRPG, Pago, HorarioTPA, ClaseTPA, AsistenciaTPA } f
 function exigirUnaFila<T>(data: T[] | null, mensaje: string): T {
   if (!data || data.length !== 1) throw new ErrorApp(mensaje);
   return data[0];
+}
+
+// Alta con un id generado en el navegador al abrir el formulario (nuevoId()).
+// Si la respuesta de un guardado anterior se perdió (corte de conexión) y Pau
+// vuelve a tocar Guardar, la base responde 23505 por el mismo id: ya estaba
+// guardado. Se le aplican los datos actuales (pudo corregir algo antes de
+// reintentar) y se devuelve la fila, sin duplicarla.
+async function insertarSinDuplicar<T>(tabla: string, fila: { id: string }, mensaje: string): Promise<T> {
+  const { data, error } = await supabase.from(tabla).insert([fila]).select();
+  if (error?.code !== '23505') {
+    if (error) throw error;
+    return exigirUnaFila(data as T[] | null, mensaje);
+  }
+
+  const { data: existente, error: errorUpdate } = await supabase
+    .from(tabla)
+    .update(fila)
+    .eq('id', fila.id)
+    .select();
+
+  if (errorUpdate) throw errorUpdate;
+  // Sin fila con ese id: el 23505 era por otro dato repetido.
+  if (!existente || existente.length !== 1) throw error;
+  return existente[0] as T;
 }
 
 // Postgres devuelve las columnas `time` como "HH:mm:ss"; la app usa "HH:mm".
@@ -66,14 +90,9 @@ export async function getSesionesRPGPorRango(startDate: string, endDate: string)
   return (data as SesionRPG[]).map(conHora);
 }
 
-export async function createSesionRPG(sesion: Partial<SesionRPG>) {
-  const { data, error } = await supabase
-    .from('sesiones_rpg')
-    .insert([sesion])
-    .select();
-
-  if (error) throw error;
-  return conHora(exigirUnaFila(data as SesionRPG[] | null, 'No se pudo crear el turno.'));
+// `id` generado al abrir el formulario (nuevoId()): reintentar no duplica.
+export async function createSesionRPG(sesion: Partial<SesionRPG> & { id: string }) {
+  return conHora(await insertarSinDuplicar<SesionRPG>('sesiones_rpg', sesion, 'No se pudo crear el turno.'));
 }
 
 export async function updateSesionRPG(id: string, updates: Partial<SesionRPG>) {
@@ -142,11 +161,26 @@ export async function cargarSemanaTPA(desde: string, hasta: string): Promise<Dat
   return { horarios, clases, asistencias };
 }
 
-export async function createHorarioTPA(horario: { paciente_id: string; dia_semana: 'lunes' | 'miercoles' | 'viernes'; hora: string }) {
+export async function createHorarioTPA(horario: { paciente_id: string; dia_semana: DiaSemana; hora: string }) {
   const { data, error } = await supabase
     .from('horarios_tpa')
     .insert([{ ...horario, activo: true }])
     .select();
+
+  // 23505 = ya es fijo activo de ese horario (índice único parcial): pasa al
+  // reintentar después de un corte. Ya estaba inscripto: se devuelve esa fila.
+  if (error?.code === '23505') {
+    const { data: existente, error: errorLectura } = await supabase
+      .from('horarios_tpa')
+      .select()
+      .eq('paciente_id', horario.paciente_id)
+      .eq('dia_semana', horario.dia_semana)
+      .eq('hora', horario.hora)
+      .eq('activo', true);
+
+    if (errorLectura) throw errorLectura;
+    return conHora(exigirUnaFila(existente as HorarioTPA[] | null, 'No se pudo inscribir al alumno.'));
+  }
 
   if (error) throw error;
   return conHora(exigirUnaFila(data as HorarioTPA[] | null, 'No se pudo inscribir al alumno.'));
@@ -154,16 +188,11 @@ export async function createHorarioTPA(horario: { paciente_id: string; dia_seman
 
 // Desinscribe guardando la fecha de baja (sigue siendo fijo en las fechas anteriores).
 export async function deactivateHorarioTPA(id: string) {
-  const desactivar = (cambios: { activo: false; fecha_baja?: string }) => supabase
+  const { data, error } = await supabase
     .from('horarios_tpa')
-    .update(cambios)
+    .update({ activo: false, fecha_baja: format(new Date(), 'yyyy-MM-dd') })
     .eq('id', id)
     .select();
-
-  let { data, error } = await desactivar({ activo: false, fecha_baja: format(new Date(), 'yyyy-MM-dd') });
-  // PGRST204 = la columna no existe: la migración 20261019000001 todavía no está
-  // aplicada. Se desinscribe igual, sin fecha. Borrar este fallback cuando esté aplicada.
-  if (error?.code === 'PGRST204') ({ data, error } = await desactivar({ activo: false }));
 
   if (error) throw error;
   return conHora(exigirUnaFila(data as HorarioTPA[] | null, 'No se pudo desinscribir al alumno.'));
@@ -204,10 +233,12 @@ export async function upsertAsistenciaTPA(asistencia: Partial<AsistenciaTPA>) {
   return exigirUnaFila(data as AsistenciaTPA[] | null, 'No se pudo guardar la asistencia.');
 }
 
-export async function createClaseTPA(clase: Partial<ClaseTPA>) {
+// Upsert sobre el unique (fecha, hora): si la clase ya existe (un reintento
+// después de un corte, o la creó otra pestaña), devuelve esa en vez de fallar.
+export async function createClaseTPA(clase: { fecha: string; hora: string }) {
   const { data, error } = await supabase
     .from('clases_tpa')
-    .insert([clase])
+    .upsert([clase], { onConflict: 'fecha,hora' })
     .select();
 
   if (error) throw error;
@@ -323,14 +354,9 @@ export async function upsertPago(pago: Partial<Pago>) {
   return exigirUnaFila(data as Pago[] | null, 'No se pudo guardar el pago.');
 }
 
-export async function createPaciente(paciente: Partial<Paciente>) {
-  const { data, error } = await supabase
-    .from('pacientes')
-    .insert([paciente])
-    .select();
-
-  if (error) throw error;
-  return exigirUnaFila(data as Paciente[] | null, 'No se pudo crear el paciente.');
+// `id` generado al abrir el formulario (nuevoId()): reintentar no duplica.
+export async function createPaciente(paciente: Partial<Paciente> & { id: string }) {
+  return insertarSinDuplicar<Paciente>('pacientes', paciente, 'No se pudo crear el paciente.');
 }
 
 export async function updatePaciente(id: string, updates: Partial<Paciente>) {

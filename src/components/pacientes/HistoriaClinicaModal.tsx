@@ -7,7 +7,7 @@ import { mensajeError, registrarError } from '@/lib/errores';
 import { useToast } from '@/components/ui/ToastProvider';
 import type { Paciente, SesionRPG, AsistenciaTPA } from '@/types';
 import { cn } from '@/lib/utils';
-import { ESTADOS_ASISTENCIA, ESTADOS_PAGO, ESTADOS_SESION_RPG } from '@/lib/estados';
+import { ESTADOS_PAGO, ESTADOS_SESION_RPG, estadoAsistencia } from '@/lib/estados';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -170,19 +170,19 @@ export function HistoriaClinicaModal({ isOpen, onClose, pacienteId }: HistoriaCl
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                       <div>
-                        <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider block">Teléfono Principal</span>
+                        <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Teléfono Principal</span>
                         <span className="text-stone-700 font-semibold">{paciente.telefono || 'No registrado'}</span>
                       </div>
                       <div>
-                        <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider block">Contacto de Emergencia</span>
+                        <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Contacto de Emergencia</span>
                         <span className="text-stone-700 font-semibold">{paciente.telefono_emergencia || 'No registrado'}</span>
                       </div>
                       <div>
-                        <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider block">Dirección</span>
+                        <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Dirección</span>
                         <span className="text-stone-700 font-semibold">{paciente.direccion || 'No registrada'}</span>
                       </div>
                       <div>
-                        <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider block">Profesión</span>
+                        <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Profesión</span>
                         <span className="text-stone-700 font-semibold">{paciente.profesion || 'No registrada'}</span>
                       </div>
                     </div>
@@ -195,24 +195,28 @@ export function HistoriaClinicaModal({ isOpen, onClose, pacienteId }: HistoriaCl
                     </h3>
                     <div className="space-y-4 text-sm">
                       <div>
-                        <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider block">Motivo de Consulta</span>
+                        <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Motivo de Consulta</span>
                         <p className="text-stone-600 mt-1 leading-relaxed bg-stone-50 p-3 rounded-lg border border-stone-200">{paciente.motivo_consulta || 'Sin registrar'}</p>
                       </div>
                       <div>
-                        <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider block">Antecedentes Clínicos</span>
+                        <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Antecedentes Clínicos</span>
                         <p className="text-stone-600 mt-1 leading-relaxed bg-stone-50 p-3 rounded-lg border border-stone-200">{paciente.antecedentes_clinicos || 'Sin antecedentes registrados'}</p>
                       </div>
                       <div>
-                        <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider block">Estudios Imagenológicos (Rayos X, RM, etc.)</span>
+                        <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Estudios Imagenológicos (Rayos X, RM, etc.)</span>
                         <p className="text-stone-600 mt-1 leading-relaxed bg-stone-50 p-3 rounded-lg border border-stone-200">{paciente.estudios_imagenologicos || 'Sin estudios cargados'}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Evaluación Inicial</span>
+                        <p className="text-stone-600 mt-1 leading-relaxed bg-stone-50 p-3 rounded-lg border border-stone-200 whitespace-pre-line">{paciente.evaluacion_inicial || 'Sin registrar'}</p>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider block">Actividad Física</span>
+                          <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Actividad Física</span>
                           <p className="text-stone-600 mt-1 leading-relaxed bg-stone-50 p-3 rounded-lg border border-stone-200">{paciente.actividad_fisica || 'No realiza / no registrada'}</p>
                         </div>
                         <div>
-                          <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider block">Objetivo del Tratamiento</span>
+                          <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Objetivo del Tratamiento</span>
                           <p className="text-stone-600 mt-1 leading-relaxed bg-stone-50 p-3 rounded-lg border border-stone-200">{paciente.objetivo_tratamiento || 'Sin definir'}</p>
                         </div>
                       </div>
@@ -296,9 +300,9 @@ export function HistoriaClinicaModal({ isOpen, onClose, pacienteId }: HistoriaCl
                             </div>
                             <span className={cn(
                               "px-2.5 py-0.5 rounded-full text-xs font-semibold border self-start sm:self-center",
-                              ESTADOS_ASISTENCIA[att.estado ?? 'pendiente'].clases
+                              estadoAsistencia(att.estado).clases
                             )}>
-                              {ESTADOS_ASISTENCIA[att.estado ?? 'pendiente'].label}
+                              {estadoAsistencia(att.estado).label}
                             </span>
                           </div>
                         ))}

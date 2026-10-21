@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { FileText, Save, Trash2, User } from 'lucide-react';
 import { createPaciente, updatePaciente } from '@/lib/queries';
-import { mensajeError, registrarError } from '@/lib/errores';
+import { mensajeErrorAlGuardar, registrarError } from '@/lib/errores';
+import { nuevoId } from '@/lib/utils';
 import { useToast } from '@/components/ui/ToastProvider';
 import { Modal, BOTON_PIE_PRIMARIO, BOTON_PIE_SECUNDARIO } from '@/components/ui/Modal';
 import type { Paciente, TipoClase } from '@/types';
@@ -75,6 +76,8 @@ export function PacienteFormModal({ paciente, onCerrar, onGuardado, onEliminar }
   const toast = useToast();
   const [form, setForm] = useState<Formulario>(() => formularioInicial(paciente));
   const [guardando, setGuardando] = useState(false);
+  // Id del paciente nuevo, fijo mientras el formulario está abierto: guardar de nuevo no lo duplica.
+  const [idNuevo] = useState(nuevoId);
 
   const cambiar = (campo: keyof Formulario, valor: string) => setForm((prev) => ({ ...prev, [campo]: valor }));
 
@@ -106,12 +109,12 @@ export function PacienteFormModal({ paciente, onCerrar, onGuardado, onEliminar }
     setGuardando(true);
     try {
       if (paciente) await updatePaciente(paciente.id, payload);
-      else await createPaciente(payload);
+      else await createPaciente({ ...payload, id: idNuevo });
       toast.exito(paciente ? 'Ficha guardada' : 'Paciente creado');
       onGuardado();
     } catch (error: unknown) {
       registrarError('Error guardando paciente', error);
-      toast.error(`No se pudo guardar el paciente. ${mensajeError(error)}`);
+      toast.error(mensajeErrorAlGuardar('No se pudo guardar el paciente.', error));
       setGuardando(false);
     }
   };

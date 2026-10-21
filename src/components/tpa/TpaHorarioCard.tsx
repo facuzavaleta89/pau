@@ -2,7 +2,7 @@
 
 import { ClipboardCheck, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ESTADOS_ASISTENCIA } from '@/lib/estados';
+import { estadoAsistencia } from '@/lib/estados';
 import type { CeldaTPA } from '@/types';
 
 interface TpaHorarioCardProps {
@@ -41,7 +41,7 @@ export function TpaHorarioCard({ celda, onAbrir, onAbrirPaciente }: TpaHorarioCa
       {celda.alumnos.length > 0 ? (
         <ul className="flex flex-col gap-1.5">
           {celda.alumnos.map((alumno) => {
-            const estado = ESTADOS_ASISTENCIA[alumno.estado];
+            const estado = estadoAsistencia(alumno.estado);
             const Icono = estado.icono;
             return (
               <li key={alumno.pacienteId}>

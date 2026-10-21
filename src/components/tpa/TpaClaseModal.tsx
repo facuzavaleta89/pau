@@ -7,7 +7,7 @@ import { es } from "date-fns/locale";
 import {
   createClaseTPA, upsertAsistenciaTPA, deleteAsistenciaTPA, eliminarClaseTPASiVacia, getPacientesActivos,
 } from "@/lib/queries";
-import { mensajeError, registrarError } from "@/lib/errores";
+import { mensajeError, mensajeErrorAlGuardar, registrarError } from "@/lib/errores";
 import type { AlumnoCeldaTPA, CeldaTPA, EstadoAsistenciaTPA, Paciente } from "@/types";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -73,7 +73,7 @@ export function TpaClaseModal({ celda, onClose, onGuardado }: TpaClaseModalProps
       onClose();
     } catch (error: unknown) {
       registrarError("Error guardando asistencia TPA", error);
-      toast.error(`No se pudo guardar la asistencia. ${mensajeError(error)}`);
+      toast.error(mensajeErrorAlGuardar("No se pudo guardar la asistencia.", error));
       onGuardado(); // pudo guardarse una parte: recargar para mostrar lo que quedó
     } finally {
       setSaving(false);

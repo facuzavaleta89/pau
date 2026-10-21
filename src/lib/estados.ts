@@ -1,5 +1,5 @@
 import {
-  ArrowLeftRight, Ban, Check, CircleCheck, CircleDashed, CircleX, Clock, MessageSquare, RotateCcw, X,
+  ArrowLeftRight, Ban, Check, CircleCheck, CircleDashed, CircleHelp, CircleX, Clock, MessageSquare, RotateCcw, X,
   type LucideIcon,
 } from 'lucide-react';
 import type { EstadoAsistenciaTPA, EstadoPago, EstadoSesionRPG } from '@/types';
@@ -33,6 +33,27 @@ export const ESTADOS_ASISTENCIA: Record<EstadoAsistenciaTPA, ConfigEstado> = {
 export const ORDEN_ESTADOS_ASISTENCIA: EstadoAsistenciaTPA[] = [
   'presente', 'aviso_ausencia', 'falto_sin_avisar', 'recupera', 'vino_otra_clase', 'cancelado', 'pendiente',
 ];
+
+export function esEstadoAsistenciaConocido(estado: string): estado is EstadoAsistenciaTPA {
+  return Object.prototype.hasOwnProperty.call(ESTADOS_ASISTENCIA, estado);
+}
+
+/**
+ * Configuración de un estado de asistencia leído de la base. Nunca falla: un
+ * estado que esta versión no conoce (por ejemplo, uno nuevo escrito desde un
+ * preview que comparte la base) se muestra en gris con su nombre, en lugar de
+ * romper la pantalla. Sin fila = "Sin marcar".
+ */
+export function estadoAsistencia(estado: string | null | undefined): ConfigEstado {
+  const valor = estado ?? 'pendiente';
+  if (esEstadoAsistenciaConocido(valor)) return ESTADOS_ASISTENCIA[valor];
+  const texto = valor.replace(/_/g, ' ');
+  return {
+    label: texto.charAt(0).toUpperCase() + texto.slice(1),
+    clases: 'bg-stone-50 text-stone-600 border-stone-300',
+    icono: CircleHelp,
+  };
+}
 
 // ---------------------------------------------------------------------
 // RPG
