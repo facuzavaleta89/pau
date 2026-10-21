@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { DollarSign, AlertCircle, CheckCircle, Calendar, ChevronLeft, ChevronRight, User } from 'lucide-react';
 import { getPacientesConPagos, upsertPago } from '@/lib/queries';
-import { mensajeError, registrarError } from '@/lib/errores';
+import { mensajeError, mensajeErrorAlGuardar, registrarError } from '@/lib/errores';
 import { useToast } from '@/components/ui/ToastProvider';
 import type { Pago, Paciente } from '@/types';
 import { format, parseISO } from 'date-fns';
@@ -84,7 +84,7 @@ export default function PagosPage() {
       setPacientesConPagos(updatedData as PacienteConPago[]);
     } catch (error: unknown) {
       registrarError("Error cambiando estado de pago", error);
-      toast.error(`No se pudo registrar el pago. ${mensajeError(error)}`);
+      toast.error(mensajeErrorAlGuardar('No se pudo registrar el pago.', error));
     } finally {
       setSavingId(null);
     }
@@ -114,7 +114,7 @@ export default function PagosPage() {
       setPacientesConPagos(updatedData as PacienteConPago[]);
     } catch (error: unknown) {
       registrarError("Error actualizando plan/importe", error);
-      toast.error(`No se pudo actualizar el plan o el importe. ${mensajeError(error)}`);
+      toast.error(mensajeErrorAlGuardar('No se pudo actualizar el plan o el importe.', error));
     } finally {
       setSavingId(null);
     }

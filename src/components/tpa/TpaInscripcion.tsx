@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Plus, Trash2, User } from "lucide-react";
 import { createHorarioTPA, deactivateHorarioTPA } from "@/lib/queries";
-import { mensajeError, registrarError } from "@/lib/errores";
+import { mensajeErrorAlGuardar, registrarError } from "@/lib/errores";
 import { DIAS_TPA } from "@/lib/tpa";
 import type { CeldaTPA, HorarioTPA, Paciente } from "@/types";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -37,7 +37,7 @@ export function TpaInscripcion({ celda, todosPacientes, onCambio }: TpaInscripci
       onCambio();
     } catch (err: unknown) {
       registrarError("Error inscribiendo alumno", err);
-      toast.error(`No se pudo inscribir al alumno. ${mensajeError(err)}`);
+      toast.error(mensajeErrorAlGuardar("No se pudo inscribir al alumno.", err));
     } finally {
       setInscribiendo(false);
     }
@@ -53,7 +53,7 @@ export function TpaInscripcion({ celda, todosPacientes, onCambio }: TpaInscripci
       onCambio();
     } catch (err: unknown) {
       registrarError("Error desinscribiendo alumno", err);
-      toast.error(`No se pudo desinscribir al alumno. ${mensajeError(err)}`);
+      toast.error(mensajeErrorAlGuardar("No se pudo desinscribir al alumno.", err));
     } finally {
       setDesinscribiendo(false);
     }

@@ -2,7 +2,9 @@
 
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ESTADOS_ASISTENCIA, ORDEN_ESTADOS_ASISTENCIA } from "@/lib/estados";
+import {
+  ESTADOS_ASISTENCIA, ORDEN_ESTADOS_ASISTENCIA, esEstadoAsistenciaConocido, estadoAsistencia,
+} from "@/lib/estados";
 import type { AlumnoCeldaTPA, EstadoAsistenciaTPA } from "@/types";
 
 interface TpaAsistenciaListaProps {
@@ -40,6 +42,8 @@ export function TpaAsistenciaLista({ alumnos, estadoActual, onCambiar, onIrAInsc
               <span className="font-semibold text-stone-900 truncate">{alumno.nombre}</span>
               <span className="shrink-0 text-xs text-stone-500">
                 {!alumno.esFijo && 'No es fijo · '}
+                {/* Estado de una versión más nueva de la app: se muestra, aunque no tenga chip. */}
+                {!esEstadoAsistenciaConocido(actual) && `${estadoAsistencia(actual).label} · `}
                 {editado ? 'Sin guardar' : ''}
               </span>
             </div>

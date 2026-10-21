@@ -1,6 +1,6 @@
 # PENDIENTES.md — Estado y plan de trabajo
 
-_Última revisión: 19/10/2026 — Fases 0 y 0.5 completas; Fase 1, primera parte (modelo de la grilla TPA y vistas de celular) implementada en la rama `fase-1/vista-celular`. App en https://paukinesio.vercel.app. Base Supabase `pau` (`dmwtoozbctnwccaaitos`, Postgres 17, plan Free, región us-east-2)._
+_Última revisión: 21/10/2026 — Fases 0 y 0.5 completas; Fase 1: modelo de la grilla TPA y vistas de celular mergeados; **asistencia TPA en 4 entregas** (diseño en `docs/DISENO_ASISTENCIA_TPA.md`), entrega 1 hecha en la rama `fase-1/asistencia`. App en https://paukinesio.vercel.app. Base Supabase `pau` (`dmwtoozbctnwccaaitos`, Postgres 17, plan Free, región us-east-2)._
 
 ## Estado actual (resumen)
 
@@ -14,7 +14,8 @@ _Última revisión: 19/10/2026 — Fases 0 y 0.5 completas; Fase 1, primera part
 - Seguridad (Fase 0): login, `proxy.ts`, RLS solo para la usuaria autorizada, Salir, borrado de pacientes con confirmación. Deployada en Vercel.
 - Base técnica (Fase 0.5): horas normalizadas, `estados.ts`, Toast, `ConfirmDialog`, aviso de usuario no autorizado.
 - Celular: ninguna pantalla con desplazamiento lateral, modales en hoja o pantalla completa con pie fijo, área segura del iPhone, aviso de sin conexión.
-- `tsc` y `build` sin errores. `npm run lint`: **10 errores y 2 warnings**, todos en código anterior (2 `no-explicit-any` y 1 `set-state-in-effect` en `pagos/page`, 1 `set-state-in-effect` en `TurnoModal`, 6 comillas sin escapar en `HistoriaClinicaModal`; warnings: `cn` sin usar en `TurnoModal` y una dependencia de `useEffect` en Pagos).
+- Tests automáticos con **Vitest** (`npm test`) para las funciones puras de `src/lib/`.
+- `tsc`, `build` y `npm test` sin errores. `npm run lint`: **10 errores y 2 warnings**, todos en código anterior (2 `no-explicit-any` y 1 `set-state-in-effect` en `pagos/page`, 1 `set-state-in-effect` en `TurnoModal`, 6 comillas sin escapar en `HistoriaClinicaModal`; warnings: `cn` sin usar en `TurnoModal` y una dependencia de `useEffect` en Pagos).
 
 **Lo más importante que falta:** las **notas de evolución clase a clase** (el pedido central de Pau) y poder agregar a una clase a quien **recupera o viene de otro horario**.
 
@@ -73,9 +74,49 @@ Estado: ✅ **completa** (mergeada; migración `20261018000001` aplicada y proba
 
 ## Fase 1 — Núcleo de lo que pidió Pau
 
-### Modelo de la grilla TPA + celular primero (rama `fase-1/vista-celular`) — ⏳ implementado, falta que Facu pruebe y aplique `20261019000001`
+### Asistencia TPA: faltas, lugares, recuperaciones y notas — 4 entregas
+
+**Diseño completo y decisiones: [`docs/DISENO_ASISTENCIA_TPA.md`](docs/DISENO_ASISTENCIA_TPA.md)** (referencia para las entregas 2 a 4).
+
+Decisiones (Facu, 21/10/2026):
+- Sin `falta_id`: el saldo se calcula **contando** por alumno y por mes. Derecho = faltas avisadas (C.T. + S.T.) del mes, con tope = frecuencia (cantidad de horarios fijos); usadas = veces que ocupó un lugar en el mes (`recupera` o `cambio`); pendientes = derecho − usadas, consumiendo primero las avisadas con tiempo. "Adelanta" no es un tipo: es una recuperación usada antes de faltar.
+- Tipos de quien ocupa un lugar: `fijo`, `recupera`, `cambio`, `suelta`. Se mantiene `ocupa_lugar_de`.
+- Datos de prueba de asistencia: se borran (script). **Una sola migración** con los estados nuevos definitivos: Facu la aplica justo antes de probar el preview y mergea el mismo día.
+- Vitest para las funciones puras. Función transaccional `guardar_clase_tpa` (security invoker, `execute` solo para `authenticated`). `fecha_alta` en `horarios_tpa` en la entrega 2.
+- Criterios por defecto (Pau los puede cambiar): colores como están; lugar lleno → avisar, no bloquear; 2 faltas seguidas sin aviso → en cualquier horario del alumno, las clases sin marcar no cortan la racha; clases sueltas como quien ocupa un lugar (`tipo = 'suelta'`).
+
+#### Entrega 1 — base (rama `fase-1/asistencia`) — ⏳ implementada, falta que Facu pruebe
+- [x] Evaluación inicial visible en la ficha de la historia clínica (bug #4). De paso, etiquetas de la ficha en `text-xs` (antes `text-[10px]`).
+- [x] Guardados que no duplican: id generado al abrir el formulario (`nuevoId()`) en pacientes y turnos RPG; 23505 con el mismo id = ya estaba guardado (`insertarSinDuplicar` en `queries.ts`). `createClaseTPA` como upsert sobre `(fecha, hora)`. `createHorarioTPA` reintentable (23505 = ya inscripto).
+- [x] Timeout: 15 s lecturas, 45 s escrituras (`src/lib/tiempo-maximo.ts`). Si se corta una escritura: "La conexión tardó demasiado y no sabemos si se guardó…" (`mensajeErrorAlGuardar`). Verificado con tests contra el `postgrest-js` real.
+- [x] `estadoAsistencia()` en `estados.ts`: un estado desconocido se muestra en gris con su nombre, no rompe (necesario para la ventana entre la migración única y el merge de la entrega 2).
+- [x] Sin el fallback `PGRST204` de `deactivateHorarioTPA`.
+- [x] Vitest (`npm test`) con tests de `armarSemanaTPA`, `diaTPAInicial`, cortes por tiempo, `nuevoId` y `estadoAsistencia`.
+- [ ] **Probar** (Facu) y deployar a producción **antes** de aplicar la migración de la entrega 2.
+
+#### Entrega 2 — faltas y lugares (rama `fase-1/faltas-y-lugares`)
+- [ ] Estados nuevos: Avisó C.T. / Avisó S.T. / No avisó; contador de lugares (los que avisaron no ocupan) y marcador "Libre".
+- [ ] Avisos anticipados en clases futuras con sugerencia C.T./S.T. visible (sin sugerencia en clases pasadas); sin "Presente" ni "No avisó" a futuro.
+- [ ] `fecha_alta` editable al inscribir (reemplaza a `created_at` en `eraFijoEn`).
+- [ ] `eliminarClaseTPASiVacia` no borra clases canceladas ni con quien ocupa un lugar.
+- [ ] Script de borrado de la asistencia de prueba + **migración única** (diseño, secciones 4 y 5). Orden: entrega 1 en producción → script → migración → probar preview → merge el mismo día.
+- [ ] Tests del contador.
+
+#### Entrega 3 — ocupar lugares y recuperaciones (🔒 bloqueada por las preguntas a Pau)
+- [ ] Ocupar lugar con sugerencias (recupera / cambio / suelta), cambio de horario como una sola acción.
+- [ ] Función transaccional `guardar_clase_tpa` (migración propia).
+- [ ] `calcularRecuperaciones()` + tests; pestaña Recuperaciones, "Buscar lugar", "Copiar lista".
+
+#### Entrega 4 — cierre de clase, notas y alertas
+- [ ] "Marcar el resto como presente" (solo clases que ya empezaron; no pisa avisos).
+- [ ] Cancelar una clase entera (feriado, no puede) en un toque.
+- [ ] Notas de evolución (`notas_evolucion`, migración propia): campo en el modal, pestaña Evolución, nota libre.
+- [ ] Alerta de 2 faltas seguidas sin aviso + tests.
+- [ ] Sacar las alertas por palabra clave (bug #5).
+
+### Modelo de la grilla TPA + celular primero (rama `fase-1/vista-celular`) — ✅ mergeado
 - [x] **Grilla de cada semana con lo que pasó esa semana** (N2): `armarSemanaTPA()` en `src/lib/tpa.ts` = fijos **de esa fecha** + quienes tienen asistencia registrada (recupera, vino de otro horario, ex fijos). Única función usada por la grilla de la compu y la lista del celular.
-- [ ] Aplicar `20261019000001_horarios_tpa_fecha_baja.sql` (columna `fecha_baja`, que se completa al desinscribir). Sin ella, quien se desinscribe desaparece también de las semanas pasadas en las que no tenía asistencia (la app no se rompe: `deactivateHorarioTPA` tiene un fallback que hay que borrar cuando esté aplicada).
+- [x] `20261019000001_horarios_tpa_fecha_baja.sql` **aplicada** (verificado con el MCP el 20/10/2026). El fallback de `deactivateHorarioTPA` se borró en la entrega 1.
 - [x] **Horarios reales** en una constante (`HORARIOS_TPA`): lunes y miércoles 10:30, 11:30, 12:30, 16, 17, 18, 19; viernes igual sin 19. Un horario fuera de esa lista aparece solo si tiene fijos o una clase registrada ("fuera de horario").
 - [x] **Cupo 4** en una constante (`CUPO_TPA`), mostrado como "3/4" (pendiente de confirmar con Pau, pregunta 2).
 - [x] **TPA en celular:** selector de día (Lun / Mié / Vie, abre en el día de hoy o el próximo) + lista de horarios como cards.
@@ -91,13 +132,13 @@ Estado: ✅ **completa** (mergeada; migración `20261018000001` aplicada y proba
 ### Decisión: notas de evolución en una tabla propia (Facu, 19/10/2026)
 Las notas van en **`notas_evolucion`**, **nunca en `asistencia_tpa.nota`**. Motivo: "Sin marcar" borra la fila de asistencia (y la clase si queda vacía), así que una nota guardada ahí se perdería. `asistencia_tpa.nota` queda sin uso (se puede borrar más adelante, previa revisión de que no tenga datos).
 
-### Notas de evolución (prioridad #1 funcional)
-- [ ] Diseñar la tabla `notas_evolucion` (`paciente_id`, `fecha`, `texto`, `origen` rpg/tpa/libre, `sesion_rpg_id` / `clase_tpa_id` opcionales, flags `presion`, `dolor`, `lesion` según la pregunta 6 a Pau). Definir qué pasa con la nota si se borra el turno o la clase (FK `on delete set null`, para que la nota no se pierda).
+### Notas de evolución (prioridad #1 funcional) — van en la entrega 4 de asistencia TPA
+- [x] Diseño de la tabla `notas_evolucion` (diseño, sección 6.2). Pau no quiere marcas rápidas (presión, dolor): solo texto libre.
 - [ ] En el modal de asistencia TPA: campo de nota por alumno, guardado en `notas_evolucion` (no en `asistencia_tpa.nota`).
-- [ ] En el turno RPG: la nota existe; mostrarla como "evolución" y no como "observación del turno".
+- [ ] En el turno RPG: la nota existe; mostrarla como "evolución" en la historia clínica (sin tocar RPG).
 - [ ] Poder agregar una nota libre desde la historia clínica.
 - [ ] Pestaña "Evolución" en la historia clínica: notas + asistencias en una sola línea de tiempo.
-- [ ] **Ocultar las alertas por palabra clave** o cambiarles el texto (hoy dicen "sesiones más recientes" pero buscan en todo el historial, bug #5). Rehacerlas en Fase 3.
+- [ ] **Sacar las alertas por palabra clave** (hoy dicen "sesiones más recientes" pero buscan en todo el historial, bug #5). Rehacerlas en Fase 3.
 
 ### Pantalla "Inicio" (después de las notas de evolución)
 Reemplaza a `/rpg` como entrada de la app (`/` y el destino después del login). La sección "Hoy" se puede adelantar si conviene.
@@ -106,12 +147,12 @@ Reemplaza a `/rpg` como entrada de la app (`/` y el destino después del login).
 - [ ] **(c) Esta semana:** turnos RPG, lugares libres en TPA y pacientes activos RPG / TPA.
 - Reutilizar `armarSemanaTPA` / `TpaHorarioCard` y `TurnoCard`; en el celular, una sola columna en ese orden.
 ### TPA
-- [ ] **Agregar alumno no fijo a una clase** (recupera / viene de otro horario). Hoy `recupera` y `vino_otra_clase` solo se pueden asignar a fijos de ese horario. Debe mostrarse en la grilla de esa semana.
+- [ ] **Agregar alumno no fijo a una clase** (recupera / viene de otro horario / suelta): entrega 3 de asistencia TPA. Hoy `recupera` y `vino_otra_clase` solo se pueden asignar a fijos de ese horario.
 - [ ] Horarios y cupo **editables por Pau** desde la app (hoy constantes en `src/lib/tpa.ts`; alcanza si no cambian seguido).
 - [ ] **Controlar el cupo al inscribir** (N7): hoy solo se avisa en la pestaña "Alumnos fijos" cuando ya hay 4 fijos; no se impide.
 - [x] Poder volver un estado a "sin marcar"; no crear una clase vacía si todo queda pendiente (bug #2, Fase 0.5).
-- [ ] Botón "Todos presentes" en el registro rápido.
-- [ ] Cancelar una clase entera (feriado, enfermedad) en un toque.
+- [ ] Botón "Marcar el resto como presente" en el registro rápido (entrega 4).
+- [ ] Cancelar una clase entera (feriado, enfermedad) en un toque (entrega 4).
 
 ### RPG
 - [ ] Tipo de sesión como lista (RPG, masajes, evaluación inicial; editable), no texto libre con default "RPG".
@@ -120,7 +161,7 @@ Reemplaza a `/rpg` como entrada de la app (`/` y el destino después del login).
 - [ ] Crear paciente nuevo rápido desde el modal de turno.
 
 ### Historia clínica
-- [ ] Mostrar **Evaluación inicial** (bug #4).
+- [x] Mostrar **Evaluación inicial** (bug #4, entrega 1).
 - [ ] Editar la ficha desde el mismo modal.
 - [ ] Teléfono tocable (llamar / WhatsApp).
 - [ ] Evaluar guardar fecha de nacimiento en vez de edad (la edad queda desactualizada).
@@ -187,7 +228,18 @@ Reemplaza a `/rpg` como entrada de la app (`/` y el destino después del login).
 
 14. **Cupo "3/4":** ¿cuenta a quien avisó que falta? Hoy el número suma a todos los que figuran en el horario esa semana (fijos + recuperaciones), aunque hayan avisado o faltado. Si querés ver "lugares libres para recuperar", habría que descontar a los que avisaron.
 
-Para Fase 1 bloquean la 1, 2, 3, 6 y 9; para Fase 2, la 4 y la 5.
+Para Fase 1 bloquean la 1, 2, 3, 6 y 9; para Fase 2, la 4 y la 5. La 1, la 6 y la 14 tienen criterio por defecto desde el 21/10/2026 (colores como están; sin marcas rápidas en las notas; los que avisaron no ocupan lugar).
+
+### Recuperaciones (21/10/2026) — 🔒 bloquean la entrega 3 de asistencia TPA
+
+Detalle en `docs/DISENO_ASISTENCIA_TPA.md`, sección 10.
+
+15. Cuando **vos** cancelás la clase (feriado, no podés), ¿los fijos tienen derecho a recuperarla? ¿Cuenta dentro del tope del mes (1, 2 o 3)?
+16. El **cambio de horario puntual** ("viene a las 18") y el **adelanto** (recuperar antes de faltar), ¿cuentan como recuperaciones del mes?
+17. Una falta de **fin de mes**, ¿se puede recuperar el mes siguiente?
+18. Si alguien queda **anotado para recuperar y no viene**, ¿pierde esa recuperación?
+19. Las **24 h** para "con tiempo", ¿son exactas desde la hora de la clase, o alcanza con avisar el día anterior?
+20. El **tope** (según cuántas veces por semana viene), ¿aplica igual a los que avisaron **sin tiempo**?
 
 ## Bugs detectados
 
@@ -202,10 +254,12 @@ Para Fase 1 bloquean la 1, 2, 3, 6 y 9; para Fase 2, la 4 y la 5.
 | 1 | 0.5 ✅ | `TpaWeeklyView` / `TpaClaseModal` | **Corregido en Fase 0.5** (`normalizarHora` + `conHora` en queries). Era: horas `"HH:mm:ss"` de la base vs `"HH:mm"` de la grilla → filas duplicadas (una `08:00` vacía y otra `08:00:00` con los alumnos); si inscribís desde la fila `08:00`, el alumno "salta" a la otra. **Riesgo futuro (hoy no reproducible):** asistencia que se guarda pero no se ve, y error de unique al re-guardar una clase, en cuanto se puedan agregar no fijos o se normalice a medias. |
 | N10 | 0.5 ✅ | `TurnoModal.tsx:50` | La hora llega como `"HH:mm:ss"` al `<input type="time">`. Mismo origen que #1. |
 | 6 | 0.5 ✅ / 3 | `Header` | Campana falsa: sacada en 0.5. Buscador que no busca: Fase 3. |
-| N2 | 1 ✅ | TPA | Cualquier semana mostraba los fijos **de hoy**. Corregido con `armarSemanaTPA` (falta aplicar `20261019000001` para las bajas). |
+| N2 | 1 ✅ | TPA | Cualquier semana mostraba los fijos **de hoy**. Corregido con `armarSemanaTPA` (+ `20261019000001`, aplicada). |
 | N3 | 1 ✅ | `TpaClaseModal` | Copia congelada (0.5) y pérdida de pestaña/marcas al inscribir (Fase 1): corregidos. |
 | 2 | 0.5 ✅ | `TpaClaseModal` | Volver a "pendiente" no se guardaba y se creaba una clase vacía. Corregido en 0.5. |
-| 4 | 1 | `HistoriaClinicaModal` | No muestra `evaluacion_inicial`. |
+| 4 | 1 ✅ | `HistoriaClinicaModal` | No mostraba `evaluacion_inicial`. Corregido en la entrega 1 de asistencia. |
+| N15 | 1 ✅ | `queries.ts` / `supabase.ts` | Timeout de 15 s en todo: con mala señal, un alta podía llegar a la base, la app decía "No se pudo guardar" y al reintentar se duplicaba el paciente o el turno. Corregido en la entrega 1 (ids generados al abrir + 45 s para escrituras). |
+| N16 | — | `package.json` | `npm audit`: `next` 16.2.6 tiene un aviso **crítico** (corregido en ≥ 16.3.8) y hay 12 altos en dependencias de compilación. Actualizar Next en una tarea aparte (probar build y deploy). |
 | 5 | 1 / 3 | `HistoriaClinicaModal` | Alertas por palabra clave sobre **todo** el historial, aunque el texto dice "recientes". |
 | N11 | 1 ✅ | `Navigation` | Área segura del iPhone con `env(safe-area-inset-bottom)` + `viewportFit: cover`. |
 | 7 | 2 | `pagos/page` | Precios hardcodeados; mezcla RPG (por sesión) con mensual. |

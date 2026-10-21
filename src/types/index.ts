@@ -51,8 +51,8 @@ export interface HorarioTPA {
   dia_semana: DiaSemana;
   hora: string;
   activo: boolean;
-  /** Fecha de desinscripción ('yyyy-MM-dd'). Undefined si la migración 20261019000001 no está aplicada. */
-  fecha_baja?: string | null;
+  /** Fecha de desinscripción ('yyyy-MM-dd'); null mientras está activo. */
+  fecha_baja: string | null;
   created_at: string;
   // Relación opcional
   pacientes?: Pick<Paciente, 'nombre'>;

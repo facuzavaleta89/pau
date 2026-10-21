@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Calendar as CalendarIcon, Clock, Save, User, CheckCircle2 } from 'lucide-react';
 import { Modal, BOTON_PIE_PRIMARIO, BOTON_PIE_SECUNDARIO } from '@/components/ui/Modal';
 import type { SesionRPG, Paciente, EstadoPago, EstadoSesionRPG } from '@/types';
 import { getPacientesActivos, createSesionRPG, updateSesionRPG } from '@/lib/queries';
-import { mensajeError, registrarError } from '@/lib/errores';
+import { mensajeError, mensajeErrorAlGuardar, registrarError } from '@/lib/errores';
 import { useToast } from '@/components/ui/ToastProvider';
 import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
+import { cn, nuevoId } from '@/lib/utils';
 import { normalizarHora } from '@/lib/horas';
 import { ESTADOS_PAGO, ESTADOS_SESION_RPG, ORDEN_ESTADOS_PAGO, ORDEN_ESTADOS_SESION_RPG } from '@/lib/estados';
 
@@ -34,9 +34,12 @@ export function TurnoModal({ isOpen, onClose, turno, selectedDate, onSave }: Tur
   const [estadoPago, setEstadoPago] = useState<EstadoPago>('pendiente');
   const [estadoSesion, setEstadoSesion] = useState<EstadoSesionRPG>('pendiente');
   const [nota, setNota] = useState('');
+  // Id del turno nuevo, generado cada vez que se abre: guardar de nuevo no lo duplica.
+  const idNuevo = useRef('');
 
   useEffect(() => {
     if (isOpen) {
+      idNuevo.current = nuevoId();
       const loadPacientes = async () => {
         setLoading(true);
         try {
@@ -95,7 +98,7 @@ export function TurnoModal({ isOpen, onClose, turno, selectedDate, onSave }: Tur
       if (turno?.id) {
         await updateSesionRPG(turno.id, payload);
       } else {
-        await createSesionRPG(payload as Partial<SesionRPG>);
+        await createSesionRPG({ ...payload, id: idNuevo.current });
       }
       
       toast.exito(turno?.id ? 'Turno guardado' : 'Turno creado');
@@ -103,7 +106,7 @@ export function TurnoModal({ isOpen, onClose, turno, selectedDate, onSave }: Tur
       onClose();
     } catch (error: unknown) {
       registrarError("Error guardando turno", error);
-      toast.error(`No se pudo guardar el turno. ${mensajeError(error)}`);
+      toast.error(mensajeErrorAlGuardar('No se pudo guardar el turno.', error));
     } finally {
       setSaving(false);
     }

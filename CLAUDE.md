@@ -6,6 +6,7 @@ Antes de trabajar, leé en este orden:
 1. **PENDIENTES.md** — qué falta, en qué fase estamos y preguntas abiertas.
 2. **REQUISITOS.md** — qué pidió Pau, con sus palabras.
 3. **DESIGN.md** — sistema de diseño (obligatorio para cualquier cambio visual).
+4. **docs/DISENO_ASISTENCIA_TPA.md** — diseño y decisiones de asistencia TPA (faltas, lugares, recuperaciones, notas), si la tarea toca TPA.
 
 ---
 
@@ -46,6 +47,7 @@ npm run dev          # desarrollo en localhost:3000
 npm run build        # build de producción
 npm run lint         # ESLint
 npx tsc --noEmit     # chequeo de tipos
+npm test             # Vitest: tests de las funciones puras de src/lib (*.test.ts)
 ```
 
 Variables de entorno en `.env.local` (nunca commitear): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
@@ -79,14 +81,15 @@ src/
 │   └── useConexion.ts        # navigator.onLine
 ├── lib/
 │   ├── supabase.ts           # cliente de navegador (createBrowserClient)
+│   ├── tiempo-maximo.ts      # fetch con corte: 15 s lecturas, 45 s escrituras
 │   ├── supabase-proxy.ts     # cliente de servidor para proxy.ts (actualizarSesion)
 │   ├── auth.ts               # TODAS las operaciones de autenticación
 │   ├── queries.ts            # TODAS las operaciones con la DB
-│   ├── errores.ts            # registrarError / mensajeError / ErrorApp
+│   ├── errores.ts            # registrarError / mensajeError / mensajeErrorAlGuardar / ErrorApp
 │   ├── estados.ts            # etiquetas, colores e íconos de TODOS los estados
 │   ├── horas.ts              # normalizarHora ("HH:mm:ss" → "HH:mm")
 │   ├── tpa.ts                # HORARIOS_TPA, CUPO_TPA, DIAS_TPA y armarSemanaTPA (modelo de la semana)
-│   └── utils.ts              # cn()
+│   └── utils.ts              # cn(), nuevoId()
 └── types/index.ts            # tipos mapeados a las tablas
 ```
 
@@ -121,9 +124,10 @@ Estados válidos:
 
 - TypeScript estricto, **sin `any`** (usar `unknown` + narrowing para errores).
 - Tipos en `src/types/index.ts`. Queries solo en `src/lib/queries.ts` y autenticación solo en `src/lib/auth.ts`; nunca llamar a Supabase desde componentes.
-- Errores: nunca `console.error(error)` directo (los errores de Postgres pueden traer filas con datos de salud). Usar `registrarError(contexto, error)` para loguear y `mensajeError(error)` para mostrarle algo a la usuaria; para mensajes propios, `throw new ErrorApp('…')` (todo en `src/lib/errores.ts`).
+- Errores: nunca `console.error(error)` directo (los errores de Postgres pueden traer filas con datos de salud). Usar `registrarError(contexto, error)` para loguear y `mensajeError(error)` para mostrarle algo a la usuaria; al fallar un guardado, `mensajeErrorAlGuardar('No se pudo guardar X.', error)` (si la escritura se cortó por tiempo, dice que no se sabe si se guardó); para mensajes propios, `throw new ErrorApp('…')` (todo en `src/lib/errores.ts`).
+- **Guardados que no duplican:** toda alta nueva lleva un `id` generado al abrir el formulario con `nuevoId()` (`src/lib/utils.ts`) y se inserta con `insertarSinDuplicar()` en `queries.ts`; o un upsert sobre un unique natural. Así, tocar Guardar de nuevo después de un corte no crea dos registros.
 - Utilidades compartidas en `src/lib/` (`cn()` en `src/lib/utils.ts`).
-- Etiquetas, colores e íconos de estados definidos **una sola vez** en `src/lib/estados.ts` (`ESTADOS_ASISTENCIA`, `ESTADOS_SESION_RPG`, `ESTADOS_PAGO` y sus `ORDEN_*`). Nunca escribir clases de color de un estado a mano en un componente.
+- Etiquetas, colores e íconos de estados definidos **una sola vez** en `src/lib/estados.ts` (`ESTADOS_ASISTENCIA`, `ESTADOS_SESION_RPG`, `ESTADOS_PAGO` y sus `ORDEN_*`). Nunca escribir clases de color de un estado a mano en un componente. Para mostrar un estado de asistencia leído de la base, `estadoAsistencia(estado)`: no se rompe con un estado que esta versión no conoce.
 - Horas siempre `"HH:mm"` (Postgres `time` devuelve `"HH:mm:ss"`): toda función de `queries.ts` que lee filas con hora las pasa por `conHora()`; las consultas nuevas tienen que hacer lo mismo. Al comparar horas de otro origen, usar `normalizarHora()` (`src/lib/horas.ts`).
 - Fechas con `date-fns` (`addDays`, no sumar milisegundos).
 - Componentes funcionales, props con `interface`, un componente por archivo, idealmente < 150 líneas.
@@ -181,7 +185,7 @@ git checkout -b <rama-de-la-siguiente-tarea>
 1. Al empezar una sesión, leer PENDIENTES.md y decir (en `respuesta.md`) en qué tarea vas a trabajar.
 2. Trabajar **una fase o tarea por vez**. Para tareas grandes, presentar un plan corto antes de tocar código.
 3. Ante decisiones de producto o de arquitectura (sobre todo si dependen de Pau), plantear opciones con pros y contras y **preguntar**; no inventar reglas de negocio.
-4. Antes de dar una tarea por terminada: `npx tsc --noEmit`, `npm run lint` y `npm run build` sin errores nuevos. Si no tenés un navegador conectado para probar en viewport de celular (390px), **no digas que lo probaste**: dejá en `respuesta.md` una lista de pasos de prueba concretos para que Facu los haga en su celular o en el emulador del navegador.
+4. Antes de dar una tarea por terminada: `npx tsc --noEmit`, `npm run lint`, `npm run build` y `npm test` sin errores nuevos. Las funciones puras nuevas con reglas (cálculos de TPA, recuperaciones, alertas) llevan tests en un `*.test.ts` al lado. Si no tenés un navegador conectado para probar en viewport de celular (390px), **no digas que lo probaste**: dejá en `respuesta.md` una lista de pasos de prueba concretos para que Facu los haga en su celular o en el emulador del navegador.
 5. Al terminar: actualizar PENDIENTES.md (tildar lo hecho, agregar lo descubierto) y reportar en `respuesta.md` qué funciona, qué no y qué se podría mejorar.
 6. No instalar dependencias nuevas sin decir cuáles y para qué.
 7. Si ves algo mal en código existente, mencionarlo aunque no sea parte de la tarea.
