@@ -1,13 +1,13 @@
 # PENDIENTES.md — Estado y plan de trabajo
 
-_Última revisión: 21/10/2026 — Fases 0 y 0.5 completas; Fase 1: modelo de la grilla TPA y vistas de celular mergeados; **asistencia TPA en 4 entregas** (diseño en `docs/DISENO_ASISTENCIA_TPA.md`), entrega 1 mergeada; reglas de recuperación confirmadas por Pau; Next actualizado a 16.4.2 (rama `fase-1/actualizar-next`). App en https://paukinesio.vercel.app. Base Supabase `pau` (`dmwtoozbctnwccaaitos`, Postgres 17, plan Free, región us-east-2)._
+_Última revisión: 22/10/2026 — Fases 0 y 0.5 completas; Fase 1: modelo de la grilla TPA y vistas de celular mergeados; **asistencia TPA en 4 entregas** (diseño en `docs/DISENO_ASISTENCIA_TPA.md`), entrega 1 mergeada, **entrega 2 escrita** (rama `fase-1/faltas-y-lugares`; falta aplicar script + migración y probar); reglas de recuperación confirmadas por Pau y casos borde decididos por Facu; Next 16.4.2 mergeado. **Pau usa la app sobre todo desde la compu** (Facu, 22/10/2026): compu primero, el celular tiene que seguir andando bien. App en https://paukinesio.vercel.app. Base Supabase `pau` (`dmwtoozbctnwccaaitos`, Postgres 17, plan Free, región us-east-2)._
 
 ## Estado actual (resumen)
 
 **Hecho y funcionando en lo básico:**
 - Navegación (sidebar en desktop, barra inferior en celular), estética teal/stone.
 - Agenda RPG: calendario mensual en la compu y lista semanal (martes y jueves) en el celular; crear y editar turnos, estado de pago y de sesión, nota.
-- Agenda TPA: semana armada con los fijos de esa fecha + las asistencias registradas, horarios reales de Pau y cupo 4; grilla en la compu y selector de día + lista en el celular; inscribir/desinscribir fijos y registrar asistencia.
+- Agenda TPA: semana armada con los fijos de esa fecha + las asistencias registradas, horarios reales de Pau y cupo 4; grilla en la compu y selector de día + lista en el celular; inscribir/desinscribir fijos (con "Fijo desde") y registrar asistencia con los estados de Pau (Presente, Avisó C.T., Avisó S.T., No avisó, Sin marcar), contador de lugares y "Libre" (entrega 2, pendiente de aplicar).
 - Historia clínica en modal (solo lectura): ficha, historial RPG + TPA, alertas por palabra clave.
 - Pacientes: listado, búsqueda local, alta y edición de ficha.
 - Pagos: lista mensual, toggle pagado/pendiente, plan e importe.
@@ -15,7 +15,7 @@ _Última revisión: 21/10/2026 — Fases 0 y 0.5 completas; Fase 1: modelo de la
 - Base técnica (Fase 0.5): horas normalizadas, `estados.ts`, Toast, `ConfirmDialog`, aviso de usuario no autorizado.
 - Celular: ninguna pantalla con desplazamiento lateral, modales en hoja o pantalla completa con pie fijo, área segura del iPhone, aviso de sin conexión.
 - Tests automáticos con **Vitest** (`npm test`) para las funciones puras de `src/lib/`.
-- `tsc`, `build` y `npm test` sin errores. `npm run lint`: **10 errores y 2 warnings**, todos en código anterior (2 `no-explicit-any` y 1 `set-state-in-effect` en `pagos/page`, 1 `set-state-in-effect` en `TurnoModal`, 6 comillas sin escapar en `HistoriaClinicaModal`; warnings: `cn` sin usar en `TurnoModal` y una dependencia de `useEffect` en Pagos).
+- `tsc`, `build` y `npm test` (64 tests) sin errores. `npm run lint`: **10 errores y 2 warnings**, todos en código anterior (2 `no-explicit-any` y 1 `set-state-in-effect` en `pagos/page`, 1 `set-state-in-effect` en `TurnoModal`, 6 comillas sin escapar en `HistoriaClinicaModal`; warnings: `cn` sin usar en `TurnoModal` y una dependencia de `useEffect` en Pagos).
 
 **Lo más importante que falta:** las **notas de evolución clase a clase** (el pedido central de Pau) y poder agregar a una clase a quien **recupera o viene de otro horario**.
 
@@ -93,21 +93,24 @@ Decisiones (Facu, 21/10/2026):
 - [x] `estadoAsistencia()` en `estados.ts`: un estado desconocido se muestra en gris con su nombre, no rompe (necesario para la ventana entre la migración única y el merge de la entrega 2).
 - [x] Sin el fallback `PGRST204` de `deactivateHorarioTPA`.
 - [x] Vitest (`npm test`) con tests de `armarSemanaTPA`, `diaTPAInicial`, cortes por tiempo, `nuevoId` y `estadoAsistencia`.
-- [ ] Confirmar que está **en producción** (deploy de `main`) **antes** de aplicar la migración de la entrega 2.
+- [ ] Confirmar que está **en producción** (deploy de `main`) **antes** de aplicar la migración de la entrega 2 (Facu).
 
-#### Entrega 2 — faltas y lugares (rama `fase-1/faltas-y-lugares`)
-- [ ] Estados nuevos: Avisó C.T. / Avisó S.T. / No avisó; contador de lugares (los que avisaron no ocupan) y marcador "Libre".
-- [ ] Avisos anticipados en clases futuras con sugerencia C.T./S.T. visible (sin sugerencia en clases pasadas); sin "Presente" ni "No avisó" a futuro.
-- [ ] `fecha_alta` editable al inscribir (reemplaza a `created_at` en `eraFijoEn`).
-- [ ] `eliminarClaseTPASiVacia` no borra clases canceladas ni con quien ocupa un lugar.
-- [ ] Script de borrado de la asistencia de prueba + **migración única** (diseño, secciones 4 y 5), con `motivo_cancelacion` de valores fijos en lugar de `cancelada` + texto. Orden: entrega 1 en producción → script → migración → probar preview → merge el mismo día.
-- [ ] Tests del contador.
+#### Entrega 2 — faltas y lugares (rama `fase-1/faltas-y-lugares`) — código listo, falta aplicar y probar
+- [x] `npm audit fix` sin `--force`: solo parches/menores de dependencias de compilación (Babel, browserslist, js-yaml, brace-expansion, source-map-js…), sin cambios en `package.json`. De 11 avisos a 5 (todos de `fast-glob` dentro de `@next/eslint-plugin-next`, ver N17).
+- [x] Estados nuevos en `estados.ts` con las palabras de Pau: Presente, Avisó C.T., Avisó S.T., No avisó (en quien ocupa un lugar: "No vino"), Sin marcar. Avisos en ámbar, No avisó en rojo.
+- [x] Contador de lugares (`contarLugares`): ocupados = fijos que no avisaron + quienes ocupan un lugar; las cards muestran siempre los 4 lugares, los sobrantes como "Libre" (sin botón todavía). "5/4" en ámbar, sin bloquear. Clase cancelada: card gris sin lugares.
+- [x] Avisos anticipados (`src/lib/avisos.ts`): en clases que todavía no empezaron, Presente y No avisó deshabilitados y sugerencia C.T./S.T. a la vista ("Faltan 49 h para la clase → con tiempo"), con el chip sugerido marcado y el otro a un toque. Sin sugerencia en clases que ya empezaron. Hora de inicio con desfase fijo de Argentina (−03:00). `avisado_at` al guardar (C.T. ↔ S.T. conserva el primero).
+- [x] `fecha_alta`: "Fijo desde" al inscribir (hoy por defecto; pasada o futura); `eraFijoEn()` usa `fecha_alta`. La lista de fijos muestra "desde" / "empieza el". Desinscribir un alta futura deja la baja en la fecha de alta.
+- [x] `eliminarClaseTPASiVacia` no borra clases con `motivo_cancelacion` ni con cualquier fila de asistencia (incluida la de quien ocupa un lugar).
+- [x] Migración única `20261022000001_tpa_faltas_y_lugares.sql` + script `supabase/scripts/20261022_borrar_asistencia_prueba.sql` (con protección). Probados en un Postgres local descartable con una copia del esquema real.
+- [x] Tests: contador, texto de lugares, orden de quien ocupa un lugar, `eraFijoEn` con `fecha_alta`, sugerencia C.T./S.T. en hora argentina (también con el dispositivo en otra zona), `avisadoAtAlGuardar`, etiquetas.
+- [ ] **Facu:** script → migración → probar el preview (compu y celular) → merge el mismo día (ver `respuesta.md`).
 
-#### Entrega 3 — ocupar lugares y recuperaciones (reglas confirmadas; faltan los casos borde 21–26)
-- [ ] Ocupar lugar con sugerencias (recupera / cambio / suelta), cambio de horario como una sola acción.
-- [ ] Función transaccional `guardar_clase_tpa` (migración propia).
-- [ ] `calcularRecuperaciones()` + tests (casos de la sección 3.2 del diseño); pestaña Recuperaciones, "Buscar lugar", "Copiar lista".
-- [ ] Cancelar una clase (Feriado / Cancelada por Pau) y "Cancelar el día" para feriados. _Propuesta: adelantado desde la entrega 4, porque el saldo depende de las cancelaciones (a confirmar por Facu)._
+#### Entrega 3 — ocupar lugares y recuperaciones (rama `fase-1/recuperaciones`; reglas y casos borde decididos)
+- [ ] Ocupar lugar con sugerencias (recupera / cambio / suelta), cambio de horario como una sola acción. ⚠️ El trigger no deja cambiar el estado de un fijo mientras alguien ocupa su lugar: la UI tiene que ofrecer "sacar a quien ocupa" o "dejarlo en un lugar libre".
+- [ ] Función transaccional `guardar_clase_tpa` (migración propia). Reemplaza el "contar y después borrar" de `eliminarClaseTPASiVacia` (entre las dos consultas, otra pestaña podría agregar una asistencia y el `on delete cascade` la borraría).
+- [ ] `calcularRecuperaciones()` + tests (casos de la sección 3.2 del diseño); pestaña Recuperaciones, "Buscar lugar", "Copiar lista". Cada pendiente muestra su origen ("cancelé el mié 7", "avisó con tiempo el lun 12").
+- [ ] Cancelar una clase (Feriado / Cancelada por Pau) y "Cancelar el día" para feriados (decidido 22/10/2026: pasan a esta entrega).
 
 #### Entrega 4 — cierre de clase, notas y alertas
 - [ ] "Marcar el resto como presente" (solo clases que ya empezaron; no pisa avisos).
@@ -148,12 +151,15 @@ Reemplaza a `/rpg` como entrada de la app (`/` y el destino después del login).
 - [ ] **(c) Esta semana:** turnos RPG, lugares libres en TPA y pacientes activos RPG / TPA.
 - Reutilizar `armarSemanaTPA` / `TpaHorarioCard` y `TurnoCard`; en el celular, una sola columna en ese orden.
 ### TPA
-- [ ] **Agregar alumno no fijo a una clase** (recupera / viene de otro horario / suelta): entrega 3 de asistencia TPA. Hoy `recupera` y `vino_otra_clase` solo se pueden asignar a fijos de ese horario.
+- [ ] **Agregar alumno no fijo a una clase** (recupera / viene de otro horario / suelta): entrega 3 de asistencia TPA. Desde la entrega 2 la base ya lo soporta (`tipo`, `ocupa_lugar_de`) y la grilla lo muestra, pero no hay UI para agregarlos.
 - [ ] Horarios y cupo **editables por Pau** desde la app (hoy constantes en `src/lib/tpa.ts`; alcanza si no cambian seguido).
 - [ ] **Controlar el cupo al inscribir** (N7): hoy solo se avisa en la pestaña "Alumnos fijos" cuando ya hay 4 fijos; no se impide.
 - [x] Poder volver un estado a "sin marcar"; no crear una clase vacía si todo queda pendiente (bug #2, Fase 0.5).
 - [ ] Botón "Marcar el resto como presente" en el registro rápido (entrega 4).
-- [ ] Cancelar una clase entera (feriado, enfermedad) en un toque (entrega 4).
+- [ ] Cancelar una clase entera (feriado, enfermedad) en un toque (entrega 3).
+- [ ] Desinscribir con avisos a futuro: las filas de "Avisó" posteriores a la baja quedan (se ven como "No es fijo" y no ocupan lugar). Avisar al desinscribir y ofrecer borrarlas (diseño, riesgo 8).
+- [ ] El modal decide "clase futura" al abrirse: si queda abierto mientras empieza la clase, Presente sigue deshabilitado hasta cerrarlo y volver a abrirlo.
+- [ ] El aviso de cupo al inscribir cuenta también los fijos con alta a futuro.
 
 ### RPG
 - [ ] Tipo de sesión como lista (RPG, masajes, evaluación inicial; editable), no texto libre con default "RPG".
@@ -220,14 +226,14 @@ Reemplaza a `/rpg` como entrada de la app (`/` y el destino después del login).
 5. **Pagos RPG:** ¿cada sesión se cobra suelta? ¿Precios de RPG, masajes y evaluación inicial?
 6. **Notas:** ¿te sirve marcar con un toque "presión", "dolor", "lesión" además del texto libre?
 7. **Historial viejo:** ¿hace falta pasar los 3 años de Word a la app, o arrancamos de cero con los pacientes actuales?
-8. **Dispositivo:** ¿la usás más desde el celular o desde la compu?
+8. ✅ **Dispositivo:** sobre todo desde la **compu** (Facu, 22/10/2026). Se diseña primero para la compu; el celular tiene que seguir andando bien.
 9. **Semanas pasadas de TPA:** ¿querés ver quién vino realmente esa semana (aunque hoy ya no sea fijo) o los fijos actuales? Asumimos lo primero.
 10. **RPG superpuesto:** ¿podés tener dos pacientes a la misma hora? Define si la base debe impedir turnos superpuestos.
 11. **Alertas:** ¿las querés automáticas por palabras ("dolor", "presión") o solo a partir de marcas que hagas vos con un toque?
 12. **Historia clínica en clase:** ¿la necesitás ver desde el celular en medio de la clase, o la mirás en la compu?
 13. **Aviso a tus pacientes:** la app guarda sus datos de salud en un servicio en la nube **fuera del país** (Supabase, servidores en Ohio, EE.UU.). En Argentina son datos sensibles (Ley 25.326). ¿Les avisás o les pedís consentimiento (por ejemplo, una línea en la ficha de ingreso)? Conviene resolverlo antes de cargar pacientes reales. No es asesoramiento legal: si hay dudas, consultarlo con un profesional.
 
-14. **Cupo "3/4":** ¿cuenta a quien avisó que falta? Hoy el número suma a todos los que figuran en el horario esa semana (fijos + recuperaciones), aunque hayan avisado o faltado. Si querés ver "lugares libres para recuperar", habría que descontar a los que avisaron.
+14. ✅ (criterio por defecto, implementado en la entrega 2: los que avisaron no ocupan lugar) **Cupo "3/4":** ¿cuenta a quien avisó que falta? Hoy el número suma a todos los que figuran en el horario esa semana (fijos + recuperaciones), aunque hayan avisado o faltado. Si querés ver "lugares libres para recuperar", habría que descontar a los que avisaron.
 
 Para Fase 1 bloquean la 1, 2, 3, 6 y 9; para Fase 2, la 4 y la 5. La 1, la 6 y la 14 tienen criterio por defecto desde el 21/10/2026 (colores como están; sin marcas rápidas en las notas; los que avisaron no ocupan lugar).
 
@@ -242,16 +248,18 @@ Detalle en `docs/DISENO_ASISTENCIA_TPA.md`, secciones 3.2 y 10.1.
 19. ✅ **24 h**: la app sugiere con tiempo / sin tiempo, nunca bloquea.
 20. ✅ **Tope**: 1 por mes por cada vez por semana; aplica también a los que avisaron sin tiempo.
 
-### Recuperaciones: casos borde (21/10/2026) — antes de la entrega 3
+### Recuperaciones: casos borde — ✅ decididos por Facu (22/10/2026)
 
-Detalle, ejemplos y propuesta de cada una en `docs/DISENO_ASISTENCIA_TPA.md`, sección 10.2.
+No se le preguntan a Pau: criterios por defecto que ella puede corregir al verlos en uso. Detalle en `docs/DISENO_ASISTENCIA_TPA.md`, secciones 3.2 y 10.2.
 
-21. **Feriado:** el mínimo de 4 clases, ¿se cuenta por horario o en total (4 × veces por semana)? Propuesta: en total.
-22. Si tiene una recuperación tuya (no vence) y una avisada (vence a fin de mes), ¿cuál se usa primero? Por defecto: la tuya (tu orden de prioridad).
-23. Si **adelanta** y no falta en todo el mes, ¿qué pasa? Propuesta: la app lo muestra y vos decidís.
-24. Otros motivos de cancelación (corte de luz, paro): ¿como "cancelada por vos" o como feriado? Propuesta: como cancelada por vos.
-25. **Cambio de horario que cruza el mes** (avisa el 30/10, viene el 2/11): ¿cuenta en el mes de la falta? Propuesta: no (el aviso vence y el cambio queda como adelanto), con aviso en la app.
-26. **Alta a mitad de mes con feriado:** propuesta: por feriado recupera como máximo los feriados que le tocaron.
+21. ✅ **Feriado:** el mínimo de 4 clases se cuenta **en total** (4 × veces por semana), no por horario.
+22. ✅ **Qué crédito se usa primero:** el que **vence antes** (los avisados vencen a fin de mes; los de clases canceladas por Pau no vencen). Reemplaza "misma prioridad para las dos lecturas": la prioridad de Pau sigue valiendo para **a quién se le ofrece primero un lugar**.
+23. ✅ **Adelantó y no faltó en el mes:** la app lo muestra y decide Pau.
+24. ✅ **Corte de luz, paro, etc.:** `cancelada_por_pau`.
+25. ✅ **Cambio de horario que cruza el mes:** consume el crédito **del mes de la falta**, con aviso en la app.
+26. ✅ **Alta a mitad de mes:** por feriado recupera como máximo los feriados que le tocaron.
+
+Además: cada pendiente de recuperar muestra su **origen** ("cancelé el mié 7", "avisó con tiempo el lun 12").
 
 ## Bugs detectados
 
@@ -272,7 +280,7 @@ Detalle, ejemplos y propuesta de cada una en `docs/DISENO_ASISTENCIA_TPA.md`, se
 | 4 | 1 ✅ | `HistoriaClinicaModal` | No mostraba `evaluacion_inicial`. Corregido en la entrega 1 de asistencia. |
 | N15 | 1 ✅ | `queries.ts` / `supabase.ts` | Timeout de 15 s en todo: con mala señal, un alta podía llegar a la base, la app decía "No se pudo guardar" y al reintentar se duplicaba el paciente o el turno. Corregido en la entrega 1 (ids generados al abrir + 45 s para escrituras). |
 | N16 | 1 ✅ | `package.json` | `npm audit`: `next` 16.2.6 tenía avisos **críticos** (RCE, corregidos en ≥ 16.3.8). Actualizados `next` y `eslint-config-next` a 16.4.2 (rama `fase-1/actualizar-next`): de 15 avisos (1 crítico, 12 altos) a 11 (0 críticos, 9 altos). Los que quedan son de herramientas de desarrollo/compilación (ESLint, Babel, Tailwind); ver N17. |
-| N17 | 4 | `package.json` | Quedan 11 avisos de `npm audit` (1 bajo, 1 moderado, 9 altos), todos en dependencias de compilación o de ESLint (`braces`/`micromatch` por `@next/eslint-plugin-next`, `js-yaml`, `brace-expansion`, `browserslist`, `source-map-js`, `baseline-browser-mapping`, `@babel/core`). Ninguno se ejecuta en el navegador ni con datos de usuarios. `npm audit fix` (sin `--force`) corrige 6 de 11, solo con versiones menores/parches de esas dependencias (probado en una copia del lockfile): hacerlo en una tarea aparte. Los 5 restantes vienen de `fast-glob` 3.3.1 dentro de `@next/eslint-plugin-next` 16.4.2: el único "arreglo" que ofrece npm es bajar a `eslint-config-next` 14 (no tiene sentido); hay que esperar a que Next lo actualice. |
+| N17 | 4 | `package.json` | ✅ `npm audit fix` (sin `--force`) aplicado en la entrega 2 (22/10/2026): de 11 avisos a **5 altos**, solo parches/menores en el lockfile. Los 5 restantes vienen de `fast-glob` 3.3.1 dentro de `@next/eslint-plugin-next` 16.4.2: el único "arreglo" que ofrece npm es bajar a `eslint-config-next` 14 (no tiene sentido); hay que esperar a que Next lo actualice. |
 | 5 | 1 / 3 | `HistoriaClinicaModal` | Alertas por palabra clave sobre **todo** el historial, aunque el texto dice "recientes". |
 | N11 | 1 ✅ | `Navigation` | Área segura del iPhone con `env(safe-area-inset-bottom)` + `viewportFit: cover`. |
 | 7 | 2 | `pagos/page` | Precios hardcodeados; mezcla RPG (por sesión) con mensual. |

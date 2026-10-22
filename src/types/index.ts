@@ -2,14 +2,20 @@ export type TipoClase = 'RPG' | 'TPA' | 'ambos';
 export type EstadoPago = 'pagado' | 'pendiente';
 export type EstadoSesionRPG = 'realizada' | 'cancelada' | 'pendiente';
 export type DiaSemana = 'lunes' | 'miercoles' | 'viernes';
-export type EstadoAsistenciaTPA = 
+/**
+ * Estado de una fila de asistencia_tpa (ver docs/DISENO_ASISTENCIA_TPA.md, 2.2).
+ * Fijo: presente | aviso_con_tiempo | aviso_sin_tiempo | falto_sin_avisar
+ * (sin marcar = sin fila). Quien ocupa un lugar: pendiente | presente | falto_sin_avisar.
+ */
+export type EstadoAsistenciaTPA =
   | 'presente'
-  | 'aviso_ausencia'
+  | 'aviso_con_tiempo'
+  | 'aviso_sin_tiempo'
   | 'falto_sin_avisar'
-  | 'recupera'
-  | 'vino_otra_clase'
-  | 'cancelado'
   | 'pendiente';
+/** fijo = fijo de este horario; el resto viene a ocupar un lugar solo en esa clase. */
+export type TipoAsistenciaTPA = 'fijo' | 'recupera' | 'cambio' | 'suelta';
+export type MotivoCancelacionTPA = 'feriado' | 'cancelada_por_pau';
 
 export interface Paciente {
   id: string;
@@ -51,6 +57,8 @@ export interface HorarioTPA {
   dia_semana: DiaSemana;
   hora: string;
   activo: boolean;
+  /** Desde qué fecha es fijo ('yyyy-MM-dd', inclusive). */
+  fecha_alta: string;
   /** Fecha de desinscripción ('yyyy-MM-dd'); null mientras está activo. */
   fecha_baja: string | null;
   created_at: string;
@@ -62,6 +70,8 @@ export interface ClaseTPA {
   id: string;
   fecha: string;
   hora: string;
+  /** null = la clase se da. */
+  motivo_cancelacion: MotivoCancelacionTPA | null;
   created_at: string;
 }
 
@@ -70,8 +80,14 @@ export interface AsistenciaTPA {
   clase_id: string;
   paciente_id: string;
   estado: EstadoAsistenciaTPA;
+  tipo: TipoAsistenciaTPA;
+  /** Fila del fijo (misma clase, que avisó) cuyo lugar ocupa. null = lugar libre. */
+  ocupa_lugar_de: string | null;
+  /** Cuándo se cargó el aviso; solo en avisos. */
+  avisado_at: string | null;
   nota: string | null;
   created_at: string;
+  updated_at: string;
   // Relaciones opcionales
   pacientes?: Pick<Paciente, 'nombre'>;
   clases_tpa?: Pick<ClaseTPA, 'fecha' | 'hora'>;
@@ -114,6 +130,19 @@ export interface AlumnoCeldaTPA {
   asistencia: AsistenciaTPA | null;
   /** Era alumno fijo de este horario en esta fecha. */
   esFijo: boolean;
+  /** 'fijo' si no tiene asistencia; si la tiene, el tipo de esa fila. */
+  tipo: TipoAsistenciaTPA;
+}
+
+/** Lugares de una clase (contarLugares en src/lib/tpa.ts). */
+export interface LugaresTPA {
+  /** Fijos que no avisaron + quienes vienen a ocupar un lugar. */
+  ocupados: number;
+  libres: number;
+  /** Personas de más (5/4 → 1). No se bloquea: solo se avisa. */
+  excedidos: number;
+  /** Clase cancelada: no tiene lugares. */
+  cancelada: boolean;
 }
 
 export interface CeldaTPA {
@@ -128,6 +157,7 @@ export interface CeldaTPA {
   /** Fijos de esa fecha + quienes tienen asistencia registrada (recupera, vino de otro horario…). */
   alumnos: AlumnoCeldaTPA[];
   cupo: number;
+  lugares: LugaresTPA;
   /** Fijos de HOY en este día y hora (para inscribir/desinscribir). */
   fijosActuales: HorarioTPA[];
 }

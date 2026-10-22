@@ -1,7 +1,9 @@
-import { addDays, format, isWeekend, nextMonday, parseISO, startOfWeek } from 'date-fns';
+import { addDays, format, isWeekend, nextMonday, startOfWeek } from 'date-fns';
 import type {
-  AlumnoCeldaTPA, AsistenciaTPA, CeldaTPA, ClaseTPA, DiaSemana, HorarioTPA, SemanaTPA,
+  AlumnoCeldaTPA, AsistenciaTPA, CeldaTPA, ClaseTPA, DiaSemana, HorarioTPA, LugaresTPA, SemanaTPA,
+  TipoAsistenciaTPA,
 } from '@/types';
+import { esAviso } from './avisos';
 import { normalizarHora } from './horas';
 
 // ---------------------------------------------------------------------
@@ -48,17 +50,68 @@ export interface DatosSemanaTPA {
   asistencias: AsistenciaTPA[];
 }
 
-/** ¿Era fijo de este horario en la fecha `fecha` ('yyyy-MM-dd')? */
-function eraFijoEn(horario: HorarioTPA, fecha: string): boolean {
-  const alta = format(parseISO(horario.created_at), 'yyyy-MM-dd'); // día local de la inscripción
-  if (alta > fecha) return false;
+/**
+ * ¿Era fijo de este horario en la fecha `fecha` ('yyyy-MM-dd')? Desde
+ * `fecha_alta` (inclusive) hasta `fecha_baja` (exclusive; el día de la baja
+ * ya no es fijo).
+ */
+export function eraFijoEn(horario: Pick<HorarioTPA, 'activo' | 'fecha_alta' | 'fecha_baja'>, fecha: string): boolean {
+  if (horario.fecha_alta > fecha) return false;
   if (horario.activo) return true;
   return Boolean(horario.fecha_baja && horario.fecha_baja > fecha);
+}
+
+/**
+ * Lugares de una clase (diseño 3.1): ocupan los fijos que NO avisaron
+ * (incluye "Sin marcar" y "No avisó": el lugar estaba reservado) y todos los
+ * que vienen a ocupar un lugar, en cualquier estado. Más personas que lugares
+ * no se bloquea: se informa en `excedidos`. Una clase cancelada no tiene lugares.
+ */
+export function contarLugares(
+  personas: { tipo: TipoAsistenciaTPA; estado: string }[],
+  cupo: number,
+  cancelada = false,
+): LugaresTPA {
+  if (cancelada) return { ocupados: 0, libres: 0, excedidos: 0, cancelada: true };
+  const ocupados = personas.filter((p) => p.tipo !== 'fijo' || !esAviso(p.estado)).length;
+  return {
+    ocupados,
+    libres: Math.max(0, cupo - ocupados),
+    excedidos: Math.max(0, ocupados - cupo),
+    cancelada: false,
+  };
+}
+
+/** "3/4 · 1 libre", "4/4", "5/4 · 1 de más". null si la clase está cancelada. */
+export function textoLugares(lugares: LugaresTPA, cupo: number): string | null {
+  if (lugares.cancelada) return null;
+  const base = `${lugares.ocupados}/${cupo}`;
+  if (lugares.libres > 0) return `${base} · ${lugares.libres} ${lugares.libres === 1 ? 'libre' : 'libres'}`;
+  if (lugares.excedidos > 0) return `${base} · ${lugares.excedidos} de más`;
+  return base;
 }
 
 function compararAlumnos(a: AlumnoCeldaTPA, b: AlumnoCeldaTPA): number {
   if (a.esFijo !== b.esFijo) return a.esFijo ? -1 : 1; // fijos primero
   return a.nombre.localeCompare(b.nombre, 'es');
+}
+
+// Fijos por nombre, y quien ocupa el lugar de un fijo justo debajo de él.
+// Quien ocupa un lugar libre va al final.
+function ordenarPorLugar(alumnos: AlumnoCeldaTPA[]): AlumnoCeldaTPA[] {
+  const ordenados = [...alumnos].sort(compararAlumnos);
+  const idsEnLaClase = new Set(ordenados.map((a) => a.asistencia?.id).filter(Boolean));
+  const enLugarDe = (a: AlumnoCeldaTPA) => a.asistencia?.ocupa_lugar_de ?? null;
+
+  const resultado: AlumnoCeldaTPA[] = [];
+  for (const alumno of ordenados) {
+    const lugar = enLugarDe(alumno);
+    if (lugar && idsEnLaClase.has(lugar)) continue; // va debajo de su fijo
+    resultado.push(alumno);
+    const idFila = alumno.asistencia?.id;
+    if (idFila) resultado.push(...ordenados.filter((o) => enLugarDe(o) === idFila));
+  }
+  return resultado;
 }
 
 function armarCelda(dia: DiaSemana, fecha: string, hora: string, datos: DatosSemanaTPA): CeldaTPA {
@@ -74,6 +127,7 @@ function armarCelda(dia: DiaSemana, fecha: string, hora: string, datos: DatosSem
       estado: 'pendiente',
       asistencia: null,
       esFijo: true,
+      tipo: 'fijo',
     });
   }
   for (const a of asistencias) {
@@ -81,11 +135,13 @@ function armarCelda(dia: DiaSemana, fecha: string, hora: string, datos: DatosSem
     alumnos.set(a.paciente_id, {
       pacienteId: a.paciente_id,
       nombre: previo?.nombre ?? a.pacientes?.nombre ?? 'Sin nombre',
-      estado: a.estado ?? 'pendiente',
+      estado: a.estado,
       asistencia: a,
       esFijo: previo?.esFijo ?? false,
+      tipo: a.tipo,
     });
   }
+  const lista = ordenarPorLugar([...alumnos.values()]);
 
   return {
     clave: `${fecha}_${hora}`,
@@ -94,8 +150,9 @@ function armarCelda(dia: DiaSemana, fecha: string, hora: string, datos: DatosSem
     hora,
     enHorarioHabitual: HORARIOS_TPA[dia].includes(hora),
     clase,
-    alumnos: [...alumnos.values()].sort(compararAlumnos),
+    alumnos: lista,
     cupo: CUPO_TPA,
+    lugares: contarLugares(lista, CUPO_TPA, Boolean(clase?.motivo_cancelacion)),
     fijosActuales: datos.horarios.filter((h) => mismoHorario(h) && h.activo),
   };
 }

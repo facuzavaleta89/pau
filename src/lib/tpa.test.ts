@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { parseISO } from 'date-fns';
-import type { AsistenciaTPA, ClaseTPA, DiaSemana, HorarioTPA } from '@/types';
-import { armarSemanaTPA, diaTPAInicial, HORARIOS_TPA, type DatosSemanaTPA } from './tpa';
+import type { AsistenciaTPA, ClaseTPA, DiaSemana, HorarioTPA, MotivoCancelacionTPA } from '@/types';
+import {
+  armarSemanaTPA, contarLugares, diaTPAInicial, eraFijoEn, HORARIOS_TPA, textoLugares, type DatosSemanaTPA,
+} from './tpa';
 
 // Semana del lunes 19/10/2026 (miércoles 21, viernes 23).
 const LUNES = parseISO('2026-10-19');
@@ -19,6 +21,7 @@ function horario(
     dia_semana: dia,
     hora,
     activo: true,
+    fecha_alta: '2026-10-01',
     fecha_baja: null,
     created_at: '2026-10-01T12:00:00+00:00',
     pacientes: { nombre },
@@ -26,14 +29,20 @@ function horario(
   };
 }
 
-function clase(fecha: string, hora: string): ClaseTPA {
-  return { id: id(), fecha, hora, created_at: '2026-10-01T12:00:00+00:00' };
+function clase(fecha: string, hora: string, motivo_cancelacion: MotivoCancelacionTPA | null = null): ClaseTPA {
+  return { id: id(), fecha, hora, motivo_cancelacion, created_at: '2026-10-01T12:00:00+00:00' };
 }
 
-function asistencia(c: ClaseTPA, nombre: string, estado: AsistenciaTPA['estado']): AsistenciaTPA {
+function asistencia(
+  c: ClaseTPA, nombre: string, estado: AsistenciaTPA['estado'],
+  extra: Partial<AsistenciaTPA> = {},
+): AsistenciaTPA {
   return {
-    id: id(), clase_id: c.id, paciente_id: `pac-${nombre}`, estado, nota: null,
-    created_at: '2026-10-01T12:00:00+00:00', pacientes: { nombre },
+    id: id(), clase_id: c.id, paciente_id: `pac-${nombre}`, estado, tipo: 'fijo',
+    ocupa_lugar_de: null, avisado_at: null, nota: null,
+    created_at: '2026-10-01T12:00:00+00:00', updated_at: '2026-10-01T12:00:00+00:00',
+    pacientes: { nombre },
+    ...extra,
   };
 }
 
@@ -66,21 +75,21 @@ describe('armarSemanaTPA', () => {
   it('muestra al fijo sin asistencia como "sin marcar"', () => {
     const semana = armar({ horarios: [horario('Alumna A', 'lunes', '10:30')] });
     expect(celda(semana, 'lunes', '10:30').alumnos).toEqual([
-      { pacienteId: 'pac-Alumna A', nombre: 'Alumna A', estado: 'pendiente', asistencia: null, esFijo: true },
+      { pacienteId: 'pac-Alumna A', nombre: 'Alumna A', estado: 'pendiente', asistencia: null, esFijo: true, tipo: 'fijo' },
     ]);
     // Solo en su día y hora
     expect(celda(semana, 'miercoles', '10:30').alumnos).toEqual([]);
     expect(celda(semana, 'lunes', '11:30').alumnos).toEqual([]);
   });
 
-  it('no muestra a un fijo en las semanas anteriores a su inscripción', () => {
-    const h = horario('Alumna A', 'lunes', '10:30', { created_at: '2026-10-20T15:00:00+00:00' });
+  it('no muestra a un fijo antes de su fecha de alta', () => {
+    const h = horario('Alumna A', 'lunes', '10:30', { fecha_alta: '2026-10-20' });
     expect(celda(armar({ horarios: [h] }), 'lunes', '10:30').alumnos).toEqual([]);
   });
 
-  it('usa el día de la inscripción en hora de Argentina, no en UTC', () => {
-    // 20/10 01:00 UTC = 19/10 22:00 en Argentina: ya era fijo el lunes 19.
-    const h = horario('Alumna A', 'lunes', '10:30', { created_at: '2026-10-20T01:00:00+00:00' });
+  it('usa fecha_alta y no created_at: un alta cargada después puede ser de antes', () => {
+    // Inscripto el 25/10 con "fijo desde" el 19/10: ya aparece el lunes 19.
+    const h = horario('Alumna A', 'lunes', '10:30', { fecha_alta: '2026-10-19', created_at: '2026-10-25T12:00:00+00:00' });
     expect(celda(armar({ horarios: [h] }), 'lunes', '10:30').alumnos).toHaveLength(1);
   });
 
@@ -106,7 +115,7 @@ describe('armarSemanaTPA', () => {
     const celdaLunes = celda(semana, 'lunes', '10:30');
     expect(celdaLunes.clase).toBe(c);
     expect(celdaLunes.alumnos).toEqual([
-      { pacienteId: 'pac-Alumna A', nombre: 'Alumna A', estado: 'presente', asistencia: a, esFijo: true },
+      { pacienteId: 'pac-Alumna A', nombre: 'Alumna A', estado: 'presente', asistencia: a, esFijo: true, tipo: 'fijo' },
     ]);
   });
 
@@ -115,12 +124,12 @@ describe('armarSemanaTPA', () => {
     const semana = armar({
       horarios: [horario('Zulema', 'lunes', '10:30')],
       clases: [c],
-      asistencias: [asistencia(c, 'Ana', 'recupera')],
+      asistencias: [asistencia(c, 'Ana', 'pendiente', { tipo: 'recupera' })],
     });
     const alumnos = celda(semana, 'lunes', '10:30').alumnos;
-    expect(alumnos.map((a) => [a.nombre, a.esFijo, a.estado])).toEqual([
-      ['Zulema', true, 'pendiente'],
-      ['Ana', false, 'recupera'],
+    expect(alumnos.map((a) => [a.nombre, a.esFijo, a.tipo, a.estado])).toEqual([
+      ['Zulema', true, 'fijo', 'pendiente'],
+      ['Ana', false, 'recupera', 'pendiente'],
     ]);
   });
 
@@ -149,8 +158,8 @@ describe('armarSemanaTPA', () => {
     expect(armar({ horarios: [exFijo] }).lunes.some((c) => c.hora === '08:00')).toBe(false);
   });
 
-  it('fijosActuales tiene a los activos de hoy, aunque se hayan inscripto después de esa semana', () => {
-    const nuevo = horario('Alumna A', 'lunes', '10:30', { created_at: '2026-10-25T12:00:00+00:00' });
+  it('fijosActuales tiene a los activos de hoy, aunque su alta sea posterior a esa semana', () => {
+    const nuevo = horario('Alumna A', 'lunes', '10:30', { fecha_alta: '2026-10-26' });
     const celdaLunes = celda(armar({ horarios: [nuevo] }), 'lunes', '10:30');
     expect(celdaLunes.alumnos).toEqual([]);
     expect(celdaLunes.fijosActuales).toEqual([nuevo]);
@@ -164,6 +173,126 @@ describe('armarSemanaTPA', () => {
     });
     expect(celda(semana, 'lunes', '10:30').clase).toBeNull();
     expect(celda(semana, 'lunes', '10:30').alumnos).toEqual([]);
+  });
+});
+
+describe('armarSemanaTPA: lugares', () => {
+  const fijos = (...nombres: string[]) => nombres.map((n) => horario(n, 'lunes', '10:30'));
+
+  it('cuenta los fijos que no avisaron y muestra los libres', () => {
+    const c = clase('2026-10-19', '10:30');
+    const semana = armar({
+      horarios: fijos('A', 'B', 'C', 'D'),
+      clases: [c],
+      asistencias: [asistencia(c, 'B', 'aviso_con_tiempo', { avisado_at: '2026-10-17T12:00:00Z' })],
+    });
+    expect(celda(semana, 'lunes', '10:30').lugares).toEqual({ ocupados: 3, libres: 1, excedidos: 0, cancelada: false });
+  });
+
+  it('un horario sin fijos tiene todos los lugares libres', () => {
+    expect(celda(armar({}), 'lunes', '10:30').lugares).toEqual({ ocupados: 0, libres: 4, excedidos: 0, cancelada: false });
+  });
+
+  it('pone a quien ocupa el lugar de un fijo justo debajo de él', () => {
+    const c = clase('2026-10-19', '10:30');
+    const avisoB = asistencia(c, 'Beto', 'aviso_sin_tiempo', { avisado_at: '2026-10-19T10:00:00Z' });
+    const semana = armar({
+      horarios: fijos('Ana', 'Beto', 'Carla'),
+      clases: [c],
+      asistencias: [
+        avisoB,
+        asistencia(c, 'Zoe', 'pendiente', { tipo: 'suelta' }),
+        asistencia(c, 'Abril', 'pendiente', { tipo: 'recupera', ocupa_lugar_de: avisoB.id }),
+      ],
+    });
+    const lunes = celda(semana, 'lunes', '10:30');
+    expect(lunes.alumnos.map((a) => a.nombre)).toEqual(['Ana', 'Beto', 'Abril', 'Carla', 'Zoe']);
+    // Ana, Abril (en el lugar de Beto), Carla y Zoe (lugar libre) = 4/4
+    expect(lunes.lugares).toEqual({ ocupados: 4, libres: 0, excedidos: 0, cancelada: false });
+  });
+
+  it('una clase cancelada no tiene lugares', () => {
+    const c = clase('2026-10-19', '10:30', 'feriado');
+    const lunes = celda(armar({ horarios: fijos('A', 'B'), clases: [c] }), 'lunes', '10:30');
+    expect(lunes.lugares).toEqual({ ocupados: 0, libres: 0, excedidos: 0, cancelada: true });
+    expect(lunes.alumnos).toHaveLength(2);
+  });
+});
+
+describe('contarLugares', () => {
+  const fijo = (estado: string) => ({ tipo: 'fijo' as const, estado });
+  const ocupa = (estado: string) => ({ tipo: 'recupera' as const, estado });
+
+  it('4 fijos, 1 avisó, nadie en su lugar → 3/4 · 1 libre', () => {
+    const lugares = contarLugares([fijo('presente'), fijo('aviso_con_tiempo'), fijo('pendiente'), fijo('presente')], 4);
+    expect(lugares).toEqual({ ocupados: 3, libres: 1, excedidos: 0, cancelada: false });
+    expect(textoLugares(lugares, 4)).toBe('3/4 · 1 libre');
+  });
+
+  it('4 fijos, 1 avisó y alguien recupera → 4/4', () => {
+    const lugares = contarLugares(
+      [fijo('presente'), fijo('aviso_sin_tiempo'), fijo('presente'), fijo('presente'), ocupa('pendiente')], 4,
+    );
+    expect(lugares).toEqual({ ocupados: 4, libres: 0, excedidos: 0, cancelada: false });
+    expect(textoLugares(lugares, 4)).toBe('4/4');
+  });
+
+  it('"No avisó" y "Sin marcar" ocupan: el lugar estaba reservado', () => {
+    expect(contarLugares([fijo('falto_sin_avisar'), fijo('pendiente')], 4).ocupados).toBe(2);
+  });
+
+  it('quien viene a ocupar cuenta en cualquier estado, también si no vino', () => {
+    expect(contarLugares([ocupa('pendiente'), ocupa('presente'), ocupa('falto_sin_avisar')], 4).ocupados).toBe(3);
+  });
+
+  it('un estado desconocido de un fijo cuenta como ocupado', () => {
+    expect(contarLugares([fijo('estado_futuro')], 4).ocupados).toBe(1);
+  });
+
+  it('más personas que lugares → 5/4 y 1 de más, sin bloquear', () => {
+    const lugares = contarLugares([fijo('presente'), fijo('presente'), fijo('presente'), fijo('presente'), ocupa('pendiente')], 4);
+    expect(lugares).toEqual({ ocupados: 5, libres: 0, excedidos: 1, cancelada: false });
+    expect(textoLugares(lugares, 4)).toBe('5/4 · 1 de más');
+  });
+
+  it('plural de libres', () => {
+    expect(textoLugares(contarLugares([fijo('presente')], 4), 4)).toBe('1/4 · 3 libres');
+  });
+
+  it('clase cancelada: sin lugares ni texto', () => {
+    const lugares = contarLugares([fijo('presente')], 4, true);
+    expect(lugares).toEqual({ ocupados: 0, libres: 0, excedidos: 0, cancelada: true });
+    expect(textoLugares(lugares, 4)).toBeNull();
+  });
+});
+
+describe('eraFijoEn', () => {
+  const h = (extra: Partial<HorarioTPA>) => ({ activo: true, fecha_alta: '2026-10-12', fecha_baja: null, ...extra });
+
+  it('desde la fecha de alta inclusive', () => {
+    expect(eraFijoEn(h({}), '2026-10-11')).toBe(false);
+    expect(eraFijoEn(h({}), '2026-10-12')).toBe(true);
+    expect(eraFijoEn(h({}), '2027-01-04')).toBe(true);
+  });
+
+  it('alta a futuro: todavía no es fijo', () => {
+    expect(eraFijoEn(h({ fecha_alta: '2026-11-02' }), '2026-10-26')).toBe(false);
+    expect(eraFijoEn(h({ fecha_alta: '2026-11-02' }), '2026-11-02')).toBe(true);
+  });
+
+  it('dado de baja: hasta el día anterior a la baja', () => {
+    const baja = h({ activo: false, fecha_baja: '2026-10-21' });
+    expect(eraFijoEn(baja, '2026-10-19')).toBe(true);
+    expect(eraFijoEn(baja, '2026-10-21')).toBe(false);
+  });
+
+  it('alta a futuro desinscripta antes de empezar (baja = alta): nunca fue fijo', () => {
+    const nunca = h({ activo: false, fecha_alta: '2026-11-02', fecha_baja: '2026-11-02' });
+    expect(['2026-10-26', '2026-11-02', '2026-11-09'].some((f) => eraFijoEn(nunca, f))).toBe(false);
+  });
+
+  it('inactivo sin fecha de baja (datos viejos): no es fijo', () => {
+    expect(eraFijoEn(h({ activo: false }), '2026-10-19')).toBe(false);
   });
 });
 

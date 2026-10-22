@@ -1,21 +1,26 @@
 "use client";
 
-import { Plus } from "lucide-react";
-import { cn } from "@/lib/utils";
-import {
-  ESTADOS_ASISTENCIA, ORDEN_ESTADOS_ASISTENCIA, esEstadoAsistenciaConocido, estadoAsistencia,
-} from "@/lib/estados";
-import type { AlumnoCeldaTPA, EstadoAsistenciaTPA } from "@/types";
+import { AlertTriangle, Info, Plus } from "lucide-react";
+import type { SugerenciaAviso } from "@/lib/avisos";
+import type { AlumnoCeldaTPA, EstadoAsistenciaTPA, LugaresTPA } from "@/types";
+import { TpaAsistenciaFila } from "./TpaAsistenciaFila";
 
 interface TpaAsistenciaListaProps {
   alumnos: AlumnoCeldaTPA[];
   estadoActual: (alumno: AlumnoCeldaTPA) => EstadoAsistenciaTPA;
   onCambiar: (pacienteId: string, estado: EstadoAsistenciaTPA) => void;
   onIrAInscripcion: () => void;
+  /** Con las marcas sin guardar. */
+  lugares: LugaresTPA;
+  cupo: number;
+  claseFutura: boolean;
+  sugerencia: SugerenciaAviso | null;
 }
 
 // Registro rápido: un alumno por fila, estados como chips de un toque.
-export function TpaAsistenciaLista({ alumnos, estadoActual, onCambiar, onIrAInscripcion }: TpaAsistenciaListaProps) {
+export function TpaAsistenciaLista({
+  alumnos, estadoActual, onCambiar, onIrAInscripcion, lugares, cupo, claseFutura, sugerencia,
+}: TpaAsistenciaListaProps) {
   if (alumnos.length === 0) {
     return (
       <div className="m-4 md:m-6 text-center py-10 px-4 text-sm text-stone-500 bg-stone-50 rounded-xl border border-dashed border-stone-200">
@@ -32,46 +37,34 @@ export function TpaAsistenciaLista({ alumnos, estadoActual, onCambiar, onIrAInsc
   }
 
   return (
-    <ul className="p-4 md:p-6 space-y-3">
-      {alumnos.map((alumno) => {
-        const actual = estadoActual(alumno);
-        const editado = actual !== alumno.estado;
-        return (
-          <li key={alumno.pacienteId} className="p-3 rounded-xl border border-stone-200 bg-stone-50/50 space-y-2.5">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-semibold text-stone-900 truncate">{alumno.nombre}</span>
-              <span className="shrink-0 text-xs text-stone-500">
-                {!alumno.esFijo && 'No es fijo · '}
-                {/* Estado de una versión más nueva de la app: se muestra, aunque no tenga chip. */}
-                {!esEstadoAsistenciaConocido(actual) && `${estadoAsistencia(actual).label} · `}
-                {editado ? 'Sin guardar' : ''}
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {ORDEN_ESTADOS_ASISTENCIA.map((valor) => {
-                const estado = ESTADOS_ASISTENCIA[valor];
-                const seleccionado = actual === valor;
-                return (
-                  <button
-                    key={valor}
-                    type="button"
-                    onClick={() => onCambiar(alumno.pacienteId, valor)}
-                    aria-pressed={seleccionado}
-                    className={cn(
-                      "min-h-11 px-3 rounded-lg text-sm font-medium border transition-colors duration-150",
-                      seleccionado
-                        ? cn(estado.clases, "ring-2 ring-teal-500/30 font-semibold")
-                        : "bg-white text-stone-600 border-stone-200 hover:bg-stone-50 hover:text-stone-900"
-                    )}
-                  >
-                    {estado.label}
-                  </button>
-                );
-              })}
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+    <div className="p-4 md:p-6 space-y-3">
+      {claseFutura && (
+        <p className="flex items-start gap-2 text-sm text-stone-700 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
+          <Info size={16} className="shrink-0 mt-0.5 text-teal-600" />
+          <span>
+            La clase todavía no empezó: solo se cargan avisos.
+            {sugerencia && <> <strong className="font-semibold">{sugerencia.motivo}</strong>.</>}
+          </span>
+        </p>
+      )}
+      {lugares.excedidos > 0 && (
+        <p role="status" className="flex items-start gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5 text-amber-600" />
+          {lugares.ocupados}/{cupo}: hay más personas que lugares. Se puede guardar igual.
+        </p>
+      )}
+      <ul className="space-y-3">
+        {alumnos.map((alumno) => (
+          <TpaAsistenciaFila
+            key={alumno.pacienteId}
+            alumno={alumno}
+            actual={estadoActual(alumno)}
+            claseFutura={claseFutura}
+            sugerencia={sugerencia}
+            onCambiar={(estado) => onCambiar(alumno.pacienteId, estado)}
+          />
+        ))}
+      </ul>
+    </div>
   );
 }
