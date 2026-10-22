@@ -2,7 +2,7 @@
 
 _Referencia para las entregas de la Fase 1 (asistencia). Sale del diagnóstico del 20/10/2026 con las decisiones de Facu del 21/10/2026 aplicadas. En los ejemplos se usan "Alumna A", "Alumno B", etc.: no son datos reales._
 
-**Estado:** entrega 1 hecha (rama `fase-1/asistencia`). Las entregas 2 a 4 están pendientes; la 3 está bloqueada por las preguntas a Pau (sección 10).
+**Estado:** entrega 1 hecha y mergeada (rama `fase-1/asistencia`). Las entregas 2 a 4 están pendientes. Pau respondió las preguntas de recuperaciones el 21/10/2026 (reglas en la sección 3.2); quedan casos borde abiertos en la sección 10.2.
 
 ---
 
@@ -21,6 +21,7 @@ _Referencia para las entregas de la Fase 1 (asistencia). Sale del diagnóstico d
    - lugar lleno → **avisar, no bloquear**;
    - 2 faltas seguidas sin aviso → en **cualquier horario** del alumno; las clases **sin marcar no cortan** la racha;
    - las clases sueltas se anotan como quien ocupa un lugar (`tipo = 'suelta'`).
+10. **Reglas de recuperación confirmadas por Pau (21/10/2026):** prioridad, tope, vencimiento, feriados y clases canceladas por ella. Ver sección 3.2. La clase cancelada guarda **un motivo fijo** (`feriado` o `cancelada_por_pau`) porque cada uno tiene reglas distintas (sección 4, paso 5).
 
 ---
 
@@ -34,7 +35,7 @@ _Referencia para las entregas de la Fase 1 (asistencia). Sale del diagnóstico d
 | Presente / Avisó C.T. / Avisó S.T. / No avisó (de un fijo) | `asistencia_tpa.estado` con `tipo = 'fijo'`: `presente`, `aviso_con_tiempo`, `aviso_sin_tiempo`, `falto_sin_avisar` |
 | Sin marcar | **sin fila** (como hoy) |
 | Cuándo llegó el aviso | `asistencia_tpa.avisado_at` (lo completa la app al marcar el aviso) |
-| Clase cancelada (feriado, Pau no puede) | `clases_tpa.cancelada = true` + `motivo_cancelacion` (**de la clase**, no de cada alumno) |
+| Clase cancelada | `clases_tpa.motivo_cancelacion` (**de la clase**, no de cada alumno): `feriado` o `cancelada_por_pau` (enfermedad, viaje). `NULL` = la clase se da |
 | Quien viene a ocupar un lugar | fila de `asistencia_tpa` con `tipo` ≠ `fijo` |
 | "Recupera" | `tipo = 'recupera'` |
 | "Viene a las 18" (cambio puntual de horario) | `tipo = 'cambio'` en el destino + aviso del fijo en el origen (la app marca las dos cosas juntas) |
@@ -71,18 +72,55 @@ Lo calcula `armarSemanaTPA()` (`src/lib/tpa.ts`), que sigue siendo la única fue
 
 ### 3.2 Saldo de recuperaciones (entrega 3): se calcula, no se guarda
 
-Función pura nueva `calcularRecuperaciones()` en `src/lib/recuperaciones.ts`. Por alumno y por mes:
+#### Reglas de Pau (21/10/2026)
 
-1. **Frecuencia (tope)** = cantidad de horarios fijos que tiene (1, 2 o 3). _Supuesto:_ los vigentes el último día del mes, o hoy si el mes está en curso. En la fase 2 puede salir del plan pagado.
-2. **Avisadas** = sus filas `tipo = 'fijo'` con `aviso_con_tiempo` o `aviso_sin_tiempo` en clases del mes, ordenadas: **primero las C.T.**, después las S.T.; dentro de cada grupo, la más vieja primero.
-3. **Derecho** = `min(avisadas, frecuencia)`: las primeras de esa lista. El resto figura como "sin derecho (llegó al tope)".
-4. **Usadas** = veces que ocupó un lugar en el mes con `tipo = 'recupera'` o `'cambio'`. Las `suelta` no cuentan.
-5. **Pendientes** = `max(0, derecho − usadas)`. Las usadas consumen la lista del punto 2 desde el principio, o sea **primero las avisadas con tiempo**; las que quedan son las pendientes.
-6. **Adelantó** = `max(0, usadas − derecho)`: recuperaciones usadas antes de faltar.
+| Origen de la recuperación | ¿Genera? | ¿Cuenta en el tope? | ¿Vence? |
+|---|---|---|---|
+| 1. Clase **cancelada por Pau** (enfermedad, viaje) | Siempre: una para cada fijo de ese horario en esa fecha | No | **Nunca**: si no la usa, pasa al mes siguiente |
+| 2. **Avisó con tiempo** (C.T.) | Sí | Sí | A fin de mes |
+| 3. **Avisó sin tiempo** (S.T.) | Sí | Sí | A fin de mes |
+| 4. **Feriado** | Solo si por los feriados le quedan **menos de 4 clases en el mes por cada vez por semana** | No | A fin de mes |
+| **No avisó** | No | — | — |
+
+- **Prioridad** (en este orden): 1) canceladas por Pau, 2) C.T., 3) S.T., 4) feriado, solo si hay lugar. Ordena el selector "Ocupar lugar" (7.3), la pestaña Recuperaciones (7.4) y qué recuperación consume cada uso (paso 4 de abajo).
+- **Tope:** 1 recuperación por mes por cada vez por semana (1, 2 o 3). Aplica a C.T. y S.T. **El cambio de horario y el adelanto cuentan como recuperación** (consumen tope).
+- **Anotado para recuperar y no viene:** pierde esa recuperación (cuenta como usada).
+- **24 h:** la app solo **sugiere** con tiempo / sin tiempo (3.4); nunca bloquea. Pau hace excepciones.
+
+#### Cálculo
+
+Función pura nueva `calcularRecuperaciones()` en `src/lib/recuperaciones.ts`, con tests. Por alumno y por mes M:
+
+1. **Frecuencia** `f` = cantidad de horarios fijos que tiene (1, 2 o 3). _Supuesto:_ los vigentes el último día del mes, o hoy si el mes está en curso. En la fase 2 puede salir del plan pagado.
+2. **Recuperaciones a favor (créditos):**
+   - **Por cancelación de Pau:** una por cada clase con `motivo_cancelacion = 'cancelada_por_pau'` en una fecha en que era fijo de ese horario (`eraFijoEn`, con `fecha_alta`/`fecha_baja`). Se suman las de **meses anteriores** que no usó (arrastre). Si había avisado antes de que Pau cancelara, cuenta como cancelada por Pau, no como aviso.
+   - **Por aviso:** sus filas `tipo = 'fijo'` con `aviso_con_tiempo` o `aviso_sin_tiempo` en clases **no canceladas** de M. Orden: primero las C.T., después las S.T.; dentro de cada grupo, la más vieja primero. Tienen derecho **las primeras `f`**; el resto figura como "sin derecho (llegó al tope)".
+   - **Por feriado:** `clases del mes` = fechas de M en las que era fijo de alguno de sus horarios; `feriados` = cuántas de esas clases se cancelaron con `motivo_cancelacion = 'feriado'`; `dadas = clases del mes − feriados` (las canceladas por Pau cuentan como dadas: ya generan su propia recuperación). Créditos por feriado = `min(feriados, max(0, 4 × f − dadas))`. Ver la pregunta 10.2.1 (por horario o en total).
+3. **Usos en M:** sus filas con `tipo = 'recupera'` o `'cambio'` en clases no canceladas de M, **en cualquier estado** (`pendiente`, `presente` o `falto_sin_avisar`: si no viene, la pierde). Si avisa antes que no va a la recuperación, Pau lo saca con "Quitar de esta clase" y no cuenta. Las `suelta` no cuentan.
+4. **Asignación:** cada uso consume un crédito disponible en el orden de prioridad: cancelada por Pau (la más vieja primero, incluido el arrastre) → C.T. → S.T. → feriado. _Supuesto a confirmar_ (pregunta 10.2.2).
+5. **Resultado:**
+   - **Pendientes**, separadas por origen (Pau / C.T. / S.T. / feriado).
+   - **Tope usado** = usos que consumieron un aviso + usos sin crédito. Si pasa de `f` → aviso "ya usó 2 de 2 recuperaciones de octubre" (no bloquea).
+   - **Adelantó** = usos sin crédito (recuperó antes de faltar). Si falta más tarde en el mes, ese aviso lo cubre. Si termina el mes sin faltar: pregunta 10.2.3.
+   - **Al cerrar el mes:** las pendientes C.T., S.T. y feriado se **pierden**; las de Pau **pasan** al mes siguiente.
+6. **Clase cancelada con filas ya cargadas:** se ignoran. Los avisos de los fijos no generan crédito (lo genera la cancelación) y quien venía a ocupar un lugar no gasta su recuperación.
 
 Nada se bloquea: si Pau hace una excepción ("ya usó 2 de 2", "es de otro mes"), la app avisa y la deja seguir.
 
-**Depende de las respuestas de Pau** (sección 10): si las clases que cancela ella suman al derecho, si cambio y adelanto cuentan como usadas, el borde de mes, si quien queda anotado y no viene la pierde, las 24 h y el tope de los S.T.
+#### Casos para los tests
+
+| Caso | Resultado esperado |
+|---|---|
+| `f = 2`. Octubre: C.T. lun 5, S.T. mié 14, C.T. lun 19. Usa 1 | Derecho: C.T. 5 y C.T. 19 (S.T. 14 sin derecho, tope). El uso consume C.T. 5 → pendiente C.T. 19 |
+| `f = 1`. Pau cancela mié 7; C.T. lun 12; usa 1 | El uso consume la de Pau → pendiente C.T. 12, vence el 31/10 (con la otra asignación quedaría pendiente la de Pau, que no vence: pregunta 10.2.2) |
+| `f = 1`. Pau cancela en octubre y no la usa | En noviembre figura "1 de Pau (de octubre)" |
+| `f = 1`, fijo los lunes. Noviembre 2026 tiene 5 lunes y 1 es feriado | Dadas 4 ≥ 4 → no recupera |
+| `f = 1`, fijo los lunes. Un mes con 4 lunes y 1 feriado | Dadas 3 → 1 recuperación por feriado (última en prioridad) |
+| Anotado para recuperar, queda en "No vino" | Cuenta como usada |
+| Cambio de horario: C.T. en el origen + `cambio` en el destino, mismo mes | Crédito C.T. consumido por el cambio; usa 1 del tope |
+| `f = 1`, sin faltas, recupera (adelanta) el 6 y avisa C.T. el 20 | Al final del mes: 0 pendientes, 0 adelantos, tope 1 de 1 |
+| Avisa sin tiempo y no vino nadie a su lugar | Igual tiene derecho (el tope aplica a S.T. igual que a C.T.) |
+| No avisó | Sin crédito |
 
 ### 3.3 Alerta de 2 faltas seguidas sin aviso (entrega 4)
 
@@ -95,7 +133,7 @@ Función pura en `src/lib/alertas.ts`. Con las asistencias del alumno **como fij
 ### 3.4 Con tiempo / sin tiempo (entrega 2)
 
 - Sugerencia **visible** y que se cambia con un toque: "Faltan 49 h para la clase → con tiempo".
-- Con tiempo = el aviso se carga **24 h o más** antes del inicio de la clase (pregunta abierta: si son exactas).
+- Con tiempo = el aviso se carga **24 h o más** antes del inicio de la clase. Es solo la sugerencia: Pau confirmó (21/10/2026) que la app **nunca bloquea** y que ella hace excepciones.
 - En una clase que ya pasó, la app **no sugiere** (no sabe cuándo llegó el aviso): Pau elige.
 - Se guarda `avisado_at` igual.
 - Zona horaria: las clases son de Argentina (UTC−3) y la base está en UTC. En el navegador se calcula en la hora del dispositivo; en SQL, siempre con `America/Argentina/Buenos_Aires`.
@@ -207,10 +245,16 @@ create trigger asistencia_tpa_validar
   on public.asistencia_tpa
   for each row execute function public.validar_asistencia_tpa();
 
--- 5. Clase cancelada (feriado, Pau no puede dar la clase). La UI llega en la entrega 4.
+-- 5. Clase cancelada. Un solo dato con valores fijos (no un boolean + texto
+--    libre): cada motivo tiene reglas de recuperación distintas y así no puede
+--    quedar "cancelada sin motivo". La UI llega en la entrega 3 (propuesta).
 alter table public.clases_tpa
-  add column cancelada          boolean not null default false,
-  add column motivo_cancelacion text;
+  add column motivo_cancelacion text,
+  add constraint clases_tpa_motivo_cancelacion_check
+    check (motivo_cancelacion = any (array['feriado', 'cancelada_por_pau']));
+
+comment on column public.clases_tpa.motivo_cancelacion is
+  'NULL = la clase se da. feriado = recupera solo si queda con menos de 4 clases en el mes por vez por semana. cancelada_por_pau = se recupera siempre, fuera del tope y sin vencimiento.';
 
 -- 6. Desde cuándo es fijo (editable; reemplaza a created_at en eraFijoEn)
 alter table public.horarios_tpa add column fecha_alta date;
@@ -232,7 +276,7 @@ commit;
 -- =====================================================================
 -- begin;
 -- alter table public.horarios_tpa drop column if exists fecha_alta;
--- alter table public.clases_tpa drop column if exists motivo_cancelacion, drop column if exists cancelada;
+-- alter table public.clases_tpa drop column if exists motivo_cancelacion;
 -- drop trigger if exists asistencia_tpa_validar on public.asistencia_tpa;
 -- drop function if exists public.validar_asistencia_tpa();
 -- drop trigger if exists asistencia_tpa_updated_at on public.asistencia_tpa;
@@ -254,6 +298,7 @@ commit;
 Notas:
 - El trigger `validar_asistencia_tpa` es una red de seguridad: la app ya valida lo mismo.
 - Antes de escribirla en la entrega 2, volver a verificar con el MCP (solo lectura) el nombre del check de `estado` y su default actual.
+- "Clase cancelada" en el código = `motivo_cancelacion is not null` (ya no hay columna `cancelada`). Si más adelante Pau quiere anotar el detalle ("viaje"), se agrega una columna de texto libre aparte, sin tocar el motivo.
 - `notas_evolucion` (entrega 4) y `guardar_clase_tpa` (entrega 3) van en migraciones propias: no cambian estados.
 
 ---
@@ -342,7 +387,7 @@ Cada card muestra **siempre los 4 lugares**:
 - Cambio de horario: en el origen "Avisó C.T. · viene Lun 18:00"; en el destino "Cambio de horario".
 - **"+ Ocupar"** en un lugar libre abre el selector (7.3).
 - Ícono de alerta junto al nombre si tiene 2 faltas seguidas sin avisar; ícono de nota si tiene nota en esa clase.
-- Clase cancelada: card gris con "Cancelada · Feriado".
+- Clase cancelada: card gris con "Cancelada · Feriado" o "Cancelada por Pau".
 - Semanas futuras: se ven los avisos anticipados y los lugares libres.
 - Arriba de la grilla: chip "7 pendientes de recuperar" que lleva a la pestaña Recuperaciones.
 - En el celular: lo mismo, con el selector de día + cards.
@@ -359,18 +404,23 @@ Encabezado: "Lunes 26 de octubre · 10:30 · 3/4 · 1 libre". Una fila por lugar
 - **Fila de quien viene a ocupar:** nombre + qué es ("Recupera", "Cambio de horario", "Clase suelta") + chips **Presente · No vino · Sin marcar** + "Quitar de esta clase".
 - **"Marcar el resto como presente"** (entrega 4): solo si la clase ya empezó; marca a los "Sin marcar" y no toca avisos ni "No avisó". Cambio local, se ve antes de guardar.
 - **Avisos que no bloquean:** "2 faltas seguidas sin avisar"; "5/4: hay más personas que lugares"; "ya usó 2 de 2 recuperaciones de octubre".
-- **Pie:** "Cancelar clase" (con `ConfirmDialog` y motivo: Feriado / No puedo dar la clase / Otro) a la izquierda; Cancelar y Guardar a la derecha.
+- **Pie:** "Cancelar clase" a la izquierda; Cancelar y Guardar a la derecha. "Cancelar clase" pide el motivo con dos opciones y su consecuencia a la vista: **Feriado** ("recuperan solo si les quedan menos de 4 clases en el mes") / **Cancelada por mí** ("todos los fijos la recuperan, aunque sea el mes que viene"). Sin "Otro" (pregunta 10.2.4).
+- Para feriados, acción **"Cancelar el día"** (desde el encabezado del día): cancela con motivo Feriado todas las clases de esa fecha de una vez (crea las filas de `clases_tpa` que falten).
 - La pestaña "Alumnos fijos" queda igual (+ fecha de alta en la entrega 2).
 
 ### 7.3 Selector "Ocupar lugar" (entrega 3)
 
 En este orden, cada persona con su motivo:
 
-1. Pendientes con aviso **con tiempo** ("faltó lun 12/10 · le queda 1 de 2").
-2. Pendientes con aviso **sin tiempo**.
-3. **Adelantar:** fijos de otros horarios con recuperaciones disponibles este mes.
-4. **Cambio de horario esta semana:** fijos de otros horarios de esta misma semana.
-5. **Buscar otro paciente** (clase suelta).
+1. Pendientes por **clase cancelada por Pau** (incluye las de meses anteriores: "cancelé mié 30/9").
+2. Pendientes con aviso **con tiempo** ("faltó lun 12/10 · usó 1 de 2").
+3. Pendientes con aviso **sin tiempo**.
+4. Pendientes por **feriado** ("si hay lugar").
+5. **Adelantar:** fijos de otros horarios a los que les queda tope este mes.
+6. **Cambio de horario esta semana:** fijos de otros horarios de esta misma semana (consume tope).
+7. **Buscar otro paciente** (clase suelta).
+
+Quien no avisó no aparece en 1–4. Si elegir a alguien lo pasa del tope, la app lo avisa y deja seguir.
 
 Al elegir, el tipo se completa solo y se puede cambiar.
 
@@ -378,9 +428,9 @@ Al elegir, el tipo se completa solo y se puede cambiar.
 
 TPA tiene dos pestañas: **Semana** | **Recuperaciones**. Por mes:
 
-- **Pendientes de recuperar**, en dos grupos (con tiempo / sin tiempo): alumno, falta (fecha y horario), "usó 1 de 2" y **"Buscar lugar"** (lugares libres de esta semana y la siguiente, dentro del mes).
+- **Pendientes de recuperar**, en cuatro grupos en el orden de prioridad (canceladas por Pau / con tiempo / sin tiempo / feriado): alumno, origen (fecha y horario), "usó 1 de 2" y **"Buscar lugar"** (lugares libres de esta semana y la siguiente; dentro del mes, salvo las de Pau, que pueden ser del mes siguiente). Las que vencen a fin de mes muestran "vence el 31/10".
 - **Adelantos** (usó más de lo que faltó).
-- **Faltas sin derecho a recuperar** (no avisó o llegó al tope), solo informativo.
+- **Sin derecho a recuperar** (no avisó, llegó al tope, o venció a fin de mes), solo informativo.
 - **"Copiar lista"** en texto para WhatsApp (reemplaza la lista de los viernes).
 - En el celular: cards en lugar de tabla.
 
@@ -396,8 +446,9 @@ TPA tiene dos pestañas: **Semana** | **Recuperaciones**. Por mes:
 2. **Ocupar ese lugar.** **+ Ocupar** → arriba figura el Alumno B (con tiempo, le queda 1) → Guardar → "A · Avisó C.T. / ↳ B · Recupera", 4/4.
 3. **Al terminar la clase.** Abrir clase → **Marcar el resto como presente** → corrige a D a **No avisó** → en C, **+ Nota** → Guardar. Si era la segunda falta seguida de D, aparece el aviso.
 4. **Viernes.** TPA → **Recuperaciones** → **Copiar lista** → WhatsApp.
-5. **Feriado.** Abrir clase → **Cancelar clase** → "Feriado". Card gris.
-6. **Ficha.** Nombre → **Evolución**: alerta, saldo del mes, notas y asistencias en orden.
+5. **Feriado.** En el día → **Cancelar el día** → "Feriado". Cards grises. Solo recupera quien queda con menos de 4 clases en el mes.
+6. **Pau se enferma el miércoles.** Abrir clase → **Cancelar clase** → "Cancelada por mí". Todos los fijos de esa clase aparecen primeros en Recuperaciones, aunque no la usen hasta el mes siguiente.
+7. **Ficha.** Nombre → **Evolución**: alerta, saldo del mes, notas y asistencias en orden.
 
 ---
 
@@ -409,8 +460,8 @@ Al final de cada una: `npx tsc --noEmit`, `npm run lint`, `npm run build`, `npm 
 |---|---|---|---|
 | **1** ✅ | `fase-1/asistencia` | Evaluación inicial en la ficha. Guardados que no duplican (id generado al abrir el formulario en pacientes y turnos; `createClaseTPA` como upsert; inscripción reintentable). Timeout 15 s lecturas / 45 s escrituras con mensaje "no sabemos si se guardó". `estados.ts` tolerante a estados desconocidos. Sin el fallback de `fecha_baja`. Vitest + tests de `armarSemanaTPA`. | ninguna |
 | **2** | `fase-1/faltas-y-lugares` | Estados nuevos (Avisó C.T. / S.T. / No avisó), contador de lugares y "Libre", avisos anticipados con sugerencia C.T./S.T., sin "Presente" a futuro, `fecha_alta` editable al inscribir. `eliminarClaseTPASiVacia` protegida (cancelada / quien ocupa). | Script de borrado + **migración única** (sección 4) |
-| **3** | (a definir) | Ocupar lugar con sugerencias (recupera / cambio / suelta), `guardar_clase_tpa`, `calcularRecuperaciones` + tests, pestaña Recuperaciones, "Buscar lugar", "Copiar lista". **Bloqueada por las preguntas a Pau.** | migración de `guardar_clase_tpa` |
-| **4** | (a definir) | "Marcar el resto como presente", cancelar clase, notas de evolución (modal, pestaña Evolución, nota libre), alerta de 2 faltas + tests, sacar las alertas por palabra clave. | migración de `notas_evolucion` |
+| **3** | (a definir) | Ocupar lugar con sugerencias (recupera / cambio / suelta), `guardar_clase_tpa`, `calcularRecuperaciones` + tests, pestaña Recuperaciones, "Buscar lugar", "Copiar lista". **Cancelar clase y "Cancelar el día"** (propuesta: se adelanta desde la entrega 4, porque el saldo depende de las cancelaciones). Antes de empezar: respuestas a la sección 10.2. | migración de `guardar_clase_tpa` |
+| **4** | (a definir) | "Marcar el resto como presente", notas de evolución (modal, pestaña Evolución, nota libre), alerta de 2 faltas + tests, sacar las alertas por palabra clave. | migración de `notas_evolucion` |
 
 **Orden de aplicación de la entrega 2:** la entrega 1 tiene que estar **en producción** antes (para que la app de producción no se rompa al leer un estado nuevo). El día de la prueba: script de borrado → migración única → probar el preview → mergear. Entre la migración y el merge, producción no puede guardar "Avisó" (el check lo rechaza y muestra un error): conviene que Pau no cargue asistencia en ese rato.
 
@@ -418,7 +469,8 @@ Al final de cada una: `npx tsc --noEmit`, `npm run lint`, `npm run build`, `npm 
 
 ## 9. Riesgos y supuestos (por importancia)
 
-1. 🔴 **Política de recuperaciones supuesta.** Si una regla está mal, el saldo está mal y Pau deja de confiar. Mitigación: preguntas de la sección 10 antes de la entrega 3; nada se bloquea.
+1. 🟠 **Política de recuperaciones.** Las reglas principales están confirmadas por Pau (3.2); quedan casos borde (10.2). Si una regla está mal, el saldo está mal y Pau deja de confiar. Mitigación: tests con los casos de 3.2, cada pendiente muestra su origen ("cancelé mié 7", "avisó lun 12"), nada se bloquea.
+1. 🟠 **Cancelaciones olvidadas.** Si Pau no marca un feriado o una cancelación suya, nadie recibe la recuperación que corresponde. Mitigación: "Cancelar el día" en un toque; las de Pau se pueden marcar después (el arrastre no vence).
 2. 🔴 **Ventana entre la migración única y el merge.** Preview y producción comparten la base. Mitigación: entrega 1 en producción antes; migración y merge el mismo día.
 3. 🟠 **"Con tiempo" mal sugerido** si Pau carga el aviso tarde. Mitigación: sugerencia visible, un toque para cambiarla, sin sugerencia en clases pasadas.
 4. 🟠 **Zona horaria.** Base en UTC, clases en hora de Argentina. Se supone el dispositivo de Pau en hora argentina. El SQL usa `America/Argentina/Buenos_Aires`.
@@ -430,11 +482,24 @@ Al final de cada una: `npx tsc --noEmit`, `npm run lint`, `npm run build`, `npm 
 
 ---
 
-## 10. Preguntas abiertas para Pau (bloquean la entrega 3)
+## 10. Preguntas a Pau
 
-1. Cuando **ella** cancela la clase (feriado, no puede), ¿los fijos tienen derecho a recuperarla? ¿Cuenta dentro del tope del mes?
-2. El **cambio de horario puntual** y el **adelanto**, ¿cuentan como una de las recuperaciones del mes?
-3. Una falta de **fin de mes**, ¿se puede recuperar el mes siguiente?
-4. Si alguien queda **anotado para recuperar y no viene**, ¿pierde esa recuperación?
-5. Las **24 h**, ¿son exactas desde la hora de la clase, o alcanza con avisar el día anterior?
-6. El **tope** (1, 2 o 3 según la frecuencia), ¿aplica igual a los que avisaron **sin tiempo**?
+### 10.1 Respondidas (21/10/2026)
+
+1. ✅ Clase que cancela **ella**: depende del motivo. **Cancelada por Pau** (enfermedad, viaje): se recupera siempre, no cuenta en el tope y puede pasar al mes siguiente. **Feriado**: no cuenta en el tope y solo se recupera si por el feriado queda con menos de 4 clases en el mes por cada vez por semana, dentro del mes.
+2. ✅ **Cambio de horario** y **adelanto**: sí, cuentan como recuperación.
+3. ✅ **Fin de mes**: se recupera dentro del mes; si no, se pierde (salvo las canceladas por Pau).
+4. ✅ **Anotado para recuperar y no viene**: la pierde (cuenta como usada).
+5. ✅ **24 h**: la app sugiere con tiempo / sin tiempo y nunca bloquea; Pau hace excepciones.
+6. ✅ **Tope**: 1 por mes por cada vez por semana; aplica también a los que avisaron sin tiempo.
+
+Además: prioridad 1) canceladas por Pau, 2) avisó con tiempo, 3) avisó sin tiempo, 4) feriado (si hay lugar); el que no avisó no recupera.
+
+### 10.2 Casos que las reglas no resuelven (antes de la entrega 3)
+
+1. **Feriado: ¿por horario o en total?** Alumno de lunes y viernes en un mes con 5 lunes sin feriado y 4 viernes con 1 feriado. Por horario: los viernes le quedan 3 → recupera 1. En total: 5 + 3 = 8 clases, igual a 4 × 2 → no recupera. _Propuesta:_ **en total** (lectura literal de "menos de 4 clases por cada vez por semana" = menos de 4 × f).
+2. **¿Qué recuperación se usa primero?** Si tiene una de Pau (no vence) y una avisada (vence a fin de mes) y viene una vez: siguiendo la prioridad, se usa la de Pau y la avisada puede perderse; usando primero la que vence, no pierde ninguna. _Propuesta por defecto:_ seguir la prioridad que dio Pau (está así en 3.2, paso 4); cambiarlo es una línea.
+3. **Adelanto sin falta después.** Si adelanta y no falta en todo el mes, ¿qué pasa? Opciones: a) nada (clase de regalo), b) se cobra como clase suelta (fase 2), c) Pau decide en cada caso y la app solo lo muestra. _Propuesta:_ c.
+4. **Otros motivos de cancelación** (corte de luz, un paro): ¿se tratan como "Cancelada por Pau" (se recupera siempre) o como "Feriado"? _Propuesta:_ como cancelada por Pau, y sin opción "Otro".
+5. **Cambio de horario que cruza el mes** (avisa el viernes 30/10 y viene el lunes 2/11): con las reglas, el aviso de octubre vence y el cambio de noviembre queda como adelanto. ¿Está bien, o un cambio de horario se cuenta en el mes de la falta? _Propuesta:_ como está; la app lo avisa al cargarlo.
+6. **Alta a mitad de mes y feriado.** Alguien que empieza el 15 tiene menos de 4 clases ese mes sin que haya feriados. _Propuesta:_ por feriado recupera como máximo la cantidad de feriados que le tocaron (es la fórmula de 3.2), así el alta tardía no genera recuperaciones.

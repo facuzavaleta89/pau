@@ -1,6 +1,6 @@
 # PENDIENTES.md — Estado y plan de trabajo
 
-_Última revisión: 21/10/2026 — Fases 0 y 0.5 completas; Fase 1: modelo de la grilla TPA y vistas de celular mergeados; **asistencia TPA en 4 entregas** (diseño en `docs/DISENO_ASISTENCIA_TPA.md`), entrega 1 hecha en la rama `fase-1/asistencia`. App en https://paukinesio.vercel.app. Base Supabase `pau` (`dmwtoozbctnwccaaitos`, Postgres 17, plan Free, región us-east-2)._
+_Última revisión: 21/10/2026 — Fases 0 y 0.5 completas; Fase 1: modelo de la grilla TPA y vistas de celular mergeados; **asistencia TPA en 4 entregas** (diseño en `docs/DISENO_ASISTENCIA_TPA.md`), entrega 1 mergeada; reglas de recuperación confirmadas por Pau; Next actualizado a 16.4.2 (rama `fase-1/actualizar-next`). App en https://paukinesio.vercel.app. Base Supabase `pau` (`dmwtoozbctnwccaaitos`, Postgres 17, plan Free, región us-east-2)._
 
 ## Estado actual (resumen)
 
@@ -79,37 +79,38 @@ Estado: ✅ **completa** (mergeada; migración `20261018000001` aplicada y proba
 **Diseño completo y decisiones: [`docs/DISENO_ASISTENCIA_TPA.md`](docs/DISENO_ASISTENCIA_TPA.md)** (referencia para las entregas 2 a 4).
 
 Decisiones (Facu, 21/10/2026):
-- Sin `falta_id`: el saldo se calcula **contando** por alumno y por mes. Derecho = faltas avisadas (C.T. + S.T.) del mes, con tope = frecuencia (cantidad de horarios fijos); usadas = veces que ocupó un lugar en el mes (`recupera` o `cambio`); pendientes = derecho − usadas, consumiendo primero las avisadas con tiempo. "Adelanta" no es un tipo: es una recuperación usada antes de faltar.
+- Sin `falta_id`: el saldo se calcula **contando** por alumno y por mes (`calcularRecuperaciones()`, diseño 3.2). "Adelanta" no es un tipo: es una recuperación usada antes de faltar.
+- **Reglas de Pau (21/10/2026):** prioridad 1) clases que canceló ella, 2) avisó con tiempo, 3) avisó sin tiempo, 4) feriado (si hay lugar); el que no avisó no recupera. Tope: 1 por mes por cada vez por semana, también para S.T.; cambio de horario y adelanto cuentan. Vencen a fin de mes, salvo las canceladas por Pau (siempre, fuera del tope, pasan al mes siguiente). Anotado y no viene = usada. 24 h: solo sugerencia. Feriado: fuera del tope, solo si queda con menos de 4 clases en el mes por cada vez por semana. La clase cancelada guarda `motivo_cancelacion` = `feriado` | `cancelada_por_pau`.
 - Tipos de quien ocupa un lugar: `fijo`, `recupera`, `cambio`, `suelta`. Se mantiene `ocupa_lugar_de`.
 - Datos de prueba de asistencia: se borran (script). **Una sola migración** con los estados nuevos definitivos: Facu la aplica justo antes de probar el preview y mergea el mismo día.
 - Vitest para las funciones puras. Función transaccional `guardar_clase_tpa` (security invoker, `execute` solo para `authenticated`). `fecha_alta` en `horarios_tpa` en la entrega 2.
 - Criterios por defecto (Pau los puede cambiar): colores como están; lugar lleno → avisar, no bloquear; 2 faltas seguidas sin aviso → en cualquier horario del alumno, las clases sin marcar no cortan la racha; clases sueltas como quien ocupa un lugar (`tipo = 'suelta'`).
 
-#### Entrega 1 — base (rama `fase-1/asistencia`) — ⏳ implementada, falta que Facu pruebe
+#### Entrega 1 — base (rama `fase-1/asistencia`) — ✅ mergeada
 - [x] Evaluación inicial visible en la ficha de la historia clínica (bug #4). De paso, etiquetas de la ficha en `text-xs` (antes `text-[10px]`).
 - [x] Guardados que no duplican: id generado al abrir el formulario (`nuevoId()`) en pacientes y turnos RPG; 23505 con el mismo id = ya estaba guardado (`insertarSinDuplicar` en `queries.ts`). `createClaseTPA` como upsert sobre `(fecha, hora)`. `createHorarioTPA` reintentable (23505 = ya inscripto).
 - [x] Timeout: 15 s lecturas, 45 s escrituras (`src/lib/tiempo-maximo.ts`). Si se corta una escritura: "La conexión tardó demasiado y no sabemos si se guardó…" (`mensajeErrorAlGuardar`). Verificado con tests contra el `postgrest-js` real.
 - [x] `estadoAsistencia()` en `estados.ts`: un estado desconocido se muestra en gris con su nombre, no rompe (necesario para la ventana entre la migración única y el merge de la entrega 2).
 - [x] Sin el fallback `PGRST204` de `deactivateHorarioTPA`.
 - [x] Vitest (`npm test`) con tests de `armarSemanaTPA`, `diaTPAInicial`, cortes por tiempo, `nuevoId` y `estadoAsistencia`.
-- [ ] **Probar** (Facu) y deployar a producción **antes** de aplicar la migración de la entrega 2.
+- [ ] Confirmar que está **en producción** (deploy de `main`) **antes** de aplicar la migración de la entrega 2.
 
 #### Entrega 2 — faltas y lugares (rama `fase-1/faltas-y-lugares`)
 - [ ] Estados nuevos: Avisó C.T. / Avisó S.T. / No avisó; contador de lugares (los que avisaron no ocupan) y marcador "Libre".
 - [ ] Avisos anticipados en clases futuras con sugerencia C.T./S.T. visible (sin sugerencia en clases pasadas); sin "Presente" ni "No avisó" a futuro.
 - [ ] `fecha_alta` editable al inscribir (reemplaza a `created_at` en `eraFijoEn`).
 - [ ] `eliminarClaseTPASiVacia` no borra clases canceladas ni con quien ocupa un lugar.
-- [ ] Script de borrado de la asistencia de prueba + **migración única** (diseño, secciones 4 y 5). Orden: entrega 1 en producción → script → migración → probar preview → merge el mismo día.
+- [ ] Script de borrado de la asistencia de prueba + **migración única** (diseño, secciones 4 y 5), con `motivo_cancelacion` de valores fijos en lugar de `cancelada` + texto. Orden: entrega 1 en producción → script → migración → probar preview → merge el mismo día.
 - [ ] Tests del contador.
 
-#### Entrega 3 — ocupar lugares y recuperaciones (🔒 bloqueada por las preguntas a Pau)
+#### Entrega 3 — ocupar lugares y recuperaciones (reglas confirmadas; faltan los casos borde 21–26)
 - [ ] Ocupar lugar con sugerencias (recupera / cambio / suelta), cambio de horario como una sola acción.
 - [ ] Función transaccional `guardar_clase_tpa` (migración propia).
-- [ ] `calcularRecuperaciones()` + tests; pestaña Recuperaciones, "Buscar lugar", "Copiar lista".
+- [ ] `calcularRecuperaciones()` + tests (casos de la sección 3.2 del diseño); pestaña Recuperaciones, "Buscar lugar", "Copiar lista".
+- [ ] Cancelar una clase (Feriado / Cancelada por Pau) y "Cancelar el día" para feriados. _Propuesta: adelantado desde la entrega 4, porque el saldo depende de las cancelaciones (a confirmar por Facu)._
 
 #### Entrega 4 — cierre de clase, notas y alertas
 - [ ] "Marcar el resto como presente" (solo clases que ya empezaron; no pisa avisos).
-- [ ] Cancelar una clase entera (feriado, no puede) en un toque.
 - [ ] Notas de evolución (`notas_evolucion`, migración propia): campo en el modal, pestaña Evolución, nota libre.
 - [ ] Alerta de 2 faltas seguidas sin aviso + tests.
 - [ ] Sacar las alertas por palabra clave (bug #5).
@@ -230,16 +231,27 @@ Reemplaza a `/rpg` como entrada de la app (`/` y el destino después del login).
 
 Para Fase 1 bloquean la 1, 2, 3, 6 y 9; para Fase 2, la 4 y la 5. La 1, la 6 y la 14 tienen criterio por defecto desde el 21/10/2026 (colores como están; sin marcas rápidas en las notas; los que avisaron no ocupan lugar).
 
-### Recuperaciones (21/10/2026) — 🔒 bloquean la entrega 3 de asistencia TPA
+### Recuperaciones (21/10/2026) — ✅ respondidas por Pau el 21/10/2026
 
-Detalle en `docs/DISENO_ASISTENCIA_TPA.md`, sección 10.
+Detalle en `docs/DISENO_ASISTENCIA_TPA.md`, secciones 3.2 y 10.1.
 
-15. Cuando **vos** cancelás la clase (feriado, no podés), ¿los fijos tienen derecho a recuperarla? ¿Cuenta dentro del tope del mes (1, 2 o 3)?
-16. El **cambio de horario puntual** ("viene a las 18") y el **adelanto** (recuperar antes de faltar), ¿cuentan como recuperaciones del mes?
-17. Una falta de **fin de mes**, ¿se puede recuperar el mes siguiente?
-18. Si alguien queda **anotado para recuperar y no viene**, ¿pierde esa recuperación?
-19. Las **24 h** para "con tiempo", ¿son exactas desde la hora de la clase, o alcanza con avisar el día anterior?
-20. El **tope** (según cuántas veces por semana viene), ¿aplica igual a los que avisaron **sin tiempo**?
+15. ✅ Clase que cancelás **vos**: si es **cancelada por Pau** (enfermedad, viaje) se recupera siempre, no cuenta en el tope y puede pasar al mes siguiente; si es **feriado**, no cuenta en el tope y solo se recupera si queda con menos de 4 clases en el mes por cada vez por semana.
+16. ✅ **Cambio de horario** y **adelanto**: cuentan como recuperación.
+17. ✅ **Fin de mes**: se recupera dentro del mes o se pierde (salvo las canceladas por Pau).
+18. ✅ **Anotado y no viene**: la pierde.
+19. ✅ **24 h**: la app sugiere con tiempo / sin tiempo, nunca bloquea.
+20. ✅ **Tope**: 1 por mes por cada vez por semana; aplica también a los que avisaron sin tiempo.
+
+### Recuperaciones: casos borde (21/10/2026) — antes de la entrega 3
+
+Detalle, ejemplos y propuesta de cada una en `docs/DISENO_ASISTENCIA_TPA.md`, sección 10.2.
+
+21. **Feriado:** el mínimo de 4 clases, ¿se cuenta por horario o en total (4 × veces por semana)? Propuesta: en total.
+22. Si tiene una recuperación tuya (no vence) y una avisada (vence a fin de mes), ¿cuál se usa primero? Por defecto: la tuya (tu orden de prioridad).
+23. Si **adelanta** y no falta en todo el mes, ¿qué pasa? Propuesta: la app lo muestra y vos decidís.
+24. Otros motivos de cancelación (corte de luz, paro): ¿como "cancelada por vos" o como feriado? Propuesta: como cancelada por vos.
+25. **Cambio de horario que cruza el mes** (avisa el 30/10, viene el 2/11): ¿cuenta en el mes de la falta? Propuesta: no (el aviso vence y el cambio queda como adelanto), con aviso en la app.
+26. **Alta a mitad de mes con feriado:** propuesta: por feriado recupera como máximo los feriados que le tocaron.
 
 ## Bugs detectados
 
@@ -259,7 +271,8 @@ Detalle en `docs/DISENO_ASISTENCIA_TPA.md`, sección 10.
 | 2 | 0.5 ✅ | `TpaClaseModal` | Volver a "pendiente" no se guardaba y se creaba una clase vacía. Corregido en 0.5. |
 | 4 | 1 ✅ | `HistoriaClinicaModal` | No mostraba `evaluacion_inicial`. Corregido en la entrega 1 de asistencia. |
 | N15 | 1 ✅ | `queries.ts` / `supabase.ts` | Timeout de 15 s en todo: con mala señal, un alta podía llegar a la base, la app decía "No se pudo guardar" y al reintentar se duplicaba el paciente o el turno. Corregido en la entrega 1 (ids generados al abrir + 45 s para escrituras). |
-| N16 | — | `package.json` | `npm audit`: `next` 16.2.6 tiene un aviso **crítico** (corregido en ≥ 16.3.8) y hay 12 altos en dependencias de compilación. Actualizar Next en una tarea aparte (probar build y deploy). |
+| N16 | 1 ✅ | `package.json` | `npm audit`: `next` 16.2.6 tenía avisos **críticos** (RCE, corregidos en ≥ 16.3.8). Actualizados `next` y `eslint-config-next` a 16.4.2 (rama `fase-1/actualizar-next`): de 15 avisos (1 crítico, 12 altos) a 11 (0 críticos, 9 altos). Los que quedan son de herramientas de desarrollo/compilación (ESLint, Babel, Tailwind); ver N17. |
+| N17 | 4 | `package.json` | Quedan 11 avisos de `npm audit` (1 bajo, 1 moderado, 9 altos), todos en dependencias de compilación o de ESLint (`braces`/`micromatch` por `@next/eslint-plugin-next`, `js-yaml`, `brace-expansion`, `browserslist`, `source-map-js`, `baseline-browser-mapping`, `@babel/core`). Ninguno se ejecuta en el navegador ni con datos de usuarios. `npm audit fix` (sin `--force`) corrige 6 de 11, solo con versiones menores/parches de esas dependencias (probado en una copia del lockfile): hacerlo en una tarea aparte. Los 5 restantes vienen de `fast-glob` 3.3.1 dentro de `@next/eslint-plugin-next` 16.4.2: el único "arreglo" que ofrece npm es bajar a `eslint-config-next` 14 (no tiene sentido); hay que esperar a que Next lo actualice. |
 | 5 | 1 / 3 | `HistoriaClinicaModal` | Alertas por palabra clave sobre **todo** el historial, aunque el texto dice "recientes". |
 | N11 | 1 ✅ | `Navigation` | Área segura del iPhone con `env(safe-area-inset-bottom)` + `viewportFit: cover`. |
 | 7 | 2 | `pagos/page` | Precios hardcodeados; mezcla RPG (por sesión) con mensual. |
