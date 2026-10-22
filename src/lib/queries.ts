@@ -161,7 +161,10 @@ export async function cargarSemanaTPA(desde: string, hasta: string): Promise<Dat
   return { horarios, clases, asistencias };
 }
 
-export async function createHorarioTPA(horario: { paciente_id: string; dia_semana: DiaSemana; hora: string }) {
+// `fecha_alta` = desde qué fecha es fijo (por defecto hoy, la elige Pau al inscribir).
+export async function createHorarioTPA(horario: {
+  paciente_id: string; dia_semana: DiaSemana; hora: string; fecha_alta: string;
+}) {
   const { data, error } = await supabase
     .from('horarios_tpa')
     .insert([{ ...horario, activo: true }])
@@ -186,12 +189,15 @@ export async function createHorarioTPA(horario: { paciente_id: string; dia_seman
   return conHora(exigirUnaFila(data as HorarioTPA[] | null, 'No se pudo inscribir al alumno.'));
 }
 
-// Desinscribe guardando la fecha de baja (sigue siendo fijo en las fechas anteriores).
-export async function deactivateHorarioTPA(id: string) {
+// Desinscribe guardando la fecha de baja (sigue siendo fijo en las fechas
+// anteriores). Si el alta era a futuro, la baja queda en la fecha de alta:
+// nunca llegó a ser fijo (la base exige fecha_baja >= fecha_alta).
+export async function deactivateHorarioTPA(horario: Pick<HorarioTPA, 'id' | 'fecha_alta'>) {
+  const hoy = format(new Date(), 'yyyy-MM-dd');
   const { data, error } = await supabase
     .from('horarios_tpa')
-    .update({ activo: false, fecha_baja: format(new Date(), 'yyyy-MM-dd') })
-    .eq('id', id)
+    .update({ activo: false, fecha_baja: hoy > horario.fecha_alta ? hoy : horario.fecha_alta })
+    .eq('id', horario.id)
     .select();
 
   if (error) throw error;
@@ -258,21 +264,29 @@ export async function deleteAsistenciaTPA(claseId: string, pacienteId: string) {
   exigirUnaFila(data, 'No se pudo desmarcar la asistencia.');
 }
 
-// Borra la clase si quedó sin ninguna asistencia (todos "sin marcar"),
-// para no dejar clases vacías. Devuelve true si la borró.
+// Borra la clase si quedó vacía (todos "sin marcar"), para no dejar clases
+// sin nada. Devuelve true si la borró. No borra:
+// - una clase cancelada (motivo_cancelacion): la cancelación genera
+//   recuperaciones aunque no tenga asistencias;
+// - una clase con cualquier fila de asistencia, incluida la de quien viene a
+//   ocupar un lugar (recupera / cambio / suelta, aunque esté "pendiente").
 export async function eliminarClaseTPASiVacia(claseId: string): Promise<boolean> {
-  const { count, error: errorCount } = await supabase
-    .from('asistencia_tpa')
-    .select('id', { count: 'exact', head: true })
-    .eq('clase_id', claseId);
+  const [{ count, error: errorCount }, { data: clases, error: errorClase }] = await Promise.all([
+    supabase.from('asistencia_tpa').select('id', { count: 'exact', head: true }).eq('clase_id', claseId),
+    supabase.from('clases_tpa').select('motivo_cancelacion').eq('id', claseId),
+  ]);
 
   if (errorCount) throw errorCount;
+  if (errorClase) throw errorClase;
   if ((count ?? 0) > 0) return false;
+  const clase = (clases as Pick<ClaseTPA, 'motivo_cancelacion'>[] | null)?.[0];
+  if (!clase || clase.motivo_cancelacion) return false; // ya no existe, o está cancelada
 
   const { data, error } = await supabase
     .from('clases_tpa')
     .delete()
     .eq('id', claseId)
+    .is('motivo_cancelacion', null)
     .select('id');
 
   if (error) throw error;

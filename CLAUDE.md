@@ -88,7 +88,8 @@ src/
 │   ├── errores.ts            # registrarError / mensajeError / mensajeErrorAlGuardar / ErrorApp
 │   ├── estados.ts            # etiquetas, colores e íconos de TODOS los estados
 │   ├── horas.ts              # normalizarHora ("HH:mm:ss" → "HH:mm")
-│   ├── tpa.ts                # HORARIOS_TPA, CUPO_TPA, DIAS_TPA y armarSemanaTPA (modelo de la semana)
+│   ├── tpa.ts                # HORARIOS_TPA, CUPO_TPA, DIAS_TPA, armarSemanaTPA, eraFijoEn, contarLugares
+│   ├── avisos.ts             # clase futura, sugerencia C.T./S.T. (hora argentina), avisado_at
 │   └── utils.ts              # cn(), nuevoId()
 └── types/index.ts            # tipos mapeados a las tablas
 ```
@@ -107,6 +108,8 @@ src/
 
 Proyecto Supabase: **`pau`** (ref `dmwtoozbctnwccaaitos`, región `us-east-2`, plan Free).
 
+Los cambios de **datos** que se corren una sola vez (borrar pruebas) van en `supabase/scripts/`, fuera de `migrations/`, para que `supabase db push` nunca los ejecute.
+
 El esquema actual está en **`supabase/migrations/20260520000000_esquema_inicial.sql`** (línea base reconstruida leyendo la base; **no se ejecuta** contra el proyecto existente). **Todo cambio de esquema va en un archivo de migración nuevo** con fecha posterior, nunca a mano en el dashboard sin registrarlo.
 
 ⚠️ Las columnas `hora` son tipo `time`: la base devuelve `"HH:mm:ss"`.
@@ -115,8 +118,11 @@ El esquema actual está en **`supabase/migrations/20260520000000_esquema_inicial
 - Sin sesión válida (o con un usuario no autorizado) un `select` devuelve `[]` y un `update`/`delete` afecta **0 filas sin error**. Por eso toda escritura en `queries.ts` termina en `.select()` y verifica las filas con `exigirUnaFila()`; no usar `.single()` en escrituras.
 - Funciones nuevas en la base: revocar siempre `execute` también `from public`, no solo de `anon`/`authenticated`.
 
-Estados válidos:
-- `asistencia_tpa.estado`: `presente | aviso_ausencia | falto_sin_avisar | recupera | vino_otra_clase | cancelado | pendiente`
+Estados válidos (migración `20261022000001_tpa_faltas_y_lugares.sql`):
+- `asistencia_tpa.tipo`: `fijo | recupera | cambio | suelta`
+- `asistencia_tpa.estado`: fijo → `presente | aviso_con_tiempo | aviso_sin_tiempo | falto_sin_avisar` (sin marcar = sin fila); quien ocupa un lugar → `pendiente | presente | falto_sin_avisar`. `avisado_at` obligatorio en los avisos y solo en ellos. `ocupa_lugar_de` = fila del fijo de la misma clase que avisó (trigger `validar_asistencia_tpa`).
+- `clases_tpa.motivo_cancelacion`: `null` (se da) `| feriado | cancelada_por_pau`
+- `horarios_tpa.fecha_alta`: desde qué fecha es fijo (inclusive); `fecha_baja` exclusive y `>= fecha_alta`
 - `sesiones_rpg.estado_pago`: `pagado | pendiente`
 - `sesiones_rpg.estado_sesion`: `realizada | cancelada | pendiente`
 

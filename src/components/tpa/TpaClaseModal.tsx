@@ -8,6 +8,9 @@ import {
   createClaseTPA, upsertAsistenciaTPA, deleteAsistenciaTPA, eliminarClaseTPASiVacia, getPacientesActivos,
 } from "@/lib/queries";
 import { mensajeError, mensajeErrorAlGuardar, registrarError } from "@/lib/errores";
+import { avisadoAtAlGuardar, esClaseFutura, sugerirAviso } from "@/lib/avisos";
+import { MOTIVOS_CANCELACION } from "@/lib/estados";
+import { contarLugares, textoLugares } from "@/lib/tpa";
 import type { AlumnoCeldaTPA, CeldaTPA, EstadoAsistenciaTPA, Paciente } from "@/types";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -33,6 +36,8 @@ export function TpaClaseModal({ celda, onClose, onGuardado }: TpaClaseModalProps
   // Solo lo que Pau cambió y todavía no guardó, por paciente.
   const [ediciones, setEdiciones] = useState<Record<string, EstadoAsistenciaTPA>>({});
   const [todosPacientes, setTodosPacientes] = useState<Paciente[]>([]);
+  // Momento en que se abrió: define si la clase es futura y la sugerencia C.T./S.T.
+  const [abiertoEn] = useState(() => new Date());
 
   useEffect(() => {
     getPacientesActivos()
@@ -44,18 +49,27 @@ export function TpaClaseModal({ celda, onClose, onGuardado }: TpaClaseModalProps
   }, [toast]);
 
   const estadoActual = (a: AlumnoCeldaTPA): EstadoAsistenciaTPA => ediciones[a.pacienteId] ?? a.estado;
-  const aMarcar = celda.alumnos.filter(a => estadoActual(a) !== a.estado && estadoActual(a) !== 'pendiente');
-  const aDesmarcar = celda.alumnos.filter(a => estadoActual(a) !== a.estado && estadoActual(a) === 'pendiente');
-  const hayCambios = aMarcar.length + aDesmarcar.length > 0;
+  const cambiados = celda.alumnos.filter(a => estadoActual(a) !== a.estado);
+  // Un fijo "Sin marcar" no tiene fila; quien viene a ocupar un lugar sí ('pendiente').
+  const aDesmarcar = cambiados.filter(a => a.tipo === 'fijo' && estadoActual(a) === 'pendiente');
+  const aMarcar = cambiados.filter(a => !aDesmarcar.includes(a));
+  const hayCambios = cambiados.length > 0;
 
-  // "Sin marcar" (pendiente) = no tener fila de asistencia. Al guardar:
+  const claseFutura = esClaseFutura(celda.fecha, celda.hora, abiertoEn);
+  const sugerencia = sugerirAviso(celda.fecha, celda.hora, abiertoEn);
+  const lugares = contarLugares(
+    celda.alumnos.map(a => ({ tipo: a.tipo, estado: estadoActual(a) })), celda.cupo, celda.lugares.cancelada
+  );
+
+  // "Sin marcar" (pendiente) de un fijo = no tener fila de asistencia. Al guardar:
   // - se marcan (upsert) los que pasan a un estado;
-  // - se desmarcan (delete) los que vuelven a "Sin marcar";
+  // - se desmarcan (delete) los fijos que vuelven a "Sin marcar";
   // - no se crea la clase si nadie quedó marcado, y se borra si quedó vacía.
   const handleGuardar = async () => {
     if (!hayCambios) return;
     setSaving(true);
     try {
+      const ahora = new Date();
       let claseId = celda.clase?.id;
       if (!claseId && aMarcar.length > 0) {
         claseId = (await createClaseTPA({ fecha: celda.fecha, hora: celda.hora })).id;
@@ -63,7 +77,13 @@ export function TpaClaseModal({ celda, onClose, onGuardado }: TpaClaseModalProps
       if (claseId) {
         const idClase = claseId;
         await Promise.all([
-          ...aMarcar.map(a => upsertAsistenciaTPA({ clase_id: idClase, paciente_id: a.pacienteId, estado: estadoActual(a) })),
+          ...aMarcar.map(a => upsertAsistenciaTPA({
+            clase_id: idClase,
+            paciente_id: a.pacienteId,
+            tipo: a.tipo,
+            estado: estadoActual(a),
+            avisado_at: avisadoAtAlGuardar(a.asistencia, estadoActual(a), ahora),
+          })),
           ...aDesmarcar.map(a => deleteAsistenciaTPA(idClase, a.pacienteId)),
         ]);
         if (aDesmarcar.length > 0) await eliminarClaseTPASiVacia(idClase);
@@ -81,6 +101,9 @@ export function TpaClaseModal({ celda, onClose, onGuardado }: TpaClaseModalProps
   };
 
   const diaLabel = format(parseISO(celda.fecha), "EEEE d 'de' MMMM", { locale: es });
+  const resumenLugares = celda.clase?.motivo_cancelacion
+    ? MOTIVOS_CANCELACION[celda.clase.motivo_cancelacion]
+    : textoLugares(lugares, celda.cupo);
 
   const pestanias = (
     <div role="tablist" className="flex gap-6 px-4 md:px-6 border-b border-stone-200">
@@ -117,10 +140,11 @@ export function TpaClaseModal({ celda, onClose, onGuardado }: TpaClaseModalProps
   return (
     <Modal
       titulo={`Clase de las ${celda.hora}`}
-      subtitulo={<span className="capitalize">{diaLabel}</span>}
+      subtitulo={<><span className="capitalize">{diaLabel}</span> · {resumenLugares}</>}
       onCerrar={onClose}
       debajoDelTitulo={pestanias}
       pie={pie}
+      ancho="2xl"
       pantallaCompleta
     >
       {pestania === 'asistencia' ? (
@@ -129,6 +153,10 @@ export function TpaClaseModal({ celda, onClose, onGuardado }: TpaClaseModalProps
           estadoActual={estadoActual}
           onCambiar={(pacienteId, estado) => setEdiciones(prev => ({ ...prev, [pacienteId]: estado }))}
           onIrAInscripcion={() => setPestania('inscripcion')}
+          lugares={lugares}
+          cupo={celda.cupo}
+          claseFutura={claseFutura}
+          sugerencia={sugerencia}
         />
       ) : (
         <TpaInscripcion celda={celda} todosPacientes={todosPacientes} onCambio={onGuardado} />

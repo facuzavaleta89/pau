@@ -34,23 +34,26 @@ Bordes
 
 ### Estados de asistencia TPA — fuente única
 
-Definidos **una sola vez** en `src/lib/estados.ts` (label, clases de color, ícono) y usados en grilla, modal e historia clínica. Si esta tabla cambia, se cambia `estados.ts` (y viceversa).
+Definidos **una sola vez** en `src/lib/estados.ts` (label, clases de color, ícono) y usados en grilla, modal e historia clínica. Si esta tabla cambia, se cambia `estados.ts` (y viceversa). Las etiquetas son las palabras del Word de Pau.
 
-| Estado | Label | Clases |
-|---|---|---|
-| `presente` | Presente | `bg-emerald-50 text-emerald-700 border-emerald-200` |
-| `aviso_ausencia` | Avisó | `bg-amber-50 text-amber-700 border-amber-200` |
-| `falto_sin_avisar` | Faltó | `bg-red-50 text-red-700 border-red-200` |
-| `recupera` | Recupera | `bg-blue-50 text-blue-700 border-blue-200` |
-| `vino_otra_clase` | De otro horario | `bg-teal-50 text-teal-700 border-teal-200` |
-| `cancelado` | Cancelado | `bg-stone-100 text-stone-500 border-stone-300` |
-| `pendiente` | Sin marcar | `bg-white text-stone-600 border-dashed border-stone-400` |
+| Estado | Label | Clases | Ícono |
+|---|---|---|---|
+| `presente` | Presente | `bg-emerald-50 text-emerald-700 border-emerald-200` | `Check` |
+| `aviso_con_tiempo` | Avisó C.T. | `bg-amber-50 text-amber-700 border-amber-200` | `MessageSquare` |
+| `aviso_sin_tiempo` | Avisó S.T. | `bg-amber-50 text-amber-700 border-amber-200` | `MessageSquareWarning` |
+| `falto_sin_avisar` | No avisó (en quien viene a ocupar un lugar: **No vino**) | `bg-red-50 text-red-700 border-red-200` | `X` |
+| `pendiente` | Sin marcar | `bg-white text-stone-600 border-dashed border-stone-400` | `CircleDashed` |
 
-> Pendiente de confirmar con Pau: en su Word usa **rojo para "faltó avisando"**. Si prefiere conservar su código de colores, se cambia solo en `estados.ts`.
+- **Ámbar = avisó, rojo = no avisó** (criterio por defecto; Pau lo puede cambiar solo en `estados.ts`). C.T. y S.T. comparten color y se distinguen por la etiqueta y el ícono.
+- Un fijo usa los 5; quien viene a ocupar un lugar usa Presente · No vino · Sin marcar (`ORDEN_ESTADOS_FIJO` / `ORDEN_ESTADOS_OCUPANTE`).
+- Un estado que esta versión no conoce se muestra en gris (`bg-stone-50 text-stone-600 border-stone-300`, ícono `CircleHelp`) con su nombre: no rompe la pantalla.
+- "Sin marcar" usa **borde punteado** sobre blanco: tiene que distinguirse a simple vista del fondo de las cards.
 
-Además del color, cada estado lleva **ícono o texto** (accesibilidad: no depender solo del color). Íconos: presente `Check`, avisó `MessageSquare`, faltó `X`, recupera `RotateCcw`, de otro horario `ArrowLeftRight`, cancelado `Ban`, sin marcar `CircleDashed`.
+**Quien viene a ocupar un lugar** (`TIPOS_OCUPANTE`): el color lo da su estado; la etiqueta dice qué es — Recupera (`RotateCcw`), Cambio de horario (`ArrowLeftRight`), Clase suelta (`Ticket`). Si ocupa el lugar de un fijo, va **justo debajo** de ese fijo, con sangría e ícono `CornerDownRight`.
 
-"Sin marcar" usa **borde punteado** sobre blanco: tiene que distinguirse a simple vista del fondo de las cards (`bg-white` / `bg-stone-50`). Antes era `bg-stone-50 text-stone-400` y casi no se veía. "Cancelado" pasó a `text-stone-500 border-stone-300` por contraste.
+**Lugar libre** (`LUGAR_LIBRE`): fila "Libre" con `bg-teal-50 text-teal-700 border-dashed border-teal-200` e ícono `SquareDashed`, del mismo alto que una fila de alumno. Es el amarillo "LIBRE" del Word de Pau (en ámbar se confundiría con los avisos). Sin botón por ahora; "+ Ocupar" llega en la entrega 3.
+
+**Clase cancelada** (`MOTIVOS_CANCELACION`, `CLASES_CANCELADA`): card `bg-stone-50 border-stone-300`, badge `bg-stone-100 text-stone-500 border-stone-300` con ícono `Ban`: "Cancelada · Feriado" o "Cancelada por Pau". Sin lugares libres; los alumnos se ven atenuados.
 
 ### Estados de sesión RPG
 | Estado | Label | Clases | Ícono |
@@ -170,16 +173,19 @@ En pantallas < 768px los modales se muestran como **hoja desde abajo** (ancho co
 ### Agenda TPA
 - **Desktop** (`TpaGrillaSemana`): grilla de 3 días × horarios reales (`HORARIOS_TPA`). Si un día no tiene clase en esa hora (viernes 19:00), celda punteada "Sin clase".
 - **Celular** (`TpaListaDia`): selector de día (Lun / Mié / Vie con la fecha, botones de 48px, el activo en teal) arriba y **lista de horarios** debajo. Al abrir, el día de hoy (o el próximo día de TPA).
-- Cada horario es la misma card en las dos vistas (`TpaHorarioCard`): hora, cupo `3/4` (teal si está completo), alumnos con color + ícono del estado, y botón "Registrar asistencia" / "Ver asistencia" (44px en celular). Un horario que no es de los habituales muestra "(fuera de horario)".
+- Cada horario es la misma card en las dos vistas (`TpaHorarioCard`): hora, contador `3/4`, alumnos con color + ícono del estado (y la etiqueta si ya están marcados), **siempre los 4 lugares** (los que sobran, como "Libre") y botón "Registrar asistencia" / "Ver asistencia" (44px en celular). Un horario que no es de los habituales muestra "(fuera de horario)".
+- **Contador:** ocupados = fijos que no avisaron (incluye Sin marcar y No avisó) + quienes vienen a ocupar un lugar. Badge `bg-stone-50 text-stone-600 border-stone-200`; completo, `bg-teal-50 text-teal-700 border-teal-200`; con más personas que lugares ("5/4"), `bg-amber-50 text-amber-800 border-amber-200` con `AlertTriangle` (avisa, no bloquea).
 - Tocar el botón → registro rápido de asistencia; tocar un nombre → historia clínica.
-- Alumnos que recuperan o vienen de otro horario se muestran en la card con su estado (azul/teal) aunque no sean fijos.
 
 ### Registro rápido de asistencia (modal)
+- Modal `ancho="2xl"` en la compu (los 5 chips entran en una fila); pantalla completa en el celular. Subtítulo: "lunes 26 de octubre · 3/4 · 1 libre" (con las marcas sin guardar).
 - Un alumno por fila, estados como **chips grandes** de un toque (44px de alto).
+- **Clase futura** (todavía no empezó): franja `bg-stone-50 border-stone-200` con ícono `Info` teal: "La clase todavía no empezó: solo se cargan avisos. **Faltan 49 h para la clase → con tiempo**." Presente y No avisó deshabilitados (`opacity-40`, `cursor-not-allowed`, con `title` que explica por qué). El chip sugerido (C.T. o S.T.) lleva "(sugerido)" y borde `border-amber-300`; el otro está a un toque. En una clase que ya empezó no hay sugerencia: elige Pau.
+- Más personas que lugares: franja `bg-amber-50 text-amber-800 border-amber-200` con `AlertTriangle`: "5/4: hay más personas que lugares. Se puede guardar igual." 
 - El botón Guardar se habilita **solo si hay cambios** (incluido volver alguien a "Sin marcar"); si no, dice "Sin cambios". Las filas editadas muestran "Sin guardar".
-- Pestaña "Alumnos fijos" para inscribir/desinscribir (fijos de hoy). Al inscribir o desinscribir, el modal **no cambia de pestaña ni pierde las marcas sin guardar**.
-- Acción "Todos presentes" para el caso más común, y después se corrigen excepciones.
-- Botón "+ Agregar alumno" (recupera / viene de otro horario).
+- Pestaña "Alumnos fijos" para inscribir/desinscribir (fijos de hoy). Al inscribir se elige **"Fijo desde"** (`<input type="date">`, hoy por defecto; puede ser pasada o futura) y la lista muestra "desde dd/mm/aaaa" o, si todavía no empezó, "empieza el dd/mm/aaaa" en teal. Al inscribir o desinscribir, el modal **no cambia de pestaña ni pierde las marcas sin guardar**.
+- Acción "Marcar el resto como presente" para el caso más común, y después se corrigen excepciones (entrega 4).
+- "Ocupar su lugar" / "+ Ocupar" (recupera / cambio de horario / clase suelta): entrega 3.
 - Campo de **nota de evolución por alumno** (expandible) — ej. "bajó la presión a mitad de clase".
 
 ### Historia clínica
