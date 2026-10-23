@@ -12,8 +12,8 @@ Antes de trabajar, leé en este orden:
 
 ## Usuaria y contexto
 
-- Una sola usuaria: Pau. Usa la app **principalmente desde el celular**, entre clases.
-- Prioridad: que registrar una clase o una nota lleve **segundos**, con pocos toques.
+- Una sola usuaria: Pau. Usa la app **sobre todo desde la compu**; el celular tiene que seguir andando bien (lo usa entre clases).
+- Lo que más le importa: **las faltas y las recuperaciones** (quién avisó, quién recupera, qué lugares quedan libres). Que cargar una falta, ocupar un lugar o marcar una clase lleve **segundos**, con pocos clics.
 - La app guarda **datos de salud** (historia clínica). Son datos sensibles: nunca exponerlos sin autenticación, nunca loguearlos en consola en producción, nunca commitear datos reales ni claves.
 
 ## Dominio
@@ -23,10 +23,13 @@ Antes de trabajar, leé en este orden:
 | **RPG** | Reeducación Postural Global. Sesiones **individuales**, martes y jueves. Se paga **por sesión**. Tipos: RPG, masajes, evaluación inicial. |
 | **TPA** | Terapia Postural Activa. Clases **grupales**, lunes, miércoles y viernes, horarios fijos con cupo (hoy 4). Se paga **plan mensual** según veces por semana. |
 | **Horario fijo** | Alumno inscripto todas las semanas en un día/hora de TPA (`horarios_tpa`). |
-| **Clase** | Una ocurrencia concreta de TPA en una fecha (`clases_tpa`). Se crea al registrar asistencia. |
-| **Recupera** | Alumno que faltó otro día y viene a este horario a recuperar. **No es fijo de este horario.** |
-| **Vino de otra clase** | Alumno que cambió su horario puntualmente esta semana. **No es fijo de este horario.** |
-| **Nota de evolución** | Observación clínica clase a clase (bajó la presión, dolor, avance en un ejercicio). Es lo más importante que pidió Pau. |
+| **Clase** | Una ocurrencia concreta de TPA en una fecha (`clases_tpa`). Se crea al registrar asistencia, al ocupar un lugar o al cancelarla. |
+| **Falta de un fijo** | Avisó C.T. (con tiempo, 24 h o más antes), Avisó S.T. (sin tiempo) o No avisó. El que avisó **libera su lugar**; el que no avisó no recupera. |
+| **Lugar** | Cada clase tiene `CUPO_TPA` (4) lugares. Ocupados = fijos que no avisaron + quienes vienen a ocupar un lugar; el resto, **Libre**. |
+| **Quien ocupa un lugar** | Alguien que no es fijo de ese horario y viene solo a esa clase (`asistencia_tpa.tipo`): **Recupera** (usa una recuperación), **Cambio de horario** (falta en su horario y viene a este; se marcan juntos) o **Clase suelta** (paga aparte, no usa recuperaciones). Puede ocupar el lugar de un fijo que avisó (`ocupa_lugar_de`) o un lugar libre. |
+| **Clase cancelada** | `clases_tpa.motivo_cancelacion`: **Feriado** (recupera solo si le quedan menos de 4 clases en el mes por cada vez por semana) o **Cancelada por Pau** (enfermedad, viaje, corte de luz: todos los fijos la recuperan, sin tope y sin vencimiento). |
+| **Recuperación** | Saldo calculado (no guardado) por alumno y por mes: `calcularRecuperaciones()` (`src/lib/recuperaciones.ts`). Reglas en `docs/DISENO_ASISTENCIA_TPA.md`, sección 3.2. |
+| **Nota de evolución** | Observación clínica clase a clase (bajó la presión, dolor, avance en un ejercicio). Va en `notas_evolucion` (entrega 4), nunca en `asistencia_tpa.nota`. |
 
 ## Stack
 
@@ -72,7 +75,9 @@ src/
 │   ├── rpg/                  # AgendaRPG (carga + modales), CalendarMonthView (compu),
 │   │                         # RpgSemanaLista (celular), TurnoCard, TurnoModal
 │   ├── tpa/                  # TpaAgenda (carga + modales), TpaGrillaSemana (compu), TpaListaDia (celular),
-│   │                         # TpaHorarioCard (ambas), TpaClaseModal, TpaAsistenciaLista, TpaInscripcion
+│   │                         # TpaHorarioCard (ambas), TpaAccionesDia, TpaClaseModal (+ useBorradorClase),
+│   │                         # TpaAsistenciaLista, TpaAsistenciaFila, TpaOcuparSelector, TpaCancelarDialog,
+│   │                         # TpaInscripcion, TpaRecuperaciones, TpaPendientesGrupo, TpaBuscarLugar
 │   └── ui/                   # base: Modal, ConfirmDialog, ToastProvider (useToast), ToastItem,
 │                             # SemanaNav, EstadoCarga
 ├── hooks/
@@ -88,8 +93,11 @@ src/
 │   ├── errores.ts            # registrarError / mensajeError / mensajeErrorAlGuardar / ErrorApp
 │   ├── estados.ts            # etiquetas, colores e íconos de TODOS los estados
 │   ├── horas.ts              # normalizarHora ("HH:mm:ss" → "HH:mm")
-│   ├── tpa.ts                # HORARIOS_TPA, CUPO_TPA, DIAS_TPA, armarSemanaTPA, eraFijoEn, contarLugares
+│   ├── tpa.ts                # HORARIOS_TPA, CUPO_TPA, DIAS_TPA, armarSemanaTPA, eraFijoEn, contarLugares, celdasEntre
 │   ├── avisos.ts             # clase futura, sugerencia C.T./S.T. (hora argentina), avisado_at
+│   ├── recuperaciones.ts     # calcularRecuperaciones (saldo por alumno y mes), "Copiar lista"
+│   ├── clase-tpa.ts          # borrador del modal de una clase → pedido a guardar_clase_tpa
+│   ├── ocupar.ts             # opciones del selector "Ocupar lugar" y "Buscar lugar"
 │   └── utils.ts              # cn(), nuevoId()
 └── types/index.ts            # tipos mapeados a las tablas
 ```
@@ -121,7 +129,9 @@ El esquema actual está en **`supabase/migrations/20260520000000_esquema_inicial
 Estados válidos (migración `20261022000001_tpa_faltas_y_lugares.sql`):
 - `asistencia_tpa.tipo`: `fijo | recupera | cambio | suelta`
 - `asistencia_tpa.estado`: fijo → `presente | aviso_con_tiempo | aviso_sin_tiempo | falto_sin_avisar` (sin marcar = sin fila); quien ocupa un lugar → `pendiente | presente | falto_sin_avisar`. `avisado_at` obligatorio en los avisos y solo en ellos. `ocupa_lugar_de` = fila del fijo de la misma clase que avisó (trigger `validar_asistencia_tpa`).
+- `asistencia_tpa.cambio_de` (migración `20261023000001`): solo en `tipo = 'cambio'`, la fila del aviso del mismo alumno en su horario de origen.
 - `clases_tpa.motivo_cancelacion`: `null` (se da) `| feriado | cancelada_por_pau`
+- Funciones (migración `20261023000001`, security invoker, `execute` solo `authenticated`): `guardar_clase_tpa(p_clases jsonb)` guarda una o varias clases en una transacción; `cambiar_cancelacion_tpa(p_fecha, p_horas, p_motivo)` cancela o reactiva. Sus mensajes de error empiezan con `"TPA: "` y la app los muestra tal cual (`mensajeError`).
 - `horarios_tpa.fecha_alta`: desde qué fecha es fijo (inclusive); `fecha_baja` exclusive y `>= fecha_alta`
 - `sesiones_rpg.estado_pago`: `pagado | pendiente`
 - `sesiones_rpg.estado_sesion`: `realizada | cancelada | pendiente`
@@ -137,9 +147,9 @@ Estados válidos (migración `20261022000001_tpa_faltas_y_lugares.sql`):
 - Horas siempre `"HH:mm"` (Postgres `time` devuelve `"HH:mm:ss"`): toda función de `queries.ts` que lee filas con hora las pasa por `conHora()`; las consultas nuevas tienen que hacer lo mismo. Al comparar horas de otro origen, usar `normalizarHora()` (`src/lib/horas.ts`).
 - Fechas con `date-fns` (`addDays`, no sumar milisegundos).
 - Componentes funcionales, props con `interface`, un componente por archivo, idealmente < 150 líneas.
-- **Celular primero.** Ninguna pantalla puede desplazarse de costado en 390px. Si una vista de compu no entra (grilla, calendario, tabla), se hace una vista de celular aparte y se elige con `useEsCelular()` (si cada vista carga datos distintos) o con `md:hidden` / `hidden md:block` (si usan los mismos datos). Modales con el componente `Modal` (hoja desde abajo o pantalla completa en celular, pie fijo).
+- **Compu primero.** Cada pantalla se diseña primero para la compu (modales anchos, tablas, grilla). El celular tiene que seguir andando bien: ninguna pantalla puede desplazarse de costado en 390px. Si una vista de compu no entra (grilla, calendario, tabla), se hace una vista de celular aparte y se elige con `useEsCelular()` (si cada vista carga datos distintos) o con `md:hidden` / `hidden md:block` (si usan los mismos datos). Modales con el componente `Modal` (centrado en la compu; hoja desde abajo o pantalla completa en celular, pie fijo).
 - **Cargas de datos** con `useDatos()`: si falla, avisa con Toast y la pantalla muestra `EstadoCarga` con "Reintentar". Nunca una pantalla vacía que parezca "no hay datos".
-- **TPA:** quién está en cada horario de una semana lo calcula **solo** `armarSemanaTPA()` (fijos de esa fecha + asistencias registradas). No volver a filtrar `horarios_tpa` a mano en un componente.
+- **TPA:** quién está en cada horario de una semana lo calcula **solo** `armarSemanaTPA()` (fijos de esa fecha + asistencias registradas). No volver a filtrar `horarios_tpa` a mano en un componente. Los saldos de recuperación salen **solo** de `calcularRecuperaciones()`. Una clase se guarda **siempre** con `guardarClasesTPA()` (función `guardar_clase_tpa` de la base, una transacción), nunca fila por fila.
 - Nada de `alert()` / `confirm()` nativos: `useToast()` (`toast.exito / error / aviso`) y `ConfirmDialog`. Los errores que se muestran salen de `mensajeError(error)`.
 - Todo lo visual sigue **DESIGN.md**.
 

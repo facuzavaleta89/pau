@@ -1,6 +1,6 @@
 # PENDIENTES.md — Estado y plan de trabajo
 
-_Última revisión: 22/10/2026 — Fases 0 y 0.5 completas; Fase 1: modelo de la grilla TPA y vistas de celular mergeados; **asistencia TPA en 4 entregas** (diseño en `docs/DISENO_ASISTENCIA_TPA.md`), entrega 1 mergeada, **entrega 2 escrita** (rama `fase-1/faltas-y-lugares`; falta aplicar script + migración y probar); reglas de recuperación confirmadas por Pau y casos borde decididos por Facu; Next 16.4.2 mergeado. **Pau usa la app sobre todo desde la compu** (Facu, 22/10/2026): compu primero, el celular tiene que seguir andando bien. App en https://paukinesio.vercel.app. Base Supabase `pau` (`dmwtoozbctnwccaaitos`, Postgres 17, plan Free, región us-east-2)._
+_Última revisión: 23/10/2026 — Fases 0 y 0.5 completas; Fase 1: **asistencia TPA en 4 entregas** (diseño en `docs/DISENO_ASISTENCIA_TPA.md`): entregas 1 y 2 mergeadas (migración de la 2 aplicada), **entrega 3 escrita** (rama `fase-1/recuperaciones`; falta aplicar la migración `20261023000001` y probar). **Pau usa la app sobre todo desde la compu** y lo que más le importa son las faltas y recuperaciones: CLAUDE.md y DESIGN.md pasaron a "compu primero". App en https://paukinesio.vercel.app. Base Supabase `pau` (`dmwtoozbctnwccaaitos`, Postgres 17, plan Free, región us-east-2)._
 
 ## Estado actual (resumen)
 
@@ -15,9 +15,9 @@ _Última revisión: 22/10/2026 — Fases 0 y 0.5 completas; Fase 1: modelo de la
 - Base técnica (Fase 0.5): horas normalizadas, `estados.ts`, Toast, `ConfirmDialog`, aviso de usuario no autorizado.
 - Celular: ninguna pantalla con desplazamiento lateral, modales en hoja o pantalla completa con pie fijo, área segura del iPhone, aviso de sin conexión.
 - Tests automáticos con **Vitest** (`npm test`) para las funciones puras de `src/lib/`.
-- `tsc`, `build` y `npm test` (64 tests) sin errores. `npm run lint`: **10 errores y 2 warnings**, todos en código anterior (2 `no-explicit-any` y 1 `set-state-in-effect` en `pagos/page`, 1 `set-state-in-effect` en `TurnoModal`, 6 comillas sin escapar en `HistoriaClinicaModal`; warnings: `cn` sin usar en `TurnoModal` y una dependencia de `useEffect` en Pagos).
+- `tsc`, `build` y `npm test` (116 tests) sin errores. `npm run lint`: **10 errores y 2 warnings**, todos en código anterior (2 `no-explicit-any` y 1 `set-state-in-effect` en `pagos/page`, 1 `set-state-in-effect` en `TurnoModal`, 6 comillas sin escapar en `HistoriaClinicaModal`; warnings: `cn` sin usar en `TurnoModal` y una dependencia de `useEffect` en Pagos).
 
-**Lo más importante que falta:** las **notas de evolución clase a clase** (el pedido central de Pau) y poder agregar a una clase a quien **recupera o viene de otro horario**.
+**Lo más importante que falta:** probar en uso real las recuperaciones (entrega 3) y las **notas de evolución** clase a clase (entrega 4).
 
 **Decisiones tomadas (Facu, 17/10/2026):** login con email y contraseña, una sola usuaria (Pau); los datos actuales son de prueba y se borran; plan Supabase Free; el deploy de Vercel se borró y se rehace al final de la Fase 0; el repo es público (pasarlo a privado queda fuera de esta fase); borrado de pacientes real con confirmación por ahora, baja lógica antes de la carga real.
 
@@ -49,6 +49,7 @@ Migraciones 000001 a 000004 aplicadas por Facu, usuaria de Pau autorizada, prueb
 - [ ] 🔴 **Usuario de prueba no autorizado** (creado a propósito por Facu el 18/10/2026 para probar el aviso): borrarlo o cambiarle la contraseña por una larga.
 - [ ] 🔴 **Cambiar la contraseña de prueba de Pau por una larga** (16+ caracteres, en un gestor de contraseñas) desde Authentication → Users.
 - [ ] 🔴 **Pasar a baja lógica** (archivar con `pacientes.activo`) y cambiar las FK a `ON DELETE RESTRICT`. Reemplazar el cuerpo de `eliminarPaciente` por "archivar", agregar "Dar de baja / Reactivar" en la ficha y una vista de archivados. Incluye N6 (editar fuerza `activo: true`; los inactivos no aparecen en el select de `TurnoModal`).
+- [ ] 🔴 **Borrar las clases y asistencias de prueba** de las entregas 2 y 3 (las que cargue Facu al probar) antes de la carga real: script nuevo con protección, como `supabase/scripts/20261022_borrar_asistencia_prueba.sql`.
 - [ ] 🔴 **Backup antes de la carga real.** El plan Free no da acceso a backups: exportación propia (`supabase db dump` o CSV por tabla) antes de cargar y después, periódicamente. Definir dónde se guarda (con datos de salud: nunca en el repo).
 - [ ] 🔴 **Historial de migraciones:** `supabase_migrations.schema_migrations` está vacío porque se aplican a mano. Nunca correr `supabase db push` contra este proyecto sin antes marcar las migraciones aplicadas (`supabase migration repair`), o reejecutaría la línea base.
 
@@ -104,13 +105,19 @@ Decisiones (Facu, 21/10/2026):
 - [x] `eliminarClaseTPASiVacia` no borra clases con `motivo_cancelacion` ni con cualquier fila de asistencia (incluida la de quien ocupa un lugar).
 - [x] Migración única `20261022000001_tpa_faltas_y_lugares.sql` + script `supabase/scripts/20261022_borrar_asistencia_prueba.sql` (con protección). Probados en un Postgres local descartable con una copia del esquema real.
 - [x] Tests: contador, texto de lugares, orden de quien ocupa un lugar, `eraFijoEn` con `fecha_alta`, sugerencia C.T./S.T. en hora argentina (también con el dispositivo en otra zona), `avisadoAtAlGuardar`, etiquetas.
-- [ ] **Facu:** script → migración → probar el preview (compu y celular) → merge el mismo día (ver `respuesta.md`).
+- [x] **Facu:** script → migración → preview → merge (verificado en la base: columnas, checks y trigger; 0 clases y 0 asistencias).
 
-#### Entrega 3 — ocupar lugares y recuperaciones (rama `fase-1/recuperaciones`; reglas y casos borde decididos)
-- [ ] Ocupar lugar con sugerencias (recupera / cambio / suelta), cambio de horario como una sola acción. ⚠️ El trigger no deja cambiar el estado de un fijo mientras alguien ocupa su lugar: la UI tiene que ofrecer "sacar a quien ocupa" o "dejarlo en un lugar libre".
-- [ ] Función transaccional `guardar_clase_tpa` (migración propia). Reemplaza el "contar y después borrar" de `eliminarClaseTPASiVacia` (entre las dos consultas, otra pestaña podría agregar una asistencia y el `on delete cascade` la borraría).
-- [ ] `calcularRecuperaciones()` + tests (casos de la sección 3.2 del diseño); pestaña Recuperaciones, "Buscar lugar", "Copiar lista". Cada pendiente muestra su origen ("cancelé el mié 7", "avisó con tiempo el lun 12").
-- [ ] Cancelar una clase (Feriado / Cancelada por Pau) y "Cancelar el día" para feriados (decidido 22/10/2026: pasan a esta entrega).
+#### Entrega 3 — ocupar lugares y recuperaciones (rama `fase-1/recuperaciones`) — código listo, falta aplicar y probar
+Respuestas de Facu (23/10/2026): compu primero en la documentación; trigger estricto; las cards muestran siempre los 4 lugares; "Libre" en teal punteado.
+- [x] **Documentación compu primero:** CLAUDE.md ("Usuaria y contexto", Dominio con el modelo nuevo, convención "Compu primero") y DESIGN.md (principio 2).
+- [x] **`calcularRecuperaciones()`** (`src/lib/recuperaciones.ts`) con las reglas de 3.2 y las decisiones de 10.2 (consumo por vencimiento, feriado en total, cambio que cruza el mes en el mes de la falta, alta a mitad de mes); 27 tests con todos los casos de la tabla del diseño y de 10.2. Cada pendiente con su origen legible.
+- [x] **`guardar_clase_tpa`** + `cambiar_cancelacion_tpa` + `asistencia_tpa.cambio_de` (migración `20261023000001`, con rollback; probada en Postgres local). El modal guarda todo con una sola llamada (`guardarClasesTPA`); se borraron `upsertAsistenciaTPA`, `deleteAsistenciaTPA`, `createClaseTPA` y `eliminarClaseTPASiVacia`.
+- [x] **Ocupar lugar:** "+ Ocupar" en cada Libre (card y modal), "Ocupar su lugar" debajo de un fijo que avisó, selector en el orden de prioridad con motivo, saldo y avisos que no bloquean (tope, 5/4, otro mes), fila de quien ocupa (tipo + Presente / No vino / Sin marcar + "Quitar de esta clase"), cambio de horario en una sola acción (aviso en el origen + cambio en el destino), y la pregunta "sacarlo / dejarlo en un lugar libre" cuando se cambia el estado de un fijo con el lugar ocupado.
+- [x] **Cancelar clase / Cancelar el día** (Feriado / Cancelada por mí, con su consecuencia) y **Reactivar clase / Reactivar el día** (con `ConfirmDialog`). Las asistencias no se borran. Una clase cancelada no deja marcar ni ocupar.
+- [x] **Pestaña Recuperaciones:** selector de mes, pendientes en 4 grupos (tabla en la compu, cards en el celular) con origen, "usó N de M" y vencimiento, "Buscar lugar" (esta semana y la siguiente, dentro del vencimiento; abre la clase con la persona ya agregada), Adelantos, Sin derecho, "Copiar lista" con texto seleccionable si no hay portapapeles; chip "N pendientes de recuperar" arriba de la grilla.
+- [ ] **Facu:** aplicar la migración → probar el preview (compu y celular, con los casos de `respuesta.md`) → merge.
+- [ ] En la card, el fijo origen de un cambio de horario no muestra "· viene lun 18:00" (solo en el modal: la card no tiene el historial).
+- [ ] El tipo de quien ocupa un lugar (Recupera ↔ Clase suelta) solo se cambia antes de guardar; después hay que quitarlo y volver a agregarlo.
 
 #### Entrega 4 — cierre de clase, notas y alertas
 - [ ] "Marcar el resto como presente" (solo clases que ya empezaron; no pisa avisos).
@@ -151,12 +158,13 @@ Reemplaza a `/rpg` como entrada de la app (`/` y el destino después del login).
 - [ ] **(c) Esta semana:** turnos RPG, lugares libres en TPA y pacientes activos RPG / TPA.
 - Reutilizar `armarSemanaTPA` / `TpaHorarioCard` y `TurnoCard`; en el celular, una sola columna en ese orden.
 ### TPA
-- [ ] **Agregar alumno no fijo a una clase** (recupera / viene de otro horario / suelta): entrega 3 de asistencia TPA. Desde la entrega 2 la base ya lo soporta (`tipo`, `ocupa_lugar_de`) y la grilla lo muestra, pero no hay UI para agregarlos.
+- [x] **Agregar alumno no fijo a una clase** (recupera / cambio de horario / suelta): entrega 3.
 - [ ] Horarios y cupo **editables por Pau** desde la app (hoy constantes en `src/lib/tpa.ts`; alcanza si no cambian seguido).
 - [ ] **Controlar el cupo al inscribir** (N7): hoy solo se avisa en la pestaña "Alumnos fijos" cuando ya hay 4 fijos; no se impide.
 - [x] Poder volver un estado a "sin marcar"; no crear una clase vacía si todo queda pendiente (bug #2, Fase 0.5).
 - [ ] Botón "Marcar el resto como presente" en el registro rápido (entrega 4).
-- [ ] Cancelar una clase entera (feriado, enfermedad) en un toque (entrega 3).
+- [x] Cancelar una clase entera o el día (feriado, enfermedad) (entrega 3).
+- [ ] Producción con la entrega 2 y la base de la 3 (ventana antes del merge): no muestra los mensajes "TPA: …" (dice "Ocurrió un error") y deja marcar asistencia en una clase cancelada (solo la función nueva lo impide).
 - [ ] Desinscribir con avisos a futuro: las filas de "Avisó" posteriores a la baja quedan (se ven como "No es fijo" y no ocupan lugar). Avisar al desinscribir y ofrecer borrarlas (diseño, riesgo 8).
 - [ ] El modal decide "clase futura" al abrirse: si queda abierto mientras empieza la clase, Presente sigue deshabilitado hasta cerrarlo y volver a abrirlo.
 - [ ] El aviso de cupo al inscribir cuenta también los fijos con alta a futuro.

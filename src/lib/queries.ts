@@ -2,8 +2,12 @@ import { supabase } from './supabase';
 import { ErrorApp } from './errores';
 import { normalizarHora } from './horas';
 import type { DatosSemanaTPA } from './tpa';
+import type { DatosRecuperaciones } from './recuperaciones';
+import type { ClaseAGuardar } from './clase-tpa';
 import { format } from 'date-fns';
-import type { Paciente, SesionRPG, Pago, HorarioTPA, ClaseTPA, AsistenciaTPA, DiaSemana } from '@/types';
+import type {
+  Paciente, SesionRPG, Pago, HorarioTPA, ClaseTPA, AsistenciaTPA, AsistenciaConClase, DiaSemana, MotivoCancelacionTPA,
+} from '@/types';
 
 // Con RLS, una escritura que la base no permite (sesión vencida, usuario no
 // autorizado) puede no dar error: simplemente afecta 0 filas. Por eso toda
@@ -36,6 +40,21 @@ async function insertarSinDuplicar<T>(tabla: string, fila: { id: string }, mensa
   // Sin fila con ese id: el 23505 era por otro dato repetido.
   if (!existente || existente.length !== 1) throw error;
   return existente[0] as T;
+}
+
+// PostgREST devuelve como mucho 1000 filas por consulta: para tablas que
+// crecen (historial de asistencias), se lee de a páginas hasta el final.
+const TAMANO_PAGINA = 1000;
+async function leerTodo<T>(
+  consulta: (desde: number, hasta: number) => PromiseLike<{ data: unknown[] | null; error: unknown }>,
+): Promise<T[]> {
+  const filas: T[] = [];
+  for (let desde = 0; ; desde += TAMANO_PAGINA) {
+    const { data, error } = await consulta(desde, desde + TAMANO_PAGINA - 1);
+    if (error) throw error;
+    filas.push(...((data ?? []) as T[]));
+    if (!data || data.length < TAMANO_PAGINA) return filas;
+  }
 }
 
 // Postgres devuelve las columnas `time` como "HH:mm:ss"; la app usa "HH:mm".
@@ -229,69 +248,46 @@ export async function getAsistenciasTPA(claseIds: string[]) {
   return (data || []) as AsistenciaTPA[];
 }
 
-export async function upsertAsistenciaTPA(asistencia: Partial<AsistenciaTPA>) {
-  const { data, error } = await supabase
-    .from('asistencia_tpa')
-    .upsert([asistencia], { onConflict: 'clase_id, paciente_id' })
-    .select();
-
+// Guarda una o varias clases (un cambio de horario toca dos) en UNA
+// transacción de la base (guardar_clase_tpa, migración 20261023000001): crea
+// la clase si hace falta, aplica los cambios en el orden correcto y borra la
+// clase si quedó vacía (salvo cancelada). Reintentable: no duplica.
+export async function guardarClasesTPA(clases: ClaseAGuardar[]) {
+  const { error } = await supabase.rpc('guardar_clase_tpa', { p_clases: clases });
   if (error) throw error;
-  return exigirUnaFila(data as AsistenciaTPA[] | null, 'No se pudo guardar la asistencia.');
 }
 
-// Upsert sobre el unique (fecha, hora): si la clase ya existe (un reintento
-// después de un corte, o la creó otra pestaña), devuelve esa en vez de fallar.
-export async function createClaseTPA(clase: { fecha: string; hora: string }) {
-  const { data, error } = await supabase
-    .from('clases_tpa')
-    .upsert([clase], { onConflict: 'fecha,hora' })
-    .select();
-
+// Cancela (motivo) o reactiva (null) las clases de una fecha en esas horas:
+// una clase o el día entero. Crea las que falten. No borra asistencias.
+export async function cambiarCancelacionTPA(fecha: string, horas: string[], motivo: MotivoCancelacionTPA | null) {
+  const { data, error } = await supabase.rpc('cambiar_cancelacion_tpa', { p_fecha: fecha, p_horas: horas, p_motivo: motivo });
   if (error) throw error;
-  return conHora(exigirUnaFila(data as ClaseTPA[] | null, 'No se pudo crear la clase.'));
+  if (typeof data !== 'number' || data === 0) throw new ErrorApp('No se pudo cambiar la clase.');
+  return data;
 }
 
-// Vuelve a un alumno a "sin marcar": "sin marcar" es no tener fila de asistencia.
-export async function deleteAsistenciaTPA(claseId: string, pacienteId: string) {
-  const { data, error } = await supabase
-    .from('asistencia_tpa')
-    .delete()
-    .eq('clase_id', claseId)
-    .eq('paciente_id', pacienteId)
-    .select('id');
-
-  if (error) throw error;
-  exigirUnaFila(data, 'No se pudo desmarcar la asistencia.');
-}
-
-// Borra la clase si quedó vacía (todos "sin marcar"), para no dejar clases
-// sin nada. Devuelve true si la borró. No borra:
-// - una clase cancelada (motivo_cancelacion): la cancelación genera
-//   recuperaciones aunque no tenga asistencias;
-// - una clase con cualquier fila de asistencia, incluida la de quien viene a
-//   ocupar un lugar (recupera / cambio / suelta, aunque esté "pendiente").
-export async function eliminarClaseTPASiVacia(claseId: string): Promise<boolean> {
-  const [{ count, error: errorCount }, { data: clases, error: errorClase }] = await Promise.all([
-    supabase.from('asistencia_tpa').select('id', { count: 'exact', head: true }).eq('clase_id', claseId),
-    supabase.from('clases_tpa').select('motivo_cancelacion').eq('id', claseId),
+// Lo que necesita calcularRecuperaciones: todos los horarios, las clases
+// canceladas y las filas que cuentan (avisos, "No avisó" y quienes ocupan un
+// lugar) de TODO el historial (las de Pau no vencen). Las "Presente" de los
+// fijos no hacen falta y no se traen.
+export async function cargarDatosRecuperaciones(): Promise<DatosRecuperaciones> {
+  const [horarios, clasesCanceladas, asistencias] = await Promise.all([
+    getHorariosTPA(),
+    leerTodo<ClaseTPA>((desde, hasta) =>
+      supabase.from('clases_tpa').select('*').not('motivo_cancelacion', 'is', null).order('id').range(desde, hasta)),
+    leerTodo<AsistenciaConClase>((desde, hasta) =>
+      supabase
+        .from('asistencia_tpa')
+        .select('*, pacientes (nombre), clases_tpa (fecha, hora, motivo_cancelacion)')
+        .or('tipo.neq.fijo,estado.in.(aviso_con_tiempo,aviso_sin_tiempo,falto_sin_avisar)')
+        .order('id')
+        .range(desde, hasta)),
   ]);
-
-  if (errorCount) throw errorCount;
-  if (errorClase) throw errorClase;
-  if ((count ?? 0) > 0) return false;
-  const clase = (clases as Pick<ClaseTPA, 'motivo_cancelacion'>[] | null)?.[0];
-  if (!clase || clase.motivo_cancelacion) return false; // ya no existe, o está cancelada
-
-  const { data, error } = await supabase
-    .from('clases_tpa')
-    .delete()
-    .eq('id', claseId)
-    .is('motivo_cancelacion', null)
-    .select('id');
-
-  if (error) throw error;
-  exigirUnaFila(data, 'No se pudo borrar la clase vacía.');
-  return true;
+  return {
+    horarios,
+    clasesCanceladas: clasesCanceladas.map(conHora),
+    asistencias: asistencias.map((a) => ({ ...a, clases_tpa: conHora(a.clases_tpa) })),
+  };
 }
 
 // ==========================================

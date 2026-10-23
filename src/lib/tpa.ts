@@ -1,4 +1,4 @@
-import { addDays, format, isWeekend, nextMonday, startOfWeek } from 'date-fns';
+import { addDays, format, isWeekend, nextMonday, parseISO, startOfWeek } from 'date-fns';
 import type {
   AlumnoCeldaTPA, AsistenciaTPA, CeldaTPA, ClaseTPA, DiaSemana, HorarioTPA, LugaresTPA, SemanaTPA,
   TipoAsistenciaTPA,
@@ -25,6 +25,12 @@ export const DIAS_TPA: { id: DiaSemana; label: string; corto: string; offset: nu
   { id: 'miercoles', label: 'Miércoles', corto: 'Mié', offset: 2 },
   { id: 'viernes', label: 'Viernes', corto: 'Vie', offset: 4 },
 ];
+
+/** Día de TPA de una fecha ('yyyy-MM-dd'); null si es martes, jueves o fin de semana. */
+export function diaSemanaDeFecha(fecha: string): DiaSemana | null {
+  const offset = (parseISO(fecha).getDay() + 6) % 7; // lunes = 0
+  return DIAS_TPA.find((d) => d.offset === offset)?.id ?? null;
+}
 
 export function inicioDeSemana(fecha: Date): Date {
   return startOfWeek(fecha, { weekStartsOn: 1 });
@@ -177,4 +183,17 @@ export function armarSemanaTPA(inicioSemana: Date, datos: DatosSemanaTPA): Seman
     semana[dia] = [...horas].sort().map((hora) => armarCelda(dia, fecha, hora, datos));
   }
   return semana;
+}
+
+/**
+ * Celdas de todas las clases entre `desde` y `hasta` ('yyyy-MM-dd', inclusive),
+ * armadas con armarSemanaTPA semana por semana (cambio de horario, "Buscar lugar").
+ */
+export function celdasEntre(desde: string, hasta: string, datos: DatosSemanaTPA): CeldaTPA[] {
+  const celdas: CeldaTPA[] = [];
+  for (let lunes = inicioDeSemana(parseISO(desde)); format(lunes, 'yyyy-MM-dd') <= hasta; lunes = addDays(lunes, 7)) {
+    const semana = armarSemanaTPA(lunes, datos);
+    celdas.push(...DIAS_TPA.flatMap((d) => semana[d.id]));
+  }
+  return celdas.filter((c) => c.fecha >= desde && c.fecha <= hasta);
 }

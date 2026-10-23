@@ -4,19 +4,19 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { DIAS_TPA } from '@/lib/tpa';
-import type { CeldaTPA, DiaSemana, SemanaTPA } from '@/types';
+import type { DiaSemana, SemanaTPA } from '@/types';
 import { TpaHorarioCard } from './TpaHorarioCard';
+import { TpaAccionesDia, type AccionesSemanaTPA } from './TpaAccionesDia';
 
 interface TpaListaDiaProps {
   semana: SemanaTPA;
   dia: DiaSemana;
   onCambiarDia: (dia: DiaSemana) => void;
-  onAbrir: (celda: CeldaTPA) => void;
-  onAbrirPaciente: (pacienteId: string) => void;
+  acciones: AccionesSemanaTPA;
 }
 
 // Vista de celular: selector Lun / Mié / Vie y la lista de horarios de ese día.
-export function TpaListaDia({ semana, dia, onCambiarDia, onAbrir, onAbrirPaciente }: TpaListaDiaProps) {
+export function TpaListaDia({ semana, dia, onCambiarDia, acciones }: TpaListaDiaProps) {
   const celdas = semana[dia];
   const fecha = celdas[0]?.fecha;
 
@@ -46,14 +46,17 @@ export function TpaListaDia({ semana, dia, onCambiarDia, onAbrir, onAbrirPacient
       </div>
 
       {fecha && (
-        <h2 className="text-xs font-semibold text-stone-400 uppercase tracking-wider">
-          {format(parseISO(fecha), "EEEE d 'de' MMMM", { locale: es })}
-        </h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-xs font-semibold text-stone-400 uppercase tracking-wider">
+            {format(parseISO(fecha), "EEEE d 'de' MMMM", { locale: es })}
+          </h2>
+          <TpaAccionesDia celdas={celdas} acciones={acciones} className="justify-end" />
+        </div>
       )}
 
       <div className="flex flex-col gap-3">
         {celdas.map((celda) => (
-          <TpaHorarioCard key={celda.clave} celda={celda} onAbrir={onAbrir} onAbrirPaciente={onAbrirPaciente} />
+          <TpaHorarioCard key={celda.clave} celda={celda} onAbrir={acciones.onAbrir} onOcupar={acciones.onOcupar} onAbrirPaciente={acciones.onAbrirPaciente} />
         ))}
       </div>
     </div>

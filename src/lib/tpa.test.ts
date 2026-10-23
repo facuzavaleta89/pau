@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { parseISO } from 'date-fns';
 import type { AsistenciaTPA, ClaseTPA, DiaSemana, HorarioTPA, MotivoCancelacionTPA } from '@/types';
 import {
-  armarSemanaTPA, contarLugares, diaTPAInicial, eraFijoEn, HORARIOS_TPA, textoLugares, type DatosSemanaTPA,
+  armarSemanaTPA, celdasEntre, contarLugares, diaSemanaDeFecha, diaTPAInicial, eraFijoEn, HORARIOS_TPA, textoLugares,
+  type DatosSemanaTPA,
 } from './tpa';
 
 // Semana del lunes 19/10/2026 (miércoles 21, viernes 23).
@@ -39,7 +40,7 @@ function asistencia(
 ): AsistenciaTPA {
   return {
     id: id(), clase_id: c.id, paciente_id: `pac-${nombre}`, estado, tipo: 'fijo',
-    ocupa_lugar_de: null, avisado_at: null, nota: null,
+    ocupa_lugar_de: null, avisado_at: null, cambio_de: null, nota: null,
     created_at: '2026-10-01T12:00:00+00:00', updated_at: '2026-10-01T12:00:00+00:00',
     pacientes: { nombre },
     ...extra,
@@ -314,5 +315,18 @@ describe('diaTPAInicial', () => {
   it('el fin de semana abre en el lunes siguiente', () => {
     expect(caso('2026-10-24')).toEqual([parseISO('2026-10-26').toDateString(), 'lunes']);
     expect(caso('2026-10-25')).toEqual([parseISO('2026-10-26').toDateString(), 'lunes']);
+  });
+});
+
+describe('diaSemanaDeFecha y celdasEntre', () => {
+  it('día de TPA de una fecha', () => {
+    expect(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-23', '2026-10-25'].map(diaSemanaDeFecha))
+      .toEqual(['lunes', null, 'miercoles', 'viernes', null]);
+  });
+
+  it('arma las celdas de un rango que cruza semanas y meses', () => {
+    const celdas = celdasEntre('2026-10-30', '2026-11-02', { horarios: [], clases: [], asistencias: [] });
+    expect([...new Set(celdas.map((c) => c.fecha))]).toEqual(['2026-10-30', '2026-11-02']);
+    expect(celdas.filter((c) => c.fecha === '2026-10-30')).toHaveLength(HORARIOS_TPA.viernes.length);
   });
 });

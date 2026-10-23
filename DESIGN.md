@@ -3,7 +3,7 @@
 ## Principios
 
 1. **Funcionalidad primero.** Nada decorativo puede esconder, demorar o complicar una acción.
-2. **Rápido desde el celular.** Pau registra asistencia y notas entre clases: las acciones frecuentes tienen que estar a 1–2 toques, con objetivos táctiles de **mínimo 44 × 44 px**.
+2. **Compu primero, celular que ande bien.** Pau usa la app sobre todo desde la compu: cada pantalla se diseña primero para un ancho de compu (modales anchos, tablas, la grilla de la semana a la vista). Lo que más usa son las faltas y las recuperaciones: cargar un aviso, ocupar un lugar o marcar una clase tiene que estar a 1–2 clics. En el celular todo tiene que seguir funcionando, con objetivos táctiles de **mínimo 44 × 44 px** y sin desplazamiento lateral en 390px.
 3. **Clínico y calmo.** Pulcritud, orden, confianza. Light mode, fondo hueso, acento teal.
 4. **Consistencia sobre creatividad.** Antes de crear un componente, buscar si ya existe uno parecido y reutilizarlo.
 5. **Siempre feedback.** Todo lo interactivo tiene hover/active; todo lo que guarda muestra carga y confirma éxito o error (toast).
@@ -51,7 +51,7 @@ Definidos **una sola vez** en `src/lib/estados.ts` (label, clases de color, íco
 
 **Quien viene a ocupar un lugar** (`TIPOS_OCUPANTE`): el color lo da su estado; la etiqueta dice qué es — Recupera (`RotateCcw`), Cambio de horario (`ArrowLeftRight`), Clase suelta (`Ticket`). Si ocupa el lugar de un fijo, va **justo debajo** de ese fijo, con sangría e ícono `CornerDownRight`.
 
-**Lugar libre** (`LUGAR_LIBRE`): fila "Libre" con `bg-teal-50 text-teal-700 border-dashed border-teal-200` e ícono `SquareDashed`, del mismo alto que una fila de alumno. Es el amarillo "LIBRE" del Word de Pau (en ámbar se confundiría con los avisos). Sin botón por ahora; "+ Ocupar" llega en la entrega 3.
+**Lugar libre** (`LUGAR_LIBRE`): fila "Libre · + Ocupar" con `bg-teal-50 text-teal-700 border-dashed border-teal-200` (hover `bg-teal-100`) e ícono `SquareDashed`, del mismo alto que una fila de alumno. Es un botón: abre la clase con el selector "Ocupar lugar". Es el amarillo "LIBRE" del Word de Pau (en ámbar se confundiría con los avisos; confirmado por Facu, 23/10/2026).
 
 **Clase cancelada** (`MOTIVOS_CANCELACION`, `CLASES_CANCELADA`): card `bg-stone-50 border-stone-300`, badge `bg-stone-100 text-stone-500 border-stone-300` con ícono `Ban`: "Cancelada · Feriado" o "Cancelada por Pau". Sin lugares libres; los alumnos se ven atenuados.
 
@@ -171,6 +171,9 @@ En pantallas < 768px los modales se muestran como **hoja desde abajo** (ancho co
 - Turno (`TurnoCard`): hora, nombre (tocable → historia clínica), tipo de sesión, punto de pago, color e ícono del estado.
 
 ### Agenda TPA
+- Dos pestañas arriba (subrayado teal, como las del modal): **Semana** | **Recuperaciones (N)**.
+- Junto a la navegación de la semana, chip **"N pendientes de recuperar"** (`bg-blue-50 text-blue-700 border-blue-200 rounded-full`, ícono `RotateCcw`) que lleva a la pestaña Recuperaciones. Solo si hay pendientes este mes.
+- En el encabezado de cada día (grilla de la compu y lista del celular): **"Cancelar el día"** (texto `text-stone-500`, hover rojo, ícono `Ban`) y, si hay clases canceladas, **"Reactivar el día"** (hover teal, ícono `RotateCcw`). 32px en la compu, 44px en el celular.
 - **Desktop** (`TpaGrillaSemana`): grilla de 3 días × horarios reales (`HORARIOS_TPA`). Si un día no tiene clase en esa hora (viernes 19:00), celda punteada "Sin clase".
 - **Celular** (`TpaListaDia`): selector de día (Lun / Mié / Vie con la fecha, botones de 48px, el activo en teal) arriba y **lista de horarios** debajo. Al abrir, el día de hoy (o el próximo día de TPA).
 - Cada horario es la misma card en las dos vistas (`TpaHorarioCard`): hora, contador `3/4`, alumnos con color + ícono del estado (y la etiqueta si ya están marcados), **siempre los 4 lugares** (los que sobran, como "Libre") y botón "Registrar asistencia" / "Ver asistencia" (44px en celular). Un horario que no es de los habituales muestra "(fuera de horario)".
@@ -181,12 +184,29 @@ En pantallas < 768px los modales se muestran como **hoja desde abajo** (ancho co
 - Modal `ancho="2xl"` en la compu (los 5 chips entran en una fila); pantalla completa en el celular. Subtítulo: "lunes 26 de octubre · 3/4 · 1 libre" (con las marcas sin guardar).
 - Un alumno por fila, estados como **chips grandes** de un toque (44px de alto).
 - **Clase futura** (todavía no empezó): franja `bg-stone-50 border-stone-200` con ícono `Info` teal: "La clase todavía no empezó: solo se cargan avisos. **Faltan 49 h para la clase → con tiempo**." Presente y No avisó deshabilitados (`opacity-40`, `cursor-not-allowed`, con `title` que explica por qué). El chip sugerido (C.T. o S.T.) lleva "(sugerido)" y borde `border-amber-300`; el otro está a un toque. En una clase que ya empezó no hay sugerencia: elige Pau.
-- Más personas que lugares: franja `bg-amber-50 text-amber-800 border-amber-200` con `AlertTriangle`: "5/4: hay más personas que lugares. Se puede guardar igual." 
+- Más personas que lugares: franja `bg-amber-50 text-amber-800 border-amber-200` con `AlertTriangle`: "5/4: hay más personas que lugares. Se puede guardar igual."
+- **Una fila por lugar:** fijos; debajo de cada fijo, con sangría y `CornerDownRight`, quien ocupa su lugar; después quienes ocupan un lugar libre; al final, los lugares libres como botón "Libre · + Ocupar". Si no queda ninguno, botón punteado `border-dashed border-stone-300 text-stone-600` "+ Agregar a alguien más (queda de más)": lugar lleno → se avisa, no se bloquea.
+- **Fijo que avisó sin reemplazo:** botón "Ocupar su lugar" (`text-teal-700 bg-teal-50 border-teal-200`, ícono `UserPlus`).
+- **Quien ocupa un lugar:** nombre + qué es (Recupera / Cambio de horario / Clase suelta; recién agregado, un select para pasar de Recupera a Clase suelta) + chips Presente · No vino · Sin marcar + "Quitar de esta clase" (`text-red-600 hover:bg-red-50`, ícono `X`). El cambio de horario muestra "Falta el vie 30/10 18:00"; el fijo de origen, "Viene el lun 2/11 18:00 (cambio de horario)".
+- **Fijo con el lugar ocupado al que se le cambia el estado:** panel `bg-amber-50 border-amber-200` dentro de su fila: "Zoe ocupa su lugar. ¿Qué hacemos con Zoe?" → "Sacarlo de la clase" (rojo) · "Dejarlo en un lugar libre" · "No cambiar". Igual para el origen de un cambio de horario ("Quitar el cambio"). Mientras haya una pregunta abierta, Guardar está deshabilitado.
+- **Cancelar clase:** botón danger (`bg-red-50 text-red-600 border-red-200`, ícono `Ban`) a la izquierda del pie en la compu y al final de la lista en el celular. Deshabilitado si hay cambios sin guardar. Abre `TpaCancelarDialog`: dos opciones grandes con su consecuencia a la vista (**Feriado** / **Cancelada por mí**), sin "Otro". El mismo diálogo sirve para "Cancelar el día".
+- **Clase cancelada:** franja `bg-stone-100 text-stone-500 border-stone-300` con `Ban`: "Cancelada · Feriado. No se marca asistencia ni se ocupan lugares…" + botón secundario "Reactivar clase" (con `ConfirmDialog`). Los chips quedan deshabilitados y no hay lugares libres.
 - El botón Guardar se habilita **solo si hay cambios** (incluido volver alguien a "Sin marcar"); si no, dice "Sin cambios". Las filas editadas muestran "Sin guardar".
 - Pestaña "Alumnos fijos" para inscribir/desinscribir (fijos de hoy). Al inscribir se elige **"Fijo desde"** (`<input type="date">`, hoy por defecto; puede ser pasada o futura) y la lista muestra "desde dd/mm/aaaa" o, si todavía no empezó, "empieza el dd/mm/aaaa" en teal. Al inscribir o desinscribir, el modal **no cambia de pestaña ni pierde las marcas sin guardar**.
 - Acción "Marcar el resto como presente" para el caso más común, y después se corrigen excepciones (entrega 4).
-- "Ocupar su lugar" / "+ Ocupar" (recupera / cambio de horario / clase suelta): entrega 3.
 - Campo de **nota de evolución por alumno** (expandible) — ej. "bajó la presión a mitad de clase".
+
+### Selector "Ocupar lugar" (`TpaOcuparSelector`, dentro del modal de la clase)
+- Reemplaza el contenido del modal (no es un modal encima de otro): "← Volver a la clase" y "Lugar de Beto" / "Lugar libre".
+- Buscador por nombre (sin acentos ni mayúsculas) arriba; si la clase está completa, franja ámbar "va a quedar de más. Se puede igual."
+- Grupos en el orden de prioridad de Pau, con título de sección: Clases que cancelaste · Avisaron con tiempo · Avisaron sin tiempo · Por feriado (si hay lugar) · Adelantar · Cambio de horario · Otro paciente (clase suelta). Cada fila: nombre, motivo ("cancelé el lun 5 (y 1 más)"), saldo ("usó 0 de 1"), avisos en `text-amber-700` con `AlertTriangle` (tope, otro mes) y el botón "Elegir" (`bg-teal-50 text-teal-700 border-teal-200`). En un cambio de horario de alguien que todavía no avisó, en lugar de "Elegir" van dos botones "Avisó C.T." / "Avisó S.T." (el sugerido con "(sugerido)" y borde ámbar).
+- Lista en una card (`divide-y divide-stone-100 border-stone-200 rounded-xl`); en la compu, el botón a la derecha; en el celular, debajo.
+
+### Pestaña Recuperaciones (`TpaRecuperaciones`)
+- Arriba: navegación de mes (la misma `SemanaNav`), resumen ("7 pendientes de recuperar") y botón secundario **"Copiar lista"** (ícono `Copy`). Si el navegador no deja copiar (por ejemplo, entrando por http desde la red local), modal "Copiá la lista" con el texto en un `textarea` de solo lectura que se selecciona al tocarlo.
+- **Pendientes** en 4 grupos (títulos de sección): en la compu, tabla `bg-white border-stone-200 rounded-xl` con Alumno (tocable → historia clínica) · Origen · Tope del mes ("usó 1 de 2") · Vence ("vence el 31/10" / "no vence") · "Buscar lugar"; en el celular, una card por pendiente con los mismos datos.
+- **"Buscar lugar"** (`TpaBuscarLugar`, modal `lg`): clases con lugar de esta semana y la siguiente, dentro del vencimiento, con "Elegir". Elegir abre la clase con la persona ya agregada ("Sin guardar"): Pau revisa y guarda. No aparece en meses que ya cerraron.
+- **Adelantos** y **Sin derecho a recuperar**: listas informativas en una card. "Adelantó y no faltó en octubre: decidís vos" en `text-amber-700`.
 
 ### Historia clínica
 - Encabezado con nombre, edad, tipo (RPG/TPA), alertas activas y teléfono tocable (`tel:` / WhatsApp).
@@ -204,7 +224,7 @@ En pantallas < 768px los modales se muestran como **hoja desde abajo** (ancho co
 
 ## Checklist visual antes de cerrar una tarea
 
-- [ ] Se ve y se usa bien a 390px de ancho
+- [ ] Se ve y se usa bien en la compu (primero) y a 390px de ancho
 - [ ] Objetivos táctiles ≥ 44px en acciones frecuentes
 - [ ] Estados de carga, vacío y error contemplados
 - [ ] Colores de estado tomados de `estados.ts`

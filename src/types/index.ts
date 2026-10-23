@@ -85,6 +85,8 @@ export interface AsistenciaTPA {
   ocupa_lugar_de: string | null;
   /** Cuándo se cargó el aviso; solo en avisos. */
   avisado_at: string | null;
+  /** Solo en tipo 'cambio': fila del aviso del mismo alumno en su horario de origen. */
+  cambio_de: string | null;
   nota: string | null;
   created_at: string;
   updated_at: string;
@@ -163,3 +165,65 @@ export interface CeldaTPA {
 }
 
 export type SemanaTPA = Record<DiaSemana, CeldaTPA[]>;
+
+// ---------------------------------------------------------------------
+// Recuperaciones (calculadas en src/lib/recuperaciones.ts, no son una tabla)
+// ---------------------------------------------------------------------
+
+/** Fila de asistencia con los datos de su clase (para el saldo de recuperaciones). */
+export interface AsistenciaConClase extends AsistenciaTPA {
+  clases_tpa: Pick<ClaseTPA, 'fecha' | 'hora' | 'motivo_cancelacion'>;
+}
+
+/** En orden de prioridad de Pau (a quién se le ofrece primero un lugar). */
+export type OrigenRecuperacion = 'cancelada_por_pau' | 'aviso_con_tiempo' | 'aviso_sin_tiempo' | 'feriado';
+
+export interface CreditoRecuperacion {
+  /** `${origen}_${fecha}_${hora}`: único por alumno. */
+  id: string;
+  origen: OrigenRecuperacion;
+  /** Clase que la generó ('yyyy-MM-dd', 'HH:mm'). */
+  fecha: string;
+  hora: string;
+  /** Último día para usarla ('yyyy-MM-dd'); null = no vence (cancelada por Pau). */
+  vence: string | null;
+  /** Origen legible: "cancelé el mié 7", "avisó con tiempo el lun 12". */
+  texto: string;
+}
+
+export interface UsoRecuperacion {
+  asistenciaId: string;
+  tipo: 'recupera' | 'cambio';
+  fecha: string;
+  hora: string;
+  estado: EstadoAsistenciaTPA;
+  /** Lo que consumió; null = sin crédito (adelantó). */
+  credito: CreditoRecuperacion | null;
+  /** Cambio de horario cuyo aviso es de otro mes: cuenta en el mes del aviso. */
+  deOtroMes: boolean;
+  texto: string;
+}
+
+export interface SinDerechoRecuperacion {
+  motivo: 'no_aviso' | 'tope' | 'vencio';
+  fecha: string;
+  hora: string;
+  texto: string;
+}
+
+export interface SaldoRecuperaciones {
+  pacienteId: string;
+  nombre: string;
+  /** Veces por semana (horarios fijos): también es el tope del mes. */
+  frecuencia: number;
+  /** Lo que le queda, en orden de prioridad. */
+  pendientes: CreditoRecuperacion[];
+  usos: UsoRecuperacion[];
+  /** Usos sin crédito: recuperó antes de faltar. */
+  adelantos: UsoRecuperacion[];
+  /** Usos que consumieron un aviso + usos sin crédito ("usó 1 de 2"). */
+  topeUsado: number;
+  sinDerecho: SinDerechoRecuperacion[];
+  /** Mes cerrado con adelantos que ninguna falta cubrió: lo decide Pau. */
+  adelantoSinFalta: boolean;
+}
