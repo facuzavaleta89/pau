@@ -44,6 +44,17 @@ function tiempoAgotado(error: unknown): TipoPeticion | null {
   return null;
 }
 
+// Las funciones y el trigger de TPA (migración 20261023000001) escriben sus
+// mensajes para Pau con este prefijo; no traen datos de pacientes.
+const PREFIJO_MENSAJE_BASE = 'TPA: ';
+
+function mensajeDeLaBase(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null || !('message' in error)) return null;
+  const { message } = error as { message: unknown };
+  if (typeof message !== 'string' || !message.startsWith(PREFIJO_MENSAJE_BASE)) return null;
+  return message.slice(PREFIJO_MENSAJE_BASE.length);
+}
+
 function codigoDeError(error: unknown): string | null {
   if (typeof error === 'object' && error !== null && 'code' in error) {
     const { code } = error as { code: unknown };
@@ -62,6 +73,9 @@ export function registrarError(contexto: string, error: unknown): void {
 
 export function mensajeError(error: unknown): string {
   if (error instanceof ErrorApp) return error.message;
+
+  const deLaBase = mensajeDeLaBase(error);
+  if (deLaBase) return deLaBase.charAt(0).toUpperCase() + deLaBase.slice(1);
 
   switch (tiempoAgotado(error)) {
     case 'escritura':

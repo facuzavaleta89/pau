@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ClipboardCheck, Clock, CornerDownRight } from 'lucide-react';
+import { AlertTriangle, ClipboardCheck, Clock, CornerDownRight, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   CLASES_CANCELADA, ICONO_CANCELADA, LUGAR_LIBRE, MOTIVOS_CANCELACION, TIPOS_OCUPANTE,
@@ -11,6 +11,8 @@ import type { CeldaTPA } from '@/types';
 interface TpaHorarioCardProps {
   celda: CeldaTPA;
   onAbrir: (celda: CeldaTPA) => void;
+  /** "+ Ocupar" en un lugar libre: abre la clase con el selector. */
+  onOcupar: (celda: CeldaTPA) => void;
   onAbrirPaciente: (pacienteId: string) => void;
 }
 
@@ -18,7 +20,7 @@ const FILA = 'w-full min-h-11 md:min-h-9 flex items-center gap-2 px-3 py-1.5 rou
 
 // Un horario de TPA en una fecha: hora, lugares, alumnos coloreados por estado
 // y los lugares libres. La usan la grilla de la compu y la lista del celular.
-export function TpaHorarioCard({ celda, onAbrir, onAbrirPaciente }: TpaHorarioCardProps) {
+export function TpaHorarioCard({ celda, onAbrir, onOcupar, onAbrirPaciente }: TpaHorarioCardProps) {
   const { lugares } = celda;
   const motivo = celda.clase?.motivo_cancelacion;
   const IconoLibre = LUGAR_LIBRE.icono;
@@ -90,11 +92,19 @@ export function TpaHorarioCard({ celda, onAbrir, onAbrirPaciente }: TpaHorarioCa
               </li>
             );
           })}
-          {/* Lugares sin nadie. "+ Ocupar" llega en la entrega 3. */}
+          {/* Lugares sin nadie (sin fijo, o fijo que avisó sin reemplazo). */}
           {Array.from({ length: lugares.libres }, (_, i) => (
-            <li key={`libre-${i}`} className={cn(FILA, 'justify-center', LUGAR_LIBRE.clases)}>
-              <IconoLibre size={14} className="shrink-0" aria-hidden="true" />
-              {LUGAR_LIBRE.label}
+            <li key={`libre-${i}`}>
+              <button
+                type="button"
+                onClick={() => onOcupar(celda)}
+                aria-label={`Ocupar un lugar libre a las ${celda.hora}`}
+                className={cn(FILA, 'transition-colors duration-150 hover:bg-teal-100', LUGAR_LIBRE.clases)}
+              >
+                <IconoLibre size={14} className="shrink-0" aria-hidden="true" />
+                <span className="flex-1 text-left">{LUGAR_LIBRE.label}</span>
+                <span className="flex items-center gap-0.5"><Plus size={14} aria-hidden="true" /> Ocupar</span>
+              </button>
             </li>
           ))}
         </ul>
@@ -110,7 +120,7 @@ export function TpaHorarioCard({ celda, onAbrir, onAbrirPaciente }: TpaHorarioCa
         className="h-11 md:h-9 flex items-center justify-center gap-2 text-sm font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors duration-150"
       >
         <ClipboardCheck size={16} />
-        {celda.clase ? 'Ver asistencia' : 'Registrar asistencia'}
+        {motivo ? 'Ver clase' : celda.clase ? 'Ver asistencia' : 'Registrar asistencia'}
       </button>
     </div>
   );

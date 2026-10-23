@@ -2,13 +2,13 @@
 
 _Referencia para las entregas de la Fase 1 (asistencia). Sale del diagnóstico del 20/10/2026 con las decisiones de Facu del 21/10/2026 aplicadas. En los ejemplos se usan "Alumna A", "Alumno B", etc.: no son datos reales._
 
-**Estado:** entrega 1 mergeada (rama `fase-1/asistencia`). Entrega 2 escrita (rama `fase-1/faltas-y-lugares`, 22/10/2026): migración y script listos para que Facu los aplique. Entregas 3 y 4 pendientes. Pau respondió las preguntas de recuperaciones el 21/10/2026 (reglas en la sección 3.2); los casos borde (10.2) los decidió Facu el 22/10/2026 con criterios que Pau puede corregir cuando lo vea en uso.
+**Estado:** entregas 1 y 2 mergeadas (la migración de la 2 aplicada y verificada por Facu). Entrega 3 escrita (rama `fase-1/recuperaciones`, 23/10/2026): migración `20261023000001` lista para que Facu la aplique. Entrega 4 pendiente. Pau respondió las preguntas de recuperaciones el 21/10/2026 (reglas en la sección 3.2); los casos borde (10.2) los decidió Facu el 22/10/2026 con criterios que Pau puede corregir cuando lo vea en uso.
 
 ---
 
 ## 1. Decisiones tomadas (Facu, 21/10/2026)
 
-1. **Sin `falta_id`.** No se vincula cada recuperación con una falta concreta: el saldo se calcula **contando** por alumno y por mes (sección 3.2). "Adelanta" no es un tipo propio: es una recuperación usada antes de faltar en ese mes.
+1. **Sin `falta_id`.** No se vincula cada recuperación con una falta concreta: el saldo se calcula **contando** por alumno y por mes (sección 3.2). "Adelanta" no es un tipo propio: es una recuperación usada antes de faltar en ese mes. **Excepción (entrega 3):** el cambio de horario sí apunta a su aviso de origen (`asistencia_tpa.cambio_de`), porque se cargan juntos y un cambio que cruza el mes cuenta en el mes de la falta (10.2.5).
 2. **Tipos de quien ocupa un lugar:** `fijo`, `recupera`, `cambio`, `suelta`. Se mantiene `ocupa_lugar_de`.
 3. **Datos de prueba de asistencia:** se borran con el script de la sección 5 (no se convierten).
 4. **Una sola migración** con los estados nuevos definitivos (sin etapa de expandir/contraer). Facu la aplica justo antes de probar el preview y mergea el mismo día.
@@ -47,7 +47,7 @@ _Referencia para las entregas de la Fase 1 (asistencia). Sale del diagnóstico d
 | Clase cancelada | `clases_tpa.motivo_cancelacion` (**de la clase**, no de cada alumno): `feriado` o `cancelada_por_pau` (enfermedad, viaje). `NULL` = la clase se da |
 | Quien viene a ocupar un lugar | fila de `asistencia_tpa` con `tipo` ≠ `fijo` |
 | "Recupera" | `tipo = 'recupera'` |
-| "Viene a las 18" (cambio puntual de horario) | `tipo = 'cambio'` en el destino + aviso del fijo en el origen (la app marca las dos cosas juntas) |
+| "Viene a las 18" (cambio puntual de horario) | `tipo = 'cambio'` en el destino, con `cambio_de` = la fila del aviso del fijo en el origen (la app marca las dos cosas juntas, en una transacción) |
 | "Adelanta" | **no es un tipo**: es un `recupera` usado antes de faltar en el mes (se ve en el saldo como "adelantó 1") |
 | Clase suelta ($18.000) | `tipo = 'suelta'` (no consume recuperaciones; sirve para Pagos en la fase 2) |
 | "FIJO falta / QUIEN RECUPERA" en la misma celda | `asistencia_tpa.ocupa_lugar_de` = fila del fijo que falta. Vacío = ocupa un lugar libre (horario con menos de 4 fijos) |
@@ -98,9 +98,9 @@ Lo calcula `contarLugares()` (`src/lib/tpa.ts`, con tests), llamado desde `armar
 
 #### Cálculo
 
-Función pura nueva `calcularRecuperaciones()` en `src/lib/recuperaciones.ts`, con tests. Por alumno y por mes M:
+Función pura `calcularRecuperaciones(mes, datos, hoy)` en `src/lib/recuperaciones.ts`, con tests (todos los casos de abajo). Recorre los meses desde la primera clase cancelada por Pau hasta M, porque esas recuperaciones pasan de mes en mes. Los datos (`cargarDatosRecuperaciones` en `queries.ts`) son todos los horarios, las clases canceladas y, de todo el historial, solo las filas que cuentan (avisos, "No avisó" y quienes ocupan un lugar), leídas de a 1000. Por alumno y por mes M:
 
-1. **Frecuencia** `f` = cantidad de horarios fijos que tiene (1, 2 o 3). _Supuesto:_ los vigentes el último día del mes, o hoy si el mes está en curso. En la fase 2 puede salir del plan pagado.
+1. **Frecuencia** `f` = cantidad de horarios fijos que tiene (1, 2 o 3). _Supuesto:_ los vigentes el último día del mes, o hoy si el mes está en curso (el primer día si es futuro); si ese día no tenía ninguno (se dio de baja en el mes), el máximo que tuvo en el mes. En la fase 2 puede salir del plan pagado.
 2. **Recuperaciones a favor (créditos):**
    - **Por cancelación de Pau:** una por cada clase con `motivo_cancelacion = 'cancelada_por_pau'` en una fecha en que era fijo de ese horario (`eraFijoEn`, con `fecha_alta`/`fecha_baja`). Se suman las de **meses anteriores** que no usó (arrastre). Si había avisado antes de que Pau cancelara, cuenta como cancelada por Pau, no como aviso.
    - **Por aviso:** sus filas `tipo = 'fijo'` con `aviso_con_tiempo` o `aviso_sin_tiempo` en clases **no canceladas** de M. Orden: primero las C.T., después las S.T.; dentro de cada grupo, la más vieja primero. Tienen derecho **las primeras `f`**; el resto figura como "sin derecho (llegó al tope)".
@@ -122,7 +122,7 @@ Nada se bloquea: si Pau hace una excepción ("ya usó 2 de 2", "es de otro mes")
 | Caso | Resultado esperado |
 |---|---|
 | `f = 2`. Octubre: C.T. lun 5, S.T. mié 14, C.T. lun 19. Usa 1 | Derecho: C.T. 5 y C.T. 19 (S.T. 14 sin derecho, tope). El uso consume C.T. 5 → pendiente C.T. 19 |
-| `f = 1`. Pau cancela mié 7; C.T. lun 12; usa 1 | El uso consume la C.T. 12 (vence antes) → pendiente "cancelé el mié 7", no vence |
+| `f = 1`, fijo los miércoles. Pau cancela mié 7; C.T. mié 14; usa 1 | El uso consume la C.T. 14 (vence antes) → pendiente "cancelé el mié 7", no vence |
 | `f = 1`. Pau cancela en octubre y no la usa | En noviembre figura "1 de Pau (de octubre)" |
 | `f = 1`, fijo los lunes. Noviembre 2026 tiene 5 lunes y 1 es feriado | Dadas 4 ≥ 4 → no recupera |
 | `f = 1`, fijo los lunes. Un mes con 4 lunes y 1 feriado | Dadas 3 → 1 recuperación por feriado (última en prioridad) |
@@ -197,15 +197,15 @@ Los horarios de prueba del lunes 08:00 (fuera de los horarios reales) se desinsc
 
 ## 6. Otras piezas de base de datos
 
-### 6.1 `guardar_clase_tpa` (entrega 3)
+### 6.1 `guardar_clase_tpa` y `cambiar_cancelacion_tpa` (entrega 3) — escritas el 23/10/2026
 
-Guarda una clase entera en una sola transacción: hoy cada alumno es una petición aparte y, si falla una, queda guardada la mitad. Con quien viene a ocupar, el orden importa (primero el aviso del fijo, después quien ocupa su lugar).
+Migración **`supabase/migrations/20261023000001_tpa_guardar_clase.sql`** (con rollback). Probada en un Postgres 14 local descartable con el esquema de la entrega 2: 19 casos + el formato exacto que manda la app, rollback y reaplicación.
 
-- Recibe la fecha, la hora y la lista de cambios (marcar / desmarcar, con `tipo`, `estado`, `ocupa_lugar_de`, `avisado_at`).
-- Crea la clase si no existe (`on conflict (fecha, hora)`), aplica los cambios en orden y borra la clase si quedó vacía (salvo cancelada o con notas).
-- `security invoker` (respeta RLS), `set search_path = ''`, `revoke execute ... from public, anon` y `grant execute ... to authenticated`.
-- Reintentable: llamarla dos veces con lo mismo deja el mismo resultado.
-- El SQL completo se escribe en la entrega 3, con las respuestas de Pau.
+- **`asistencia_tpa.cambio_de`** (FK a la misma tabla, `on delete set null`, unique, solo en `tipo = 'cambio'`). El trigger `validar_asistencia_tpa` (reemplazado) exige que apunte a un aviso del mismo alumno en otra clase, y no deja cambiarle el estado a ese aviso mientras el cambio exista (igual que con `ocupa_lugar_de`).
+- **`guardar_clase_tpa(p_clases jsonb)`**: una o **varias** clases (el cambio de horario toca el origen y el destino) en una transacción. Cada cambio va por `paciente_id` (no por id de fila: así es reintentable y resuelve filas nuevas): `tipo`, `estado` (null = sin marcar / quitar), `avisado_at`, `ocupa_lugar_de_paciente` y `cambio_de: {fecha, hora}` (si la clave no está, se conserva). Orden fijo, sin importar cómo llega: crea y bloquea las clases (solo si se marca a alguien; una clase cancelada no admite cambios) → quita a quienes ocupaban y suelta los enlaces que cambian → fijos (avisos/estados, después "sin marcar") → quienes ocupan un lugar → borra las clases vacías salvo canceladas. Verifica `soy_autorizada()` (si no, con RLS todo afectaría 0 filas sin error).
+- **`cambiar_cancelacion_tpa(p_fecha, p_horas, p_motivo)`**: cancela (motivo) o reactiva (null) una clase o un día entero en una sentencia; crea las clases que falten; no toca asistencias; al reactivar borra las que quedan vacías.
+- Ambas `security invoker`, `set search_path = ''`, `execute` revocado a `public` y `anon`, concedido a `authenticated`. Sus mensajes (y los del trigger) empiezan con `"TPA: "`, no traen datos de pacientes y la app los muestra tal cual.
+- Pendiente para la entrega 4: no borrar la clase vacía si tiene notas (la tabla todavía no existe).
 
 ### 6.2 `notas_evolucion` (entrega 4)
 
@@ -281,7 +281,7 @@ Encabezado: "Lunes 26 de octubre · 10:30 · 3/4 · 1 libre". Una fila por lugar
 - Para feriados, acción **"Cancelar el día"** (desde el encabezado del día): cancela con motivo Feriado todas las clases de esa fecha de una vez (crea las filas de `clases_tpa` que falten).
 - La pestaña "Alumnos fijos" queda igual (+ fecha de alta en la entrega 2).
 
-### 7.3 Selector "Ocupar lugar" (entrega 3)
+### 7.3 Selector "Ocupar lugar" (entrega 3, `TpaOcuparSelector` + `opcionesParaOcupar` en `src/lib/ocupar.ts`)
 
 En este orden, cada persona con su motivo:
 
@@ -297,14 +297,24 @@ Quien no avisó no aparece en 1–4. Si elegir a alguien lo pasa del tope, la ap
 
 Al elegir, el tipo se completa solo y se puede cambiar.
 
-### 7.4 Pestaña "Recuperaciones" (dentro de TPA, entrega 3)
+Cómo quedó (23/10/2026):
+- Cada persona aparece **una vez** en 1–4, en el grupo de su recuperación de más prioridad ("cancelé el lun 5 (y 1 más)"); al guardar, el uso consume lo que vence antes (10.2.2).
+- **Adelantar** = fijos (vigentes en la fecha de la clase) sin pendientes y con tope libre.
+- **Cambio de horario** = fijos de otra clase **de 6 días antes a 6 días después** (no solo "esta semana": así entra el vie 30/10 → lun 2/11) que todavía no vinieron ni tienen ya un cambio. Si no había avisado, se elige ahí mismo C.T. o S.T. para su horario (con la sugerencia si esa clase todavía no empezó). "El aviso es de octubre: cuenta en octubre" si cruza el mes.
+- **Otro paciente** = cualquier paciente activo, como clase suelta. El tipo (Recupera / Clase suelta) se puede cambiar en la fila mientras no esté guardado.
+- El lugar: el del fijo elegido ("Ocupar su lugar") o, desde "+ Ocupar", el de un fijo que avisó y que nadie ocupa; si no hay, un lugar libre.
+- Fijo con el lugar ocupado al que se le cambia el estado: la app pregunta "Sacarlo de la clase" / "Dejarlo en un lugar libre" (el trigger no deja hacerlo directo). Lo mismo con el origen de un cambio ("Quitar el cambio").
+
+### 7.4 Pestaña "Recuperaciones" (dentro de TPA, entrega 3, `TpaRecuperaciones`)
 
 TPA tiene dos pestañas: **Semana** | **Recuperaciones**. Por mes:
 
 - **Pendientes de recuperar**, en cuatro grupos en el orden de prioridad (canceladas por Pau / con tiempo / sin tiempo / feriado): alumno, origen (fecha y horario), "usó 1 de 2" y **"Buscar lugar"** (lugares libres de esta semana y la siguiente; dentro del mes, salvo las de Pau, que pueden ser del mes siguiente). Las que vencen a fin de mes muestran "vence el 31/10".
 - **Adelantos** (usó más de lo que faltó).
 - **Sin derecho a recuperar** (no avisó, llegó al tope, o venció a fin de mes), solo informativo.
-- **"Copiar lista"** en texto para WhatsApp (reemplaza la lista de los viernes).
+- **"Copiar lista"** en texto para WhatsApp (reemplaza la lista de los viernes). Si el portapapeles no está disponible (http desde la red local), muestra el texto seleccionable.
+- Chip "N pendientes de recuperar" arriba de la grilla, que lleva a esta pestaña.
+- "Buscar lugar" no se ofrece en meses que ya cerraron (lo que vencía se perdió y lo de Pau aparece en el mes actual).
 - En el celular: cards en lugar de tabla.
 
 ### 7.5 Historia clínica
@@ -333,7 +343,7 @@ Al final de cada una: `npx tsc --noEmit`, `npm run lint`, `npm run build`, `npm 
 |---|---|---|---|
 | **1** ✅ | `fase-1/asistencia` | Evaluación inicial en la ficha. Guardados que no duplican (id generado al abrir el formulario en pacientes y turnos; `createClaseTPA` como upsert; inscripción reintentable). Timeout 15 s lecturas / 45 s escrituras con mensaje "no sabemos si se guardó". `estados.ts` tolerante a estados desconocidos. Sin el fallback de `fecha_baja`. Vitest + tests de `armarSemanaTPA`. | ninguna |
 | **2** (escrita) | `fase-1/faltas-y-lugares` | Estados nuevos (Avisó C.T. / S.T. / No avisó), contador de lugares y "Libre", avisos anticipados con sugerencia C.T./S.T., sin "Presente" ni "No avisó" a futuro, `fecha_alta` editable al inscribir. `eliminarClaseTPASiVacia` protegida (cancelada / quien ocupa). `npm audit fix`. | Script de borrado + **migración única** (sección 4) |
-| **3** | `fase-1/recuperaciones` | Ocupar lugar con sugerencias (recupera / cambio / suelta), `guardar_clase_tpa`, `calcularRecuperaciones` + tests, pestaña Recuperaciones, "Buscar lugar", "Copiar lista". **Cancelar clase y "Cancelar el día"** (decidido 22/10/2026: pasan a esta entrega, porque el saldo depende de las cancelaciones). Casos borde ya decididos (10.2). | migración de `guardar_clase_tpa` |
+| **3** (escrita) | `fase-1/recuperaciones` | Ocupar lugar con sugerencias (recupera / cambio / suelta), `guardar_clase_tpa`, `calcularRecuperaciones` + tests, pestaña Recuperaciones, "Buscar lugar", "Copiar lista". **Cancelar clase y "Cancelar el día"** (con "Reactivar"). Casos borde ya decididos (10.2). Compu primero en CLAUDE.md y DESIGN.md. | migración `20261023000001` (6.1) |
 | **4** | (a definir) | "Marcar el resto como presente", notas de evolución (modal, pestaña Evolución, nota libre), alerta de 2 faltas + tests, sacar las alertas por palabra clave. | migración de `notas_evolucion` |
 
 **Orden de aplicación de la entrega 2:** la entrega 1 tiene que estar **en producción** antes (para que la app de producción no se rompa al leer un estado nuevo). El día de la prueba: script de borrado → migración única → probar el preview → mergear. Entre la migración y el merge, producción puede guardar "Presente" y "Faltó" e inscribir fijos (con fecha de alta = hoy), pero **no** "Avisó", "Recupera", "De otro horario" ni "Cancelado" (el check lo rechaza y muestra "No se pudo guardar la asistencia"); los avisos que cargue el preview se ven en producción en gris ("Aviso con tiempo") y producción no los puede cambiar a "Presente" (el check de `avisado_at` lo rechaza). Conviene que Pau no cargue asistencia en ese rato. El preview **antes** de la migración muestra los fijos sin respetar la fecha de alta y no puede guardar (pide columnas que todavía no existen): no usarlo hasta aplicarla.
@@ -351,7 +361,8 @@ Al final de cada una: `npx tsc --noEmit`, `npm run lint`, `npm run build`, `npm 
 6. 🟡 **Guardado a medias** (varias peticiones en paralelo) se agrava con quien viene a ocupar. Mitigación: `guardar_clase_tpa` (entrega 3).
 7. 🟡 **Frecuencia = cantidad de horarios fijos.** Si alguien paga un plan distinto de lo que tiene inscripto, el tope no coincide. Se alinea en la fase 2.
 8. 🟡 **Desinscribir con avisos futuros** deja filas de fijo en fechas posteriores a la baja. Mitigación: avisar al desinscribir y ofrecer borrarlas.
-9. 🟢 **Rendimiento:** el saldo necesita las asistencias del mes (decenas de filas).
+9. 🟡 **Rendimiento:** el saldo lee de todo el historial las filas que cuentan (avisos, no avisó, quienes ocupan; no las "Presente" de los fijos), de a 1000, cada vez que se abre TPA. Son cientos por año: alcanza por varios años. Si crece, calcularlo en la base o limitar el arrastre de las de Pau.
+10. 🟡 **Tope en el selector para un cambio que cruza el mes:** el aviso de tope usa el saldo del mes de la clase de destino, no el del mes de la falta.
 
 ---
 
