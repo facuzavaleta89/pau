@@ -1,6 +1,6 @@
 import { addDays, format, isWeekend, nextMonday, parseISO, startOfWeek } from 'date-fns';
 import type {
-  AlumnoCeldaTPA, AsistenciaTPA, CeldaTPA, ClaseTPA, DiaSemana, HorarioTPA, LugaresTPA, SemanaTPA,
+  AlumnoCeldaTPA, AsistenciaTPA, CeldaTPA, ClaseTPA, DiaSemana, HorarioTPA, LugaresTPA, NotaEvolucion, SemanaTPA,
   TipoAsistenciaTPA,
 } from '@/types';
 import { esAviso } from './avisos';
@@ -54,6 +54,8 @@ export interface DatosSemanaTPA {
   horarios: HorarioTPA[];
   clases: ClaseTPA[];
   asistencias: AsistenciaTPA[];
+  /** Notas de evolución de esas clases (sin esto, las celdas quedan sin notas). */
+  notas?: NotaEvolucion[];
 }
 
 /**
@@ -160,6 +162,7 @@ function armarCelda(dia: DiaSemana, fecha: string, hora: string, datos: DatosSem
     cupo: CUPO_TPA,
     lugares: contarLugares(lista, CUPO_TPA, Boolean(clase?.motivo_cancelacion)),
     fijosActuales: datos.horarios.filter((h) => mismoHorario(h) && h.activo),
+    notas: clase ? (datos.notas ?? []).filter((n) => n.clase_tpa_id === clase.id) : [],
   };
 }
 

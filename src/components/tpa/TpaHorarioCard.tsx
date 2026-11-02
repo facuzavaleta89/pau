@@ -3,9 +3,10 @@
 import { AlertTriangle, ClipboardCheck, Clock, CornerDownRight, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
-  CLASES_CANCELADA, ICONO_CANCELADA, LUGAR_LIBRE, MOTIVOS_CANCELACION, TIPOS_OCUPANTE,
+  ALERTA_FALTAS, CLASES_CANCELADA, ICONO_CANCELADA, ICONO_NOTA, LUGAR_LIBRE, MOTIVOS_CANCELACION, TIPOS_OCUPANTE,
   estadoAsistencia, etiquetaAsistencia,
 } from '@/lib/estados';
+import { textoAlertaFaltas, type AlertaFaltas } from '@/lib/alertas';
 import type { CeldaTPA } from '@/types';
 
 interface TpaHorarioCardProps {
@@ -14,17 +15,22 @@ interface TpaHorarioCardProps {
   /** "+ Ocupar" en un lugar libre: abre la clase con el selector. */
   onOcupar: (celda: CeldaTPA) => void;
   onAbrirPaciente: (pacienteId: string) => void;
+  /** Alerta de faltas seguidas sin avisar de ese alumno (null = sin alerta). */
+  alertaDe: (pacienteId: string) => AlertaFaltas | null;
 }
 
 const FILA = 'w-full min-h-11 md:min-h-9 flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm md:text-xs font-medium';
 
 // Un horario de TPA en una fecha: hora, lugares, alumnos coloreados por estado
 // y los lugares libres. La usan la grilla de la compu y la lista del celular.
-export function TpaHorarioCard({ celda, onAbrir, onOcupar, onAbrirPaciente }: TpaHorarioCardProps) {
+export function TpaHorarioCard({ celda, onAbrir, onOcupar, onAbrirPaciente, alertaDe }: TpaHorarioCardProps) {
   const { lugares } = celda;
   const motivo = celda.clase?.motivo_cancelacion;
   const IconoLibre = LUGAR_LIBRE.icono;
   const IconoCancelada = ICONO_CANCELADA;
+  const IconoAlerta = ALERTA_FALTAS.icono;
+  const IconoNota = ICONO_NOTA;
+  const conNota = new Set(celda.notas.map((n) => n.paciente_id));
 
   return (
     <div
@@ -74,20 +80,24 @@ export function TpaHorarioCard({ celda, onAbrir, onOcupar, onAbrirPaciente }: Tp
             const detalle = ocupante
               ? (alumno.estado === 'pendiente' ? ocupante.label : `${ocupante.label} · ${etiqueta}`)
               : (alumno.estado === 'pendiente' ? null : etiqueta);
+            const alerta = alertaDe(alumno.pacienteId);
+            const avisos = [alerta && textoAlertaFaltas(alerta), conNota.has(alumno.pacienteId) && 'tiene nota en esta clase'].filter(Boolean);
             return (
               <li key={alumno.pacienteId} className={cn(enLugarDeUnFijo && 'pl-4')}>
                 <button
                   type="button"
                   onClick={() => onAbrirPaciente(alumno.pacienteId)}
-                  title={`${alumno.nombre}: ${detalle ?? etiqueta}`}
+                  title={[`${alumno.nombre}: ${detalle ?? etiqueta}`, ...avisos].join(' · ')}
                   className={cn(FILA, 'text-left transition-shadow duration-150 hover:shadow-sm', estado.clases)}
                 >
                   {enLugarDeUnFijo
                     ? <CornerDownRight size={14} className="shrink-0" aria-hidden="true" />
                     : <Icono size={14} className="shrink-0" aria-hidden="true" />}
                   <span className="truncate flex-1">{alumno.nombre}</span>
+                  {alerta && <IconoAlerta size={14} className="shrink-0 text-red-600" aria-hidden="true" />}
+                  {conNota.has(alumno.pacienteId) && <IconoNota size={14} className="shrink-0 opacity-70" aria-hidden="true" />}
                   {detalle && <span className="shrink-0 text-xs opacity-80">{detalle}</span>}
-                  <span className="sr-only">{detalle ?? etiqueta}</span>
+                  <span className="sr-only">{[detalle ?? etiqueta, ...avisos].join(', ')}</span>
                 </button>
               </li>
             );

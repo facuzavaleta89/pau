@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Ban, Save } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { addDays, format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { cambiarCancelacionTPA, getPacientesActivos, guardarClasesTPA } from "@/lib/queries";
 import { mensajeError, mensajeErrorAlGuardar, registrarError } from "@/lib/errores";
@@ -10,7 +10,8 @@ import { esClaseFutura, sugerirAviso } from "@/lib/avisos";
 import { MOTIVOS_CANCELACION } from "@/lib/estados";
 import { contarLugares, textoLugares } from "@/lib/tpa";
 import { calcularRecuperaciones, type DatosRecuperaciones } from "@/lib/recuperaciones";
-import { cambiosParaGuardar, enlacesCambio } from "@/lib/clase-tpa";
+import { cambiosParaGuardar, enlacesCambio, notaDe, notaSinGuardar, notasSinFila } from "@/lib/clase-tpa";
+import { alertasDeFaltas, conMarcasDeLaClase, type FilaAlerta } from "@/lib/alertas";
 import type { CeldaTPA, MotivoCancelacionTPA, Paciente } from "@/types";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -26,6 +27,8 @@ interface TpaClaseModalProps {
   celda: CeldaTPA;
   /** Historial para saldos y cambios de horario (null mientras carga). */
   datosRec: DatosRecuperaciones | null;
+  /** Filas para la alerta de faltas seguidas sin avisar (null mientras carga). */
+  filasAlertas: FilaAlerta[] | null;
   /** Abrir directamente "Ocupar lugar" (desde "+ Ocupar" en la card). */
   abrirOcupar?: boolean;
   /** Alguien ya elegido para ocupar un lugar (desde "Buscar lugar"). */
@@ -41,7 +44,9 @@ const BOTON_CANCELAR_CLASE =
 // Se monta al abrir (con key = celda.clave), así que el estado arranca limpio
 // cada vez. Si la semana se recarga con el modal abierto (por ejemplo, al
 // inscribir), `celda` cambia pero la pestaña y las marcas sin guardar se conservan.
-export function TpaClaseModal({ celda, datosRec, abrirOcupar = false, ocupanteInicial = null, onClose, onGuardado }: TpaClaseModalProps) {
+export function TpaClaseModal({
+  celda, datosRec, filasAlertas, abrirOcupar = false, ocupanteInicial = null, onClose, onGuardado,
+}: TpaClaseModalProps) {
   const toast = useToast();
   const motivo = celda.clase?.motivo_cancelacion ?? null;
   const [pestania, setPestania] = useState<Pestania>('asistencia');
@@ -68,11 +73,24 @@ export function TpaClaseModal({ celda, datosRec, abrirOcupar = false, ocupanteIn
   const enlaces = useMemo(() => enlacesCambio(celda, historial), [celda, historial]);
   const b = useBorradorClase(celda, enlaces, ocupanteInicial);
   const enLaClase = useMemo(() => new Set(b.filas.map((f) => f.pacienteId)), [b.filas]);
-  // Saldos del mes de esta clase (para el selector).
-  const saldos = useMemo(
-    () => (datosRec ? calcularRecuperaciones(celda.fecha.slice(0, 7), datosRec, format(abiertoEn, 'yyyy-MM-dd')) : []),
-    [datosRec, celda.fecha, abiertoEn]
-  );
+  // Saldos del mes de esta clase (para el selector) y de los meses vecinos
+  // (un cambio de horario de ±6 días cuenta en el mes de la falta).
+  const { saldos, saldosPorMes } = useMemo(() => {
+    const hoy = format(abiertoEn, 'yyyy-MM-dd');
+    const mes = celda.fecha.slice(0, 7);
+    if (!datosRec) return { saldos: [], saldosPorMes: {} };
+    const vecinos = [-6, 6].map((d) => format(addDays(parseISO(celda.fecha), d), 'yyyy-MM')).filter((m) => m !== mes);
+    return {
+      saldos: calcularRecuperaciones(mes, datosRec, hoy),
+      saldosPorMes: Object.fromEntries([...new Set(vecinos)].map((m) => [m, calcularRecuperaciones(m, datosRec, hoy)])),
+    };
+  }, [datosRec, celda.fecha, abiertoEn]);
+  // Alerta de faltas seguidas sin avisar, con las marcas sin guardar de esta clase.
+  const alertas = useMemo(() => alertasDeFaltas(conMarcasDeLaClase(
+    filasAlertas ?? [],
+    { fecha: celda.fecha, hora: celda.hora, motivo_cancelacion: motivo },
+    b.filas.map((f) => ({ pacienteId: f.pacienteId, tipo: f.tipo, estado: f.estado })),
+  ), abiertoEn), [filasAlertas, celda.fecha, celda.hora, motivo, b.filas, abiertoEn]);
 
   const hayCambios = cambiosParaGuardar(celda, b.borrador, abiertoEn).length > 0;
   const claseFutura = esClaseFutura(celda.fecha, celda.hora, abiertoEn);
@@ -83,8 +101,9 @@ export function TpaClaseModal({ celda, datosRec, abrirOcupar = false, ocupanteIn
     if (!hayCambios || b.hayPreguntas) return;
     setSaving(true);
     try {
-      await guardarClasesTPA(cambiosParaGuardar(celda, b.borrador, new Date()));
-      toast.exito('Asistencia guardada');
+      const clases = cambiosParaGuardar(celda, b.borrador, new Date());
+      await guardarClasesTPA(clases);
+      toast.exito(clases.every((c) => c.cambios.length === 0) ? 'Nota guardada' : 'Asistencia guardada');
       onGuardado();
       onClose();
     } catch (error: unknown) {
@@ -179,6 +198,7 @@ export function TpaClaseModal({ celda, datosRec, abrirOcupar = false, ocupanteIn
           enLaClase={enLaClase}
           lugarDe={ocupando ? nombreDe(ocupando) : null}
           saldos={saldos}
+          saldosPorMes={saldosPorMes}
           pacientes={todosPacientes}
           horarios={datosRec?.horarios ?? []}
           historial={historial}
@@ -198,6 +218,13 @@ export function TpaClaseModal({ celda, datosRec, abrirOcupar = false, ocupanteIn
             motivoCancelacion={motivo}
             enlaces={enlaces}
             preguntas={b.preguntas}
+            alertaDe={(pacienteId) => alertas.get(pacienteId) ?? null}
+            notaDe={(pacienteId) => notaDe(celda, b.borrador, pacienteId)}
+            notaSinGuardar={(pacienteId) => notaSinGuardar(celda, b.borrador, pacienteId)}
+            notasSinFila={notasSinFila(celda, b.filas)}
+            onCambiarNota={b.cambiarNota}
+            restoSinMarcar={b.restoSinMarcar}
+            onMarcarResto={b.marcarResto}
             onCambiar={b.cambiarEstado}
             onOcupar={setOcupando}
             onQuitar={b.quitar}

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { AsistenciaConClase, ClaseTPA, DiaSemana, HorarioTPA, MotivoCancelacionTPA, TipoAsistenciaTPA } from '@/types';
-import { calcularRecuperaciones, pendientesPorOrigen, textoListaRecuperaciones, type DatosRecuperaciones } from './recuperaciones';
+import {
+  calcularRecuperaciones, pendientesPorOrigen, textoListaRecuperaciones, textoResumenMes, type DatosRecuperaciones,
+} from './recuperaciones';
 
 // Octubre 2026: lunes 5, 12, 19, 26 · miércoles 7, 14, 21, 28 · viernes 2, 9, 16, 23, 30.
 // Noviembre 2026: lunes 2, 9, 16, 23, 30 · viernes 6, 13, 20, 27.
@@ -29,7 +31,7 @@ function fila(
     id: id(), clase_id: `clase-${fecha}-${hora}`, paciente_id: `pac-${nombre}`, estado,
     tipo: extra.tipo ?? 'fijo', ocupa_lugar_de: null, cambio_de: extra.cambio_de ?? null,
     avisado_at: estado.startsWith('aviso') ? '2026-10-01T12:00:00Z' : null,
-    nota: null, created_at: '2026-10-01T12:00:00Z', updated_at: '2026-10-01T12:00:00Z',
+    created_at: '2026-10-01T12:00:00Z', updated_at: '2026-10-01T12:00:00Z',
     pacientes: { nombre },
     clases_tpa: { fecha, hora: `${hora}:00`, motivo_cancelacion: extra.motivo ?? null },
   };
@@ -332,20 +334,110 @@ describe('calcularRecuperaciones: otras reglas', () => {
 });
 
 describe('textoListaRecuperaciones', () => {
-  it('arma el texto para WhatsApp en orden de prioridad, con el vencimiento', () => {
+  it('arma el texto para WhatsApp en orden de prioridad, con el vencimiento, sin repetir lo que dice el grupo', () => {
     const saldos = calcularRecuperaciones('2026-10', {
-      horarios: [fijo('Ana', 'lunes', '10:30'), fijo('Beto', 'miercoles', '10:30'), fijo('Caro', 'viernes', '10:30')],
+      horarios: [
+        fijo('Ana', 'lunes', '10:30'), fijo('Beto', 'miercoles', '10:30'), fijo('Caro', 'viernes', '10:30'),
+        fijo('Dani', 'viernes', '12:30'), fijo('Eli', 'lunes', '16:00'),
+      ],
       clasesCanceladas: [cancelada('2026-10-07', '10:30', 'cancelada_por_pau')],
-      asistencias: [fila('Ana', '2026-10-12', '10:30', 'aviso_con_tiempo'), fila('Caro', '2026-10-16', '10:30', 'falto_sin_avisar')],
+      asistencias: [
+        fila('Ana', '2026-10-26', '10:30', 'aviso_con_tiempo'),
+        fila('Caro', '2026-10-16', '10:30', 'falto_sin_avisar'),
+        fila('Dani', '2026-10-23', '12:30', 'aviso_sin_tiempo'),
+      ],
     }, '2026-10-22');
     expect(textoListaRecuperaciones(saldos, '2026-10')).toBe([
       'Recuperaciones pendientes · octubre 2026',
       'Clases que cancelé:\n• Beto: cancelé el mié 7',
-      'Avisaron con tiempo:\n• Ana: avisó con tiempo el lun 12 (vence el 31/10)',
+      'Avisaron con tiempo:\n• Ana: faltó el lun 26 (vence el 31/10)',
+      'Avisaron sin tiempo:\n• Dani: faltó el vie 23 (vence el 31/10)',
+    ].join('\n\n'));
+  });
+
+  it('feriado: "feriado del lun 12"; una de Pau de otro mes lleva el mes', () => {
+    // Diciembre 2026 tiene 4 lunes: con el feriado del 14, le quedan 3 → 1 por feriado.
+    const saldos = calcularRecuperaciones('2026-12', {
+      horarios: [fijo('Ana', 'lunes', '10:30'), fijo('Beto', 'miercoles', '10:30')],
+      clasesCanceladas: [cancelada('2026-12-14', '10:30', 'feriado'), cancelada('2026-11-04', '10:30', 'cancelada_por_pau')],
+      asistencias: [],
+    }, '2026-12-01');
+    expect(textoListaRecuperaciones(saldos, '2026-12')).toBe([
+      'Recuperaciones pendientes · diciembre 2026',
+      'Clases que cancelé:\n• Beto: cancelé el mié 4/11',
+      'Por feriado (si hay lugar):\n• Ana: feriado del lun 14 (vence el 31/12)',
     ].join('\n\n'));
   });
 
   it('sin pendientes lo dice', () => {
     expect(textoListaRecuperaciones([], '2026-10')).toBe('Recuperaciones pendientes · octubre 2026\n\nNo hay recuperaciones pendientes.');
+  });
+});
+
+describe('calcularRecuperaciones: quien ya no es fijo (Facu, 23/10/2026)', () => {
+  const datos = (horarios: HorarioTPA[]): DatosRecuperaciones => ({
+    horarios,
+    clasesCanceladas: [cancelada('2026-10-07', '10:30', 'cancelada_por_pau')],
+    asistencias: [],
+  });
+
+  it('las clases que canceló Pau de alguien sin horario fijo vigente no son pendientes: van a "sin derecho" con "ya no es fijo"', () => {
+    const s = saldo('2026-10', datos([fijo('Ana', 'miercoles', '10:30', { activo: false, fecha_baja: '2026-10-15' })]));
+    expect(s.pendientes).toEqual([]);
+    expect(s.sinDerecho).toEqual([expect.objectContaining({ motivo: 'no_es_fijo', fecha: '2026-10-07', texto: 'cancelé el mié 7: ya no es fijo' })]);
+    // No cuentan en el chip ni en la pestaña (salen de pendientesPorOrigen).
+    expect(pendientesPorOrigen([s]).cancelada_por_pau).toEqual([]);
+  });
+
+  it('siguen pasando de mes en mes y reaparecen si se vuelve a inscribir', () => {
+    const baja = fijo('Ana', 'miercoles', '10:30', { activo: false, fecha_baja: '2026-10-15' });
+    expect(saldo('2026-11', datos([baja]), '2026-11-10').pendientes).toEqual([]);
+    const vuelve = fijo('Ana', 'lunes', '12:30', { fecha_alta: '2026-11-09' });
+    const s = saldo('2026-11', datos([baja, vuelve]), '2026-11-10');
+    expect(textos(s.pendientes)).toEqual(['cancelé el mié 7/10']);
+    expect(s.sinDerecho).toEqual([]);
+  });
+
+  it('si tiene otro horario vigente, sigue siendo pendiente (cualquier horario cuenta)', () => {
+    const s = saldo('2026-10', datos([
+      fijo('Ana', 'miercoles', '10:30', { activo: false, fecha_baja: '2026-10-15' }),
+      fijo('Ana', 'viernes', '17:00'),
+    ]));
+    expect(textos(s.pendientes)).toEqual(['cancelé el mié 7']);
+  });
+
+  it('las avisadas del mes de alguien que se dio de baja siguen como antes (vencen a fin de mes)', () => {
+    const s = saldo('2026-10', {
+      horarios: [fijo('Ana', 'lunes', '10:30', { activo: false, fecha_baja: '2026-10-15' })],
+      asistencias: [fila('Ana', '2026-10-12', '10:30', 'aviso_con_tiempo')],
+    });
+    expect(textos(s.pendientes)).toEqual(['avisó con tiempo el lun 12']);
+  });
+});
+
+describe('textoResumenMes (historia clínica)', () => {
+  it('"Octubre: 3 faltas avisadas, 1 recuperada, le queda 1"', () => {
+    const asistencias = [
+      fila('Ana', '2026-10-05', '10:30', 'aviso_con_tiempo'),
+      fila('Ana', '2026-10-12', '10:30', 'aviso_sin_tiempo'),
+      fila('Ana', '2026-10-14', '10:30', 'aviso_con_tiempo'),
+      recupera('Ana', '2026-10-16', '10:30', 'presente'),
+    ];
+    const horarios = [fijo('Ana', 'lunes', '10:30'), fijo('Ana', 'miercoles', '10:30')];
+    const s = saldo('2026-10', { horarios, asistencias });
+    expect(textoResumenMes('2026-10', s, asistencias)).toBe('Octubre: 3 faltas avisadas, 1 recuperada, le queda 1');
+  });
+
+  it('cuenta las "No avisó" aparte y no cuenta las clases canceladas', () => {
+    const asistencias = [
+      fila('Ana', '2026-10-05', '10:30', 'falto_sin_avisar'),
+      fila('Ana', '2026-10-12', '10:30', 'aviso_con_tiempo', { motivo: 'feriado' }),
+    ];
+    const s = saldo('2026-10', { horarios: [fijo('Ana', 'lunes', '10:30')], asistencias });
+    expect(textoResumenMes('2026-10', s, asistencias)).toBe('Octubre: sin faltas avisadas, 1 sin avisar, ninguna recuperada, no le queda ninguna');
+  });
+
+  it('sin saldo ni nada en el mes (no es de TPA) → null', () => {
+    expect(textoResumenMes('2026-10', undefined, [])).toBeNull();
   });
 });

@@ -56,7 +56,7 @@ export function TpaListaDia({ semana, dia, onCambiarDia, acciones }: TpaListaDia
 
       <div className="flex flex-col gap-3">
         {celdas.map((celda) => (
-          <TpaHorarioCard key={celda.clave} celda={celda} onAbrir={acciones.onAbrir} onOcupar={acciones.onOcupar} onAbrirPaciente={acciones.onAbrirPaciente} />
+          <TpaHorarioCard key={celda.clave} celda={celda} onAbrir={acciones.onAbrir} onOcupar={acciones.onOcupar} onAbrirPaciente={acciones.onAbrirPaciente} alertaDe={acciones.alertaDe} />
         ))}
       </div>
     </div>

@@ -1,6 +1,6 @@
 import {
   ArrowLeftRight, Ban, Check, CircleCheck, CircleDashed, CircleHelp, CircleX, Clock, MessageSquare,
-  MessageSquareWarning, RotateCcw, SquareDashed, Ticket, X,
+  MessageSquareWarning, NotebookPen, OctagonAlert, RotateCcw, SquareDashed, Ticket, X,
   type LucideIcon,
 } from 'lucide-react';
 import type {
@@ -60,6 +60,16 @@ export const MOTIVOS_CANCELACION: Record<MotivoCancelacionTPA, string> = {
 
 export const CLASES_CANCELADA = 'bg-stone-100 text-stone-500 border-stone-300';
 export const ICONO_CANCELADA = Ban;
+
+/** Alerta de 2 faltas seguidas sin avisar (src/lib/alertas.ts): rojo, como "No avisó". */
+export const ALERTA_FALTAS = {
+  label: 'Faltas seguidas sin avisar',
+  clases: 'bg-red-50 text-red-800 border-red-200',
+  icono: OctagonAlert,
+} satisfies ConfigEstado;
+
+/** Tiene nota de evolución en esa clase. */
+export const ICONO_NOTA = NotebookPen;
 
 export function esEstadoAsistenciaConocido(estado: string): estado is EstadoAsistenciaTPA {
   return Object.prototype.hasOwnProperty.call(ESTADOS_ASISTENCIA, estado);

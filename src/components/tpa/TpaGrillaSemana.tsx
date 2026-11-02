@@ -30,7 +30,7 @@ export function TpaGrillaSemana({ semana, acciones }: TpaGrillaSemanaProps) {
           {DIAS_TPA.map((d) => {
             const celda = semana[d.id].find((c) => c.hora === hora);
             return celda ? (
-              <TpaHorarioCard key={d.id} celda={celda} onAbrir={acciones.onAbrir} onOcupar={acciones.onOcupar} onAbrirPaciente={acciones.onAbrirPaciente} />
+              <TpaHorarioCard key={d.id} celda={celda} onAbrir={acciones.onAbrir} onOcupar={acciones.onOcupar} onAbrirPaciente={acciones.onAbrirPaciente} alertaDe={acciones.alertaDe} />
             ) : (
               <div key={d.id} className="rounded-xl border border-dashed border-stone-200 flex items-center justify-center text-xs text-stone-400 min-h-24">
                 Sin clase

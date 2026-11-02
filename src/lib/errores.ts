@@ -63,6 +63,14 @@ function codigoDeError(error: unknown): string | null {
   return null;
 }
 
+// Falta una función, tabla o columna: la app es más nueva que la base (por
+// ejemplo, un preview antes de que Facu aplique la migración). PostgREST:
+// PGRST202 función, PGRST204 columna, PGRST205 tabla (responde 404 o 400);
+// Postgres: 42883 función, 42703 columna, 42P01 tabla.
+const CODIGOS_FALTA_MIGRACION = new Set(['PGRST202', 'PGRST204', 'PGRST205', '42883', '42703', '42P01']);
+
+export const MENSAJE_FALTA_MIGRACION = 'Falta aplicar un cambio en la base de datos. Avisale a Facu.';
+
 export function registrarError(contexto: string, error: unknown): void {
   if (process.env.NODE_ENV !== 'production') {
     console.error(contexto, error);
@@ -85,7 +93,10 @@ export function mensajeError(error: unknown): string {
       return 'La conexión tardó demasiado. Revisá la señal y probá de nuevo.';
   }
 
-  switch (codigoDeError(error)) {
+  const codigo = codigoDeError(error);
+  if (codigo && CODIGOS_FALTA_MIGRACION.has(codigo)) return MENSAJE_FALTA_MIGRACION;
+
+  switch (codigo) {
     case '42501':
     case 'PGRST301':
       return 'No tenés permiso para hacer esto. Probá cerrar sesión y volver a entrar.';

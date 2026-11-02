@@ -170,13 +170,20 @@ En pantallas < 768px los modales se muestran como **hoja desde abajo** (ancho co
 - **Celular** (`RpgSemanaLista`): la semana como **lista por día**: martes y jueves siempre (otro día solo si tiene turnos), con "+ Turno" por día y navegación por semana. El calendario mensual no se muestra en celular.
 - Turno (`TurnoCard`): hora, nombre (tocable → historia clínica), tipo de sesión, punto de pago, color e ícono del estado.
 
+### Pestañas de una pantalla (`Pestanias`, `src/components/ui/`)
+- Para las **vistas principales** de una pantalla (TPA: Semana | Recuperaciones). Tienen que verse a primera vista: el subrayado fino pasaba desapercibido.
+- Control segmentado: contenedor `bg-stone-100 border-stone-200 rounded-xl p-1`; cada pestaña 44px con ícono (16px) y texto `text-sm font-semibold`; la activa `bg-white text-teal-700 shadow-sm ring-1 ring-stone-200` con el ícono teal; las otras `text-stone-600`, hover `bg-white/60`. Contador opcional en un círculo `bg-blue-600 text-white` (azul = recuperar, como el chip).
+- En el celular ocupa todo el ancho (columnas iguales); en la compu, lo que necesita.
+- Las pestañas **dentro de un modal** (Asistencia | Alumnos fijos) siguen con subrayado teal: ahí el modal ya enmarca.
+
 ### Agenda TPA
-- Dos pestañas arriba (subrayado teal, como las del modal): **Semana** | **Recuperaciones (N)**.
+- Pestañas arriba (`Pestanias`): **Semana** (`CalendarDays`) | **Recuperaciones** (`RotateCcw`, con el contador de pendientes).
 - Junto a la navegación de la semana, chip **"N pendientes de recuperar"** (`bg-blue-50 text-blue-700 border-blue-200 rounded-full`, ícono `RotateCcw`) que lleva a la pestaña Recuperaciones. Solo si hay pendientes este mes.
 - En el encabezado de cada día (grilla de la compu y lista del celular): **"Cancelar el día"** (texto `text-stone-500`, hover rojo, ícono `Ban`) y, si hay clases canceladas, **"Reactivar el día"** (hover teal, ícono `RotateCcw`). 32px en la compu, 44px en el celular.
 - **Desktop** (`TpaGrillaSemana`): grilla de 3 días × horarios reales (`HORARIOS_TPA`). Si un día no tiene clase en esa hora (viernes 19:00), celda punteada "Sin clase".
 - **Celular** (`TpaListaDia`): selector de día (Lun / Mié / Vie con la fecha, botones de 48px, el activo en teal) arriba y **lista de horarios** debajo. Al abrir, el día de hoy (o el próximo día de TPA).
 - Cada horario es la misma card en las dos vistas (`TpaHorarioCard`): hora, contador `3/4`, alumnos con color + ícono del estado (y la etiqueta si ya están marcados), **siempre los 4 lugares** (los que sobran, como "Libre") y botón "Registrar asistencia" / "Ver asistencia" (44px en celular). Un horario que no es de los habituales muestra "(fuera de horario)".
+- Junto al nombre, íconos de 14px: **alerta de faltas** (`ALERTA_FALTAS.icono` = `OctagonAlert`, `text-red-600`) si tiene 2 o más faltas seguidas sin avisar, y **nota** (`ICONO_NOTA` = `NotebookPen`) si tiene nota de evolución en esa clase. Los dos también en el `title` y en el texto para lectores de pantalla.
 - **Contador:** ocupados = fijos que no avisaron (incluye Sin marcar y No avisó) + quienes vienen a ocupar un lugar. Badge `bg-stone-50 text-stone-600 border-stone-200`; completo, `bg-teal-50 text-teal-700 border-teal-200`; con más personas que lugares ("5/4"), `bg-amber-50 text-amber-800 border-amber-200` con `AlertTriangle` (avisa, no bloquea).
 - Tocar el botón → registro rápido de asistencia; tocar un nombre → historia clínica.
 
@@ -193,8 +200,9 @@ En pantallas < 768px los modales se muestran como **hoja desde abajo** (ancho co
 - **Clase cancelada:** franja `bg-stone-100 text-stone-500 border-stone-300` con `Ban`: "Cancelada · Feriado. No se marca asistencia ni se ocupan lugares…" + botón secundario "Reactivar clase" (con `ConfirmDialog`). Los chips quedan deshabilitados y no hay lugares libres.
 - El botón Guardar se habilita **solo si hay cambios** (incluido volver alguien a "Sin marcar"); si no, dice "Sin cambios". Las filas editadas muestran "Sin guardar".
 - Pestaña "Alumnos fijos" para inscribir/desinscribir (fijos de hoy). Al inscribir se elige **"Fijo desde"** (`<input type="date">`, hoy por defecto; puede ser pasada o futura) y la lista muestra "desde dd/mm/aaaa" o, si todavía no empezó, "empieza el dd/mm/aaaa" en teal. Al inscribir o desinscribir, el modal **no cambia de pestaña ni pierde las marcas sin guardar**.
-- Acción "Marcar el resto como presente" para el caso más común, y después se corrigen excepciones (entrega 4).
-- Campo de **nota de evolución por alumno** (expandible) — ej. "bajó la presión a mitad de clase".
+- **"Marcar el resto como presente (N)"**: botón secundario teal (`bg-teal-50 text-teal-700 border-teal-200`, ícono `CheckCheck`, 44px, ancho completo en el celular) arriba de la lista, solo si la clase ya empezó, no está cancelada y queda alguien en "Sin marcar". Marca Presente a los "Sin marcar" sin guardar (las filas muestran "Sin guardar"); después se corrigen las excepciones.
+- **Nota de evolución por alumno** (`TpaNotaClase`), al final de cada fila: "+ Nota" (texto `text-stone-600`, hover teal) abre un `textarea` de 3 líneas (16px en el celular) con "Listo" y "Quitar nota"; con texto, la nota se ve en una caja blanca con `NotebookPen` teal y un lápiz para editar. Se guarda con el botón Guardar del modal. En una clase cancelada se ve y no se edita. Las notas de quien ya no está en la clase van al final: "Notas de quienes ya no están en esta clase".
+- **Alerta de faltas** en la fila: debajo del nombre, `text-xs font-medium text-red-700` con `OctagonAlert`: "2 faltas seguidas sin avisar" (con las marcas sin guardar).
 
 ### Selector "Ocupar lugar" (`TpaOcuparSelector`, dentro del modal de la clase)
 - Reemplaza el contenido del modal (no es un modal encima de otro): "← Volver a la clase" y "Lugar de Beto" / "Lugar libre".
@@ -209,8 +217,9 @@ En pantallas < 768px los modales se muestran como **hoja desde abajo** (ancho co
 - **Adelantos** y **Sin derecho a recuperar**: listas informativas en una card. "Adelantó y no faltó en octubre: decidís vos" en `text-amber-700`.
 
 ### Historia clínica
-- Encabezado con nombre, edad, tipo (RPG/TPA), alertas activas y teléfono tocable (`tel:` / WhatsApp).
-- Pestañas: Ficha · Evolución (notas + asistencias, en orden cronológico) · Alertas.
+- Encabezado con nombre, edad, tipo (RPG/TPA), alertas activas y teléfono tocable (`tel:` / WhatsApp). La alerta de faltas es un chip `ALERTA_FALTAS.clases` ("2 faltas seguidas sin avisar") que lleva a Evolución.
+- Pestañas: **Ficha** · **Evolución** (desde la entrega 4; la de Alertas por palabra clave se sacó). En la compu, columna a la izquierda; en el celular, dos pestañas de ancho igual arriba. La activa `bg-teal-600 text-white`.
+- **Evolución:** arriba la alerta (franja `ALERTA_FALTAS.clases` con `OctagonAlert`), el resumen del mes en una card blanca con `CalendarCheck` teal ("Octubre: 3 faltas avisadas, 1 recuperada, le queda 1") y el botón primario **"+ Nota"** (nota libre: fecha + `textarea` de 4 líneas, "Cancelar" / "Guardar nota"). Debajo, la línea de tiempo (lo más nuevo arriba): una card por clase de TPA (fecha, hora, "TPA", chip del estado; la nota de esa clase adentro), por nota libre ("Nota") y por sesión de RPG (tipo, chips de sesión y pago, su nota en gris). Las notas de evolución en una caja `bg-teal-50/40 border-teal-100` con `NotebookPen`, lápiz para editar y tacho (`Trash2`, hover rojo) para borrar con `ConfirmDialog` danger.
 - La ficha se **edita en el mismo lugar** (no hay que ir a otra pantalla).
 - En celular, pestañas horizontales arriba con scroll.
 

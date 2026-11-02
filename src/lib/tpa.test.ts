@@ -40,7 +40,7 @@ function asistencia(
 ): AsistenciaTPA {
   return {
     id: id(), clase_id: c.id, paciente_id: `pac-${nombre}`, estado, tipo: 'fijo',
-    ocupa_lugar_de: null, avisado_at: null, cambio_de: null, nota: null,
+    ocupa_lugar_de: null, avisado_at: null, cambio_de: null,
     created_at: '2026-10-01T12:00:00+00:00', updated_at: '2026-10-01T12:00:00+00:00',
     pacientes: { nombre },
     ...extra,
@@ -174,6 +174,20 @@ describe('armarSemanaTPA', () => {
     });
     expect(celda(semana, 'lunes', '10:30').clase).toBeNull();
     expect(celda(semana, 'lunes', '10:30').alumnos).toEqual([]);
+  });
+});
+
+describe('armarSemanaTPA: notas de evolución', () => {
+  it('cada celda lleva las notas de su clase (y ninguna si no hay clase)', () => {
+    const c = clase('2026-10-19', '10:30');
+    const nota = (id: string, claseId: string | null) => ({
+      id, paciente_id: 'pac-Ana', fecha: '2026-10-19', texto: 'avanzó', clase_tpa_id: claseId,
+      created_at: '2026-10-19T15:00:00Z', updated_at: '2026-10-19T15:00:00Z',
+    });
+    const semana = armar({ clases: [c], notas: [nota('n1', c.id), nota('libre', null)] });
+    expect(celda(semana, 'lunes', '10:30').notas.map((n) => n.id)).toEqual(['n1']);
+    expect(celda(semana, 'lunes', '11:30').notas).toEqual([]);
+    expect(celda(armar({ clases: [c] }), 'lunes', '10:30').notas).toEqual([]);
   });
 });
 

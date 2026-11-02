@@ -3,7 +3,7 @@ import { es } from 'date-fns/locale';
 import type {
   AsistenciaConClase, CeldaTPA, CreditoRecuperacion, HorarioTPA, OrigenRecuperacion, Paciente, SaldoRecuperaciones,
 } from '@/types';
-import { esAviso, esClaseFutura, sugerirAviso, type EstadoAviso } from './avisos';
+import { esAviso, esClaseFutura, inicioClaseTPA, sugerirAviso, type EstadoAviso } from './avisos';
 import type { TipoOcupante } from './clase-tpa';
 import { normalizarHora } from './horas';
 import { ORDEN_ORIGENES } from './recuperaciones';
@@ -57,6 +57,11 @@ export interface DatosOcupar {
   enLaClase: Set<string>;
   /** Saldos del mes de la clase (calcularRecuperaciones). */
   saldos: SaldoRecuperaciones[];
+  /**
+   * Saldos de otros meses ('yyyy-MM'), para un cambio de horario cuya falta es
+   * de otro mes: el tope que cuenta es el del mes de la falta (10.2.5).
+   */
+  saldosPorMes?: Record<string, SaldoRecuperaciones[]>;
   pacientes: Pick<Paciente, 'id' | 'nombre'>[];
   horarios: HorarioTPA[];
   /** Clases de 6 días antes a 6 días después (para cambio de horario). */
@@ -134,20 +139,28 @@ export function opcionesParaOcupar(d: DatosOcupar): OpcionOcupar[] {
   // 6. Cambio de horario: un fijo de otra clase cercana (±6 días) que todavía
   //    no vino ni tiene ya un cambio. Se marca el aviso en el origen y el cambio acá.
   const avisosConCambio = new Set(d.historial.map((a) => a.cambio_de).filter(Boolean));
+  const mesDeLaClase = d.celda.fecha.slice(0, 7);
+  const inicioDeLaClase = inicioClaseTPA(d.celda.fecha, d.celda.hora).getTime();
+  const cercania = new Map<string, number>(); // clave → distancia a esta clase (ms)
   for (const origen of d.ventana) {
     if (origen.clave === d.celda.clave || origen.lugares.cancelada) continue;
     for (const a of origen.alumnos) {
       if (a.tipo !== 'fijo' || !a.esFijo || !fuera(a.pacienteId)) continue;
       if (a.estado !== 'pendiente' && !esAviso(a.estado)) continue; // ya vino o no avisó
       if (a.asistencia && avisosConCambio.has(a.asistencia.id)) continue;
-      const s = saldoDe.get(a.pacienteId);
+      // El cambio cuenta en el mes de la falta: el tope y el saldo, de ese mes.
+      const mesFalta = origen.fecha.slice(0, 7);
+      const saldosFalta = mesFalta === mesDeLaClase ? d.saldos : d.saldosPorMes?.[mesFalta] ?? [];
+      const s = saldosFalta.find((x) => x.pacienteId === a.pacienteId);
       const yaAviso = esAviso(a.estado);
-      const avisos = s ? avisoTope(s, s.topeUsado + 1, d.celda.fecha) : [];
-      if (origen.fecha.slice(0, 7) !== d.celda.fecha.slice(0, 7)) {
+      const avisos = s ? avisoTope(s, s.topeUsado + 1, origen.fecha) : [];
+      if (mesFalta !== mesDeLaClase) {
         avisos.push(`El aviso es de ${nombreMes(origen.fecha)}: cuenta en ${nombreMes(origen.fecha)}.`);
       }
+      const clave = `cambio_${a.pacienteId}_${origen.clave}`;
+      cercania.set(clave, Math.abs(inicioClaseTPA(origen.fecha, origen.hora).getTime() - inicioDeLaClase));
       opciones.push({
-        clave: `cambio_${a.pacienteId}_${origen.clave}`,
+        clave,
         grupo: 'cambio',
         pacienteId: a.pacienteId,
         nombre: a.nombre,
@@ -181,8 +194,11 @@ export function opcionesParaOcupar(d: DatosOcupar): OpcionOcupar[] {
     });
   }
 
+  // Por grupo; dentro de "Cambio de horario", la clase más cercana primero; si no, por nombre.
   const orden = (o: OpcionOcupar) => ORDEN_GRUPOS.indexOf(o.grupo);
-  return opciones.sort((a, b) => orden(a) - orden(b) || a.nombre.localeCompare(b.nombre, 'es') || a.clave.localeCompare(b.clave));
+  const distancia = (o: OpcionOcupar) => cercania.get(o.clave) ?? 0;
+  return opciones.sort((a, b) =>
+    orden(a) - orden(b) || distancia(a) - distancia(b) || a.nombre.localeCompare(b.nombre, 'es') || a.clave.localeCompare(b.clave));
 }
 
 /** Filtra por nombre, sin acentos ni mayúsculas. */

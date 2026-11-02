@@ -5,8 +5,10 @@ import type { DatosSemanaTPA } from './tpa';
 import type { DatosRecuperaciones } from './recuperaciones';
 import type { ClaseAGuardar } from './clase-tpa';
 import { format } from 'date-fns';
+import type { FilaAlerta } from './alertas';
 import type {
   Paciente, SesionRPG, Pago, HorarioTPA, ClaseTPA, AsistenciaTPA, AsistenciaConClase, DiaSemana, MotivoCancelacionTPA,
+  NotaEvolucion,
 } from '@/types';
 
 // Con RLS, una escritura que la base no permite (sesión vencida, usuario no
@@ -157,14 +159,16 @@ export async function getPagosMesActual(mes: number, año: number) {
 
 // Todos los horarios, activos e inactivos: para armar una semana pasada hace
 // falta saber quién era fijo en esa fecha (ver eraFijoEn en src/lib/tpa.ts).
-export async function getHorariosTPA() {
-  const { data, error } = await supabase
+// Con `pacienteId`, solo los de ese alumno.
+export async function getHorariosTPA(pacienteId?: string) {
+  let consulta = supabase
     .from('horarios_tpa')
     .select(`
       *,
       pacientes (nombre, telefono)
-    `)
-    .order('hora', { ascending: true });
+    `);
+  if (pacienteId) consulta = consulta.eq('paciente_id', pacienteId);
+  const { data, error } = await consulta.order('hora', { ascending: true });
 
   if (error) throw error;
   return ((data || []) as HorarioTPA[]).map(conHora);
@@ -176,8 +180,9 @@ export async function cargarSemanaTPA(desde: string, hasta: string): Promise<Dat
     getHorariosTPA(),
     getClasesTPAPorRango(desde, hasta),
   ]);
-  const asistencias = await getAsistenciasTPA(clases.map((c) => c.id));
-  return { horarios, clases, asistencias };
+  const ids = clases.map((c) => c.id);
+  const [asistencias, notas] = await Promise.all([getAsistenciasTPA(ids), getNotasDeClases(ids)]);
+  return { horarios, clases, asistencias, notas };
 }
 
 // `fecha_alta` = desde qué fecha es fijo (por defecto hoy, la elige Pau al inscribir).
@@ -269,25 +274,104 @@ export async function cambiarCancelacionTPA(fecha: string, horas: string[], moti
 // Lo que necesita calcularRecuperaciones: todos los horarios, las clases
 // canceladas y las filas que cuentan (avisos, "No avisó" y quienes ocupan un
 // lugar) de TODO el historial (las de Pau no vencen). Las "Presente" de los
-// fijos no hacen falta y no se traen.
-export async function cargarDatosRecuperaciones(): Promise<DatosRecuperaciones> {
+// fijos no hacen falta y no se traen. Con `pacienteId`, solo lo de ese alumno
+// (historia clínica): su saldo da igual que con todos.
+export async function cargarDatosRecuperaciones(pacienteId?: string): Promise<DatosRecuperaciones> {
   const [horarios, clasesCanceladas, asistencias] = await Promise.all([
-    getHorariosTPA(),
+    getHorariosTPA(pacienteId),
     leerTodo<ClaseTPA>((desde, hasta) =>
       supabase.from('clases_tpa').select('*').not('motivo_cancelacion', 'is', null).order('id').range(desde, hasta)),
-    leerTodo<AsistenciaConClase>((desde, hasta) =>
-      supabase
+    leerTodo<AsistenciaConClase>((desde, hasta) => {
+      let consulta = supabase
         .from('asistencia_tpa')
         .select('*, pacientes (nombre), clases_tpa (fecha, hora, motivo_cancelacion)')
-        .or('tipo.neq.fijo,estado.in.(aviso_con_tiempo,aviso_sin_tiempo,falto_sin_avisar)')
-        .order('id')
-        .range(desde, hasta)),
+        .or('tipo.neq.fijo,estado.in.(aviso_con_tiempo,aviso_sin_tiempo,falto_sin_avisar)');
+      if (pacienteId) consulta = consulta.eq('paciente_id', pacienteId);
+      return consulta.order('id').range(desde, hasta);
+    }),
   ]);
   return {
     horarios,
     clasesCanceladas: clasesCanceladas.map(conHora),
     asistencias: asistencias.map((a) => ({ ...a, clases_tpa: conHora(a.clases_tpa) })),
   };
+}
+
+// Para la alerta de 2 faltas seguidas sin avisar (alertasDeFaltas en
+// src/lib/alertas.ts): las filas de los fijos, en cualquier estado, de las
+// clases entre `desde` y `hasta` ('yyyy-MM-dd'). La de un alumno puntual
+// (historia clínica) sale de todo su historial con getAsistenciasTPAPorPaciente.
+export async function cargarDatosAlertas(desde: string, hasta: string): Promise<FilaAlerta[]> {
+  const filas = await leerTodo<FilaAlerta>((d, h) =>
+    supabase
+      .from('asistencia_tpa')
+      .select('paciente_id, tipo, estado, clases_tpa!inner (fecha, hora, motivo_cancelacion)')
+      .eq('tipo', 'fijo')
+      .gte('clases_tpa.fecha', desde)
+      .lte('clases_tpa.fecha', hasta)
+      .order('id')
+      .range(d, h));
+  return filas.map((f) => ({ ...f, clases_tpa: conHora(f.clases_tpa) }));
+}
+
+// ==========================================
+// NOTAS DE EVOLUCIÓN (datos de salud: nunca a la consola ni en un mensaje)
+// ==========================================
+
+// Notas de esas clases, con el nombre (el modal muestra también las de quien ya no está en la clase).
+export async function getNotasDeClases(claseIds: string[]) {
+  if (claseIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('notas_evolucion')
+    .select('*, pacientes (nombre)')
+    .in('clase_tpa_id', claseIds);
+
+  if (error) throw error;
+  return (data || []) as NotaEvolucion[];
+}
+
+// Todas las notas de un alumno (de clase y libres), con la fecha y hora de su clase.
+export async function getNotasPaciente(pacienteId: string) {
+  const { data, error } = await supabase
+    .from('notas_evolucion')
+    .select('*, clases_tpa (fecha, hora)')
+    .eq('paciente_id', pacienteId)
+    .order('fecha', { ascending: false });
+
+  if (error) throw error;
+  return ((data || []) as NotaEvolucion[]).map((n) => (n.clases_tpa ? { ...n, clases_tpa: conHora(n.clases_tpa) } : n));
+}
+
+// Nota libre (sin clase), desde la historia clínica. `id` generado al abrir el
+// formulario (nuevoId()): reintentar no duplica. Las notas de una clase se
+// crean con guardarClasesTPA, junto con la asistencia.
+export async function crearNotaLibre(nota: { id: string; paciente_id: string; fecha: string; texto: string }) {
+  const fila = { ...nota, clase_tpa_id: null };
+  return insertarSinDuplicar<NotaEvolucion>('notas_evolucion', fila, 'No se pudo guardar la nota.');
+}
+
+// Editar una nota (de clase o libre). La fecha solo se cambia en las libres:
+// la de una nota de clase es la de su clase.
+export async function actualizarNota(id: string, cambios: { texto: string; fecha?: string }) {
+  const { data, error } = await supabase
+    .from('notas_evolucion')
+    .update(cambios)
+    .eq('id', id)
+    .select();
+
+  if (error) throw error;
+  return exigirUnaFila(data as NotaEvolucion[] | null, 'No se pudo guardar la nota.');
+}
+
+export async function borrarNota(id: string) {
+  const { data, error } = await supabase
+    .from('notas_evolucion')
+    .delete()
+    .eq('id', id)
+    .select('id');
+
+  if (error) throw error;
+  exigirUnaFila(data, 'No se pudo borrar la nota.');
 }
 
 // ==========================================
@@ -306,26 +390,38 @@ export async function getSesionesRPGPorPaciente(pacienteId: string) {
   return ((data || []) as SesionRPG[]).map(conHora);
 }
 
+// Todo el historial de TPA de un alumno, con su clase (incluye si se canceló).
+// Lo ordena la línea de tiempo (src/lib/evolucion.ts).
 export async function getAsistenciasTPAPorPaciente(pacienteId: string) {
-  const { data, error } = await supabase
-    .from('asistencia_tpa')
-    .select(`
-      *,
-      clases_tpa (fecha, hora)
-    `)
-    .eq('paciente_id', pacienteId);
+  const filas = await leerTodo<AsistenciaConClase>((desde, hasta) =>
+    supabase
+      .from('asistencia_tpa')
+      .select('*, clases_tpa (fecha, hora, motivo_cancelacion)')
+      .eq('paciente_id', pacienteId)
+      .order('id')
+      .range(desde, hasta));
+  return filas.map((a) => ({ ...a, clases_tpa: conHora(a.clases_tpa) }));
+}
 
-  if (error) throw error;
-  
-  // Sort manually by date-time descending
-  const asistencias = ((data || []) as AsistenciaTPA[]).map((a) =>
-    a.clases_tpa ? { ...a, clases_tpa: conHora(a.clases_tpa) } : a
-  );
-  return asistencias.sort((a, b) => {
-    const dateA = a.clases_tpa?.fecha ? new Date(a.clases_tpa.fecha + 'T' + (a.clases_tpa.hora || '00:00')) : new Date(0);
-    const dateB = b.clases_tpa?.fecha ? new Date(b.clases_tpa.fecha + 'T' + (b.clases_tpa.hora || '00:00')) : new Date(0);
-    return dateB.getTime() - dateA.getTime();
-  }) as AsistenciaTPA[];
+export interface HistoriaClinica {
+  paciente: Paciente;
+  sesiones: SesionRPG[];
+  asistencias: AsistenciaConClase[];
+  notas: NotaEvolucion[];
+  /** Solo de este alumno: para su saldo del mes (calcularRecuperaciones). */
+  recuperaciones: DatosRecuperaciones;
+}
+
+// Todo lo que muestra la historia clínica de un paciente.
+export async function cargarHistoriaClinica(pacienteId: string): Promise<HistoriaClinica> {
+  const [paciente, sesiones, asistencias, notas, recuperaciones] = await Promise.all([
+    getPacienteById(pacienteId),
+    getSesionesRPGPorPaciente(pacienteId),
+    getAsistenciasTPAPorPaciente(pacienteId),
+    getNotasPaciente(pacienteId),
+    cargarDatosRecuperaciones(pacienteId),
+  ]);
+  return { paciente, sesiones, asistencias, notas, recuperaciones };
 }
 
 export async function getPacientesConPagos(mes: number, año: number) {
@@ -382,7 +478,7 @@ export async function updatePaciente(id: string, updates: Partial<Paciente>) {
 
 // Único punto de borrado de pacientes.
 // Hoy: borrado REAL. Las FK son ON DELETE CASCADE, así que se borran también
-// sus turnos, horarios, asistencias, pagos y lista de espera.
+// sus turnos, horarios, asistencias, notas de evolución, pagos y lista de espera.
 // 🔴 Antes de la carga real se cambia a baja lógica (activo = false) + FK
 // ON DELETE RESTRICT, cambiando solo esta función (ver PENDIENTES.md).
 export async function eliminarPaciente(id: string) {
@@ -399,6 +495,7 @@ export async function eliminarPaciente(id: string) {
 export interface DatosPaciente {
   turnos: number;
   asistencias: number;
+  notas: number;
   pagos: number;
   horarios: number;
 }
@@ -415,12 +512,13 @@ export async function contarDatosPaciente(id: string): Promise<DatosPaciente> {
     return count ?? 0;
   };
 
-  const [turnos, asistencias, pagos, horarios] = await Promise.all([
+  const [turnos, asistencias, notas, pagos, horarios] = await Promise.all([
     contar('sesiones_rpg'),
     contar('asistencia_tpa'),
+    contar('notas_evolucion'),
     contar('pagos'),
     contar('horarios_tpa'),
   ]);
 
-  return { turnos, asistencias, pagos, horarios };
+  return { turnos, asistencias, notas, pagos, horarios };
 }
