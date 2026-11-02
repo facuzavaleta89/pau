@@ -3,13 +3,15 @@
 import { ArrowLeftRight, CornerDownRight, UserPlus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  ESTADOS_ASISTENCIA, ORDEN_ESTADOS_FIJO, ORDEN_ESTADOS_OCUPANTE, TIPOS_OCUPANTE,
+  ALERTA_FALTAS, ESTADOS_ASISTENCIA, ORDEN_ESTADOS_FIJO, ORDEN_ESTADOS_OCUPANTE, TIPOS_OCUPANTE,
   esEstadoAsistenciaConocido, estadoAsistencia, etiquetaAsistencia,
 } from "@/lib/estados";
 import { esAviso, type SugerenciaAviso } from "@/lib/avisos";
 import { claseCorta } from "@/lib/ocupar";
+import { textoAlertaFaltas, type AlertaFaltas } from "@/lib/alertas";
 import type { ClaseHora, FilaClase, TipoOcupante } from "@/lib/clase-tpa";
 import type { EstadoAsistenciaTPA } from "@/types";
+import { TpaNotaClase } from "./TpaNotaClase";
 
 /** Algo que hay que resolver antes de cambiarle el estado a un fijo (el trigger no lo deja directo). */
 export type PreguntaFila =
@@ -29,6 +31,12 @@ interface TpaAsistenciaFilaProps {
   origenCambio: ClaseHora | null;
   destinoCambio: ClaseHora | null;
   pregunta: PreguntaFila | null;
+  /** 2 o más faltas seguidas sin avisar (con las marcas sin guardar). */
+  alerta: AlertaFaltas | null;
+  /** Nota de evolución en esta clase, como está en el modal. */
+  nota: string;
+  notaSinGuardar: boolean;
+  onCambiarNota: (texto: string) => void;
   onCambiar: (estado: EstadoAsistenciaTPA) => void;
   onOcuparSuLugar: () => void;
   onQuitar: () => void;
@@ -46,6 +54,7 @@ export function TpaAsistenciaFila(p: TpaAsistenciaFilaProps) {
   const esFijo = fila.tipo === 'fijo';
   const ocupante = fila.tipo === 'fijo' ? null : TIPOS_OCUPANTE[fila.tipo];
   const opciones = esFijo ? ORDEN_ESTADOS_FIJO : ORDEN_ESTADOS_OCUPANTE;
+  const IconoAlerta = ALERTA_FALTAS.icono;
 
   return (
     <li className={cn("p-3 rounded-xl border border-stone-200 bg-stone-50/50 space-y-2.5", fila.ocupaLugarDe && "ml-4 md:ml-8")}>
@@ -60,6 +69,11 @@ export function TpaAsistenciaFila(p: TpaAsistenciaFilaProps) {
           )}
           {p.destinoCambio && (
             <p className="flex items-center gap-1 text-xs text-stone-500"><ArrowLeftRight size={12} /> Viene el {claseCorta(p.destinoCambio.fecha, p.destinoCambio.hora)} (cambio de horario)</p>
+          )}
+          {p.alerta && (
+            <p className="flex items-center gap-1 text-xs font-medium text-red-700">
+              <IconoAlerta size={12} aria-hidden="true" /> {textoAlertaFaltas(p.alerta)}
+            </p>
           )}
         </div>
         <span className="shrink-0 flex items-center gap-2 text-xs text-stone-500">
@@ -78,7 +92,7 @@ export function TpaAsistenciaFila(p: TpaAsistenciaFilaProps) {
           {esFijo && !fila.esFijo && 'No es fijo'}
           {/* Estado de una versión más nueva de la app: se muestra, aunque no tenga chip. */}
           {!esEstadoAsistenciaConocido(fila.estado) && estadoAsistencia(fila.estado).label}
-          {fila.sinGuardar && <span className="font-medium text-stone-600">Sin guardar</span>}
+          {(fila.sinGuardar || p.notaSinGuardar) && <span className="font-medium text-stone-600">Sin guardar</span>}
         </span>
       </div>
 
@@ -124,6 +138,8 @@ export function TpaAsistenciaFila(p: TpaAsistenciaFilaProps) {
       )}
 
       {pregunta && <PreguntaFijo pregunta={pregunta} onResolver={p.onResolver} />}
+
+      <TpaNotaClase nombre={fila.nombre} texto={p.nota} sinGuardar={p.notaSinGuardar} bloqueada={bloqueada} onCambiar={p.onCambiarNota} />
     </li>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { Ban, RotateCcw } from 'lucide-react';
+import type { AlertaFaltas } from '@/lib/alertas';
 import type { CeldaTPA } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -9,6 +10,8 @@ export interface AccionesSemanaTPA {
   onAbrir: (celda: CeldaTPA) => void;
   onOcupar: (celda: CeldaTPA) => void;
   onAbrirPaciente: (pacienteId: string) => void;
+  /** Alerta de faltas seguidas sin avisar de ese alumno (null = sin alerta). */
+  alertaDe: (pacienteId: string) => AlertaFaltas | null;
   /** Cancelar las clases del día que no están canceladas (crea las que falten). */
   onCancelarDia: (celdas: CeldaTPA[]) => void;
   /** Reactivar las clases canceladas del día. */

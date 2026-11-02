@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { parseISO } from 'date-fns';
-import type { AsistenciaConClase, AsistenciaTPA, ClaseTPA, HorarioTPA } from '@/types';
+import type { AsistenciaConClase, AsistenciaTPA, ClaseTPA, HorarioTPA, NotaEvolucion } from '@/types';
 import { armarSemanaTPA } from './tpa';
 import {
-  BORRADOR_VACIO, cambiosParaGuardar, enlacesCambio, filasDeLaClase, lugarParaOcupar, ocupanteDe,
-  type BorradorClase,
+  BORRADOR_VACIO, cambiosParaGuardar, enlacesCambio, filasDeLaClase, lugarParaOcupar, marcarRestoPresente,
+  notaDe, notaSinGuardar, notasSinFila, ocupanteDe, type BorradorClase,
 } from './clase-tpa';
 
 // Lunes 26/10/2026 10:30.
@@ -19,13 +19,18 @@ const fijo = (nombre: string): HorarioTPA => ({
 const CLASE: ClaseTPA = { id: 'clase-1', fecha: '2026-10-26', hora: '10:30', motivo_cancelacion: null, created_at: '2026-10-01T12:00:00Z' };
 const fila = (nombre: string, estado: AsistenciaTPA['estado'], extra: Partial<AsistenciaTPA> = {}): AsistenciaTPA => ({
   id: `fila-${nombre}`, clase_id: CLASE.id, paciente_id: nombre, estado, tipo: 'fijo', ocupa_lugar_de: null,
-  avisado_at: estado.startsWith('aviso') ? '2026-10-20T12:00:00Z' : null, cambio_de: null, nota: null,
+  avisado_at: estado.startsWith('aviso') ? '2026-10-20T12:00:00Z' : null, cambio_de: null,
   created_at: '2026-10-01T12:00:00Z', updated_at: '2026-10-01T12:00:00Z', pacientes: { nombre }, ...extra,
 });
 
-function celda(asistencias: AsistenciaTPA[] = [], fijos = ['Ana', 'Beto', 'Carla']) {
+const nota = (nombre: string, texto: string): NotaEvolucion => ({
+  id: `nota-${nombre}`, paciente_id: nombre, fecha: CLASE.fecha, texto, clase_tpa_id: CLASE.id,
+  created_at: '2026-10-26T15:00:00Z', updated_at: '2026-10-26T15:00:00Z', pacientes: { nombre },
+});
+
+function celda(asistencias: AsistenciaTPA[] = [], fijos = ['Ana', 'Beto', 'Carla'], notas: NotaEvolucion[] = []) {
   const semana = armarSemanaTPA(parseISO('2026-10-26'), {
-    horarios: fijos.map(fijo), clases: asistencias.length ? [CLASE] : [], asistencias,
+    horarios: fijos.map(fijo), clases: asistencias.length || notas.length ? [CLASE] : [], asistencias, notas,
   });
   const c = semana.lunes.find((x) => x.hora === '10:30');
   if (!c) throw new Error('sin celda');
@@ -157,5 +162,66 @@ describe('enlacesCambio', () => {
     const { origenDe, destinoDe } = enlacesCambio(c, historial);
     expect(origenDe.get('Dani')).toEqual({ fecha: '2026-10-23', hora: '18:00' });
     expect(destinoDe.get('Ana')).toEqual({ fecha: '2026-10-28', hora: '18:00' });
+  });
+});
+
+describe('marcarRestoPresente', () => {
+  it('marca Presente a los "Sin marcar" (fijos y quienes ocupan un lugar); no toca avisos, No avisó ni Presente', () => {
+    const c = celda([
+      fila('Ana', 'aviso_con_tiempo'), fila('Beto', 'falto_sin_avisar'),
+      fila('Zoe', 'pendiente', { tipo: 'recupera', ocupa_lugar_de: 'fila-Ana' }),
+      fila('Yago', 'presente', { tipo: 'suelta' }),
+    ], ['Ana', 'Beto', 'Carla', 'Dora']);
+    const filas = filasDeLaClase(c, borrador({ estados: { Dora: 'aviso_sin_tiempo' } }));
+    expect(marcarRestoPresente(filas)).toEqual({ Carla: 'presente', Zoe: 'presente' });
+  });
+
+  it('se ve antes de guardar y se guarda como cualquier marca', () => {
+    const c = celda();
+    const b = borrador({ estados: { Beto: 'falto_sin_avisar' } });
+    const estados = { ...b.estados, ...marcarRestoPresente(filasDeLaClase(c, b)) };
+    expect(filasDeLaClase(c, { ...b, estados }).map((f) => [f.pacienteId, f.estado, f.sinGuardar])).toEqual([
+      ['Ana', 'presente', true], ['Beto', 'falto_sin_avisar', true], ['Carla', 'presente', true],
+    ]);
+  });
+
+  it('con todos marcados → nada que cambiar', () => {
+    expect(marcarRestoPresente(filasDeLaClase(celda([fila('Ana', 'presente')], ['Ana']), BORRADOR_VACIO))).toEqual({});
+  });
+});
+
+describe('notas de evolución en el modal', () => {
+  it('nota nueva: va en la misma llamada que la asistencia, sin espacios de más', () => {
+    const [clase] = cambiosParaGuardar(celda(), borrador({ estados: { Ana: 'presente' }, notas: { Ana: '  bajó la presión  ' } }), AHORA);
+    expect(clase).toEqual({
+      fecha: '2026-10-26', hora: '10:30',
+      cambios: [{ paciente_id: 'Ana', tipo: 'fijo', estado: 'presente', avisado_at: null }],
+      notas: [{ paciente_id: 'Ana', texto: 'bajó la presión' }],
+    });
+  });
+
+  it('solo una nota (sin cambios de asistencia): igual se guarda la clase', () => {
+    expect(cambiosParaGuardar(celda(), borrador({ notas: { Beto: 'dolor de rodilla' } }), AHORA)).toEqual([
+      { fecha: '2026-10-26', hora: '10:30', cambios: [], notas: [{ paciente_id: 'Beto', texto: 'dolor de rodilla' }] },
+    ]);
+  });
+
+  it('editar y borrar (texto vacío = null); sin cambios reales (solo espacios) → nada', () => {
+    const c = celda([fila('Ana', 'presente')], ['Ana', 'Beto'], [nota('Ana', 'bajó la presión'), nota('Beto', 'avanzó')]);
+    expect(notaDe(c, BORRADOR_VACIO, 'Ana')).toBe('bajó la presión');
+    expect(cambiosParaGuardar(c, borrador({ notas: { Ana: 'bajó la presión ' } }), AHORA)).toEqual([]);
+    expect(notaSinGuardar(c, borrador({ notas: { Ana: 'bajó la presión ' } }), 'Ana')).toBe(false);
+    const [clase] = cambiosParaGuardar(c, borrador({ notas: { Ana: 'subió la presión', Beto: '   ' } }), AHORA);
+    expect(clase.notas).toEqual([{ paciente_id: 'Ana', texto: 'subió la presión' }, { paciente_id: 'Beto', texto: null }]);
+  });
+
+  it('sin notas cambiadas, el pedido no lleva la clave "notas" (igual que la entrega 3)', () => {
+    const [clase] = cambiosParaGuardar(celda(), borrador({ estados: { Ana: 'presente' } }), AHORA);
+    expect('notas' in clase).toBe(false);
+  });
+
+  it('notas de quienes ya no están en la clase (quitados): se siguen mostrando', () => {
+    const c = celda([fila('Ana', 'presente')], ['Ana'], [nota('Zoe', 'vino con dolor')]);
+    expect(notasSinFila(c, filasDeLaClase(c, BORRADOR_VACIO))).toEqual([{ pacienteId: 'Zoe', nombre: 'Zoe' }]);
   });
 });

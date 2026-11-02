@@ -86,9 +86,13 @@ function eraFijoDeLaClase(horarios: HorarioTPA[], fecha: string, hora: string): 
  * ninguno (se dio de baja en el mes), el máximo que tuvo en el mes.
  */
 function frecuencia(horarios: HorarioTPA[], dias: string[], hoy: string): number {
-  const referencia = hoy < dias[0] ? dias[0] : hoy > dias[dias.length - 1] ? dias[dias.length - 1] : hoy;
   const vigentes = (fecha: string) => horarios.filter((h) => eraFijoEn(h, fecha)).length;
-  return vigentes(referencia) || Math.max(0, ...dias.map(vigentes));
+  return vigentes(fechaReferencia(dias, hoy)) || Math.max(0, ...dias.map(vigentes));
+}
+
+/** El último día del mes, o hoy si el mes está en curso (el primer día si es futuro). */
+function fechaReferencia(dias: string[], hoy: string): string {
+  return hoy < dias[0] ? dias[0] : hoy > dias[dias.length - 1] ? dias[dias.length - 1] : hoy;
 }
 
 /** Mes de imputación de un uso: el de su clase, salvo un cambio cuyo aviso de origen es de otro mes. */
@@ -105,9 +109,15 @@ function credito(origen: OrigenRecuperacion, fecha: string, hora: string, mes: s
   return { id: `${origen}_${fecha}_${h}`, origen, fecha, hora: h, vence, texto: textoOrigen(origen, fecha, mes) };
 }
 
+interface ResultadoMes {
+  saldo: SaldoRecuperaciones;
+  /** Las de Pau sin usar: pasan al mes siguiente (también las ocultas de quien ya no es fijo). */
+  arrastre: CreditoRecuperacion[];
+}
+
 function calcularMes(
   pacienteId: string, nombre: string, mes: string, arrastre: CreditoRecuperacion[], ctx: Contexto,
-): SaldoRecuperaciones {
+): ResultadoMes {
   const inicio = startOfMonth(parseISO(`${mes}-01`));
   const dias = eachDayOfInterval({ start: inicio, end: endOfMonth(inicio) }).map((d) => format(d, 'yyyy-MM-dd'));
   const ultimoDia = dias[dias.length - 1];
@@ -210,10 +220,19 @@ function calcularMes(
       sinDerecho.push({ motivo: 'vencio', fecha: c.fecha, hora: c.hora, texto: `${c.texto}: venció el ${fechaVence(ultimoDia)}` });
     }
   }
-  const pendientes = [...noVencen, ...(cerrado ? [] : vencen)]
+  // Las de Pau de alguien que ya no tiene ningún horario fijo vigente: no
+  // cuentan como pendientes (solo informativas); siguen pasando de mes en mes
+  // y reaparecen si se vuelve a inscribir (Facu, 23/10/2026).
+  const sigueSiendoFijo = horarios.some((h) => eraFijoEn(h, fechaReferencia(dias, ctx.hoy)));
+  if (!sigueSiendoFijo) {
+    for (const c of noVencen) {
+      sinDerecho.push({ motivo: 'no_es_fijo', fecha: c.fecha, hora: c.hora, texto: `${c.texto}: ya no es fijo` });
+    }
+  }
+  const pendientes = [...(sigueSiendoFijo ? noVencen : []), ...(cerrado ? [] : vencen)]
     .sort((a, b) => ORDEN_ORIGENES.indexOf(a.origen) - ORDEN_ORIGENES.indexOf(b.origen) || ordenarPorFecha(a, b));
 
-  return {
+  const saldo: SaldoRecuperaciones = {
     pacienteId,
     nombre,
     frecuencia: f,
@@ -224,6 +243,7 @@ function calcularMes(
     sinDerecho: sinDerecho.sort(ordenarPorFecha),
     adelantoSinFalta: cerrado && adelantos.length > 0,
   };
+  return { saldo, arrastre: noVencen };
 }
 
 // ---------------------------------------------------------------------
@@ -259,8 +279,7 @@ export function calcularRecuperaciones(mes: string, datos: DatosRecuperaciones, 
       let arrastre: CreditoRecuperacion[] = [];
       let saldo: SaldoRecuperaciones | null = null;
       for (const m of meses) {
-        saldo = calcularMes(pacienteId, nombre, m, arrastre, ctx);
-        arrastre = saldo.pendientes.filter((c) => c.vence === null);
+        ({ saldo, arrastre } = calcularMes(pacienteId, nombre, m, arrastre, ctx));
       }
       return saldo as SaldoRecuperaciones;
     })
@@ -284,13 +303,53 @@ export const TITULOS_ORIGENES: Record<OrigenRecuperacion, string> = {
   feriado: 'Por feriado (si hay lugar)',
 };
 
+/**
+ * Origen en "Copiar lista", sin repetir lo que ya dice el grupo: en "Avisaron
+ * con tiempo", "faltó el lun 26"; las de Pau y feriado, como siempre.
+ */
+function textoEnLista(c: CreditoRecuperacion, mes: string): string {
+  return c.origen === 'aviso_con_tiempo' || c.origen === 'aviso_sin_tiempo'
+    ? `faltó el ${fechaCorta(c.fecha, mes)}`
+    : textoOrigen(c.origen, c.fecha, mes);
+}
+
 /** "Copiar lista": las pendientes del mes en texto para WhatsApp, en orden de prioridad. */
 export function textoListaRecuperaciones(saldos: SaldoRecuperaciones[], mes: string): string {
   const titulo = `Recuperaciones pendientes · ${format(parseISO(`${mes}-01`), 'MMMM yyyy', { locale: es })}`;
   const grupos = pendientesPorOrigen(saldos);
   const bloques = ORDEN_ORIGENES.filter((o) => grupos[o].length > 0).map((o) => [
     `${TITULOS_ORIGENES[o]}:`,
-    ...grupos[o].map(({ saldo, credito: c }) => `• ${saldo.nombre}: ${c.texto}${c.vence ? ` (vence el ${fechaVence(c.vence)})` : ''}`),
+    ...grupos[o].map(({ saldo, credito: c }) => `• ${saldo.nombre}: ${textoEnLista(c, mes)}${c.vence ? ` (vence el ${fechaVence(c.vence)})` : ''}`),
   ].join('\n'));
   return [titulo, ...(bloques.length ? bloques : ['No hay recuperaciones pendientes.'])].join('\n\n');
+}
+
+const contar = (n: number, uno: string, varios: string, ninguno: string) => (n === 0 ? ninguno : n === 1 ? `1 ${uno}` : `${n} ${varios}`);
+
+/**
+ * Resumen del mes para la historia clínica: "Octubre: 3 faltas avisadas,
+ * 1 recuperada, le queda 1". `saldo` = el de calcularRecuperaciones para ese
+ * alumno y mes; `asistencias` = las suyas (con su clase). null si en el mes no
+ * tuvo nada que contar y no es fijo.
+ */
+export function textoResumenMes(
+  mes: string,
+  saldo: SaldoRecuperaciones | undefined,
+  asistencias: Pick<AsistenciaConClase, 'tipo' | 'estado' | 'clases_tpa'>[],
+): string | null {
+  const delMes = asistencias.filter((a) => a.tipo === 'fijo' && mesDe(a.clases_tpa.fecha) === mes && !a.clases_tpa.motivo_cancelacion);
+  const avisadas = delMes.filter((a) => esAviso(a.estado)).length;
+  const sinAvisar = delMes.filter((a) => a.estado === 'falto_sin_avisar').length;
+  const usadas = saldo?.usos.length ?? 0;
+  const quedan = saldo?.pendientes.length ?? 0;
+  if (!saldo?.frecuencia && avisadas + sinAvisar + usadas + quedan === 0) return null;
+
+  const nombreMes = format(parseISO(`${mes}-01`), 'MMMM', { locale: es });
+  const partes = [
+    contar(avisadas, 'falta avisada', 'faltas avisadas', 'sin faltas avisadas'),
+    ...(sinAvisar > 0 ? [`${sinAvisar} sin avisar`] : []),
+    contar(usadas, 'recuperada', 'recuperadas', 'ninguna recuperada'),
+    quedan === 0 ? 'no le queda ninguna' : quedan === 1 ? 'le queda 1' : `le quedan ${quedan}`,
+  ];
+  return `${nombreMes.charAt(0).toUpperCase()}${nombreMes.slice(1)}: ${partes.join(', ')}`;
 }

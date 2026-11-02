@@ -17,7 +17,7 @@ const clase = (fecha: string, hora: string, motivo: ClaseTPA['motivo_cancelacion
   ({ id: `clase-${fecha}-${hora}`, fecha, hora, motivo_cancelacion: motivo, created_at: '2026-10-01T12:00:00Z' });
 const fila = (c: ClaseTPA, nombre: string, estado: AsistenciaTPA['estado']): AsistenciaTPA => ({
   id: `fila-${nombre}-${c.fecha}`, clase_id: c.id, paciente_id: nombre, estado, tipo: 'fijo', ocupa_lugar_de: null,
-  avisado_at: estado.startsWith('aviso') ? '2026-10-20T12:00:00Z' : null, cambio_de: null, nota: null,
+  avisado_at: estado.startsWith('aviso') ? '2026-10-20T12:00:00Z' : null, cambio_de: null,
   created_at: '2026-10-01T12:00:00Z', updated_at: '2026-10-01T12:00:00Z', pacientes: { nombre },
 });
 const saldo = (nombre: string, extra: Partial<SaldoRecuperaciones> = {}): SaldoRecuperaciones => ({
@@ -78,13 +78,14 @@ describe('opcionesParaOcupar', () => {
       ['adelantar', 'Aviso'],
       ['adelantar', 'Libre'],
       ['adelantar', 'Vino'],
-      ['cambio', 'Aviso'],
-      ['cambio', 'CT'],
-      ['cambio', 'Feri'],
-      ['cambio', 'Libre'],
-      ['cambio', 'Pau1'],
-      ['cambio', 'ST'],
-      ['cambio', 'Tope'],
+      // Cambio de horario: la clase más cercana al mié 28 10:30 primero.
+      ['cambio', 'Libre'], // lun 26 17:00
+      ['cambio', 'CT'], // lun 26 11:30
+      ['cambio', 'Pau1'], // lun 26 10:30 (48 h, empata con ST: por nombre)
+      ['cambio', 'ST'], // vie 30 10:30
+      ['cambio', 'Feri'], // vie 30 11:30
+      ['cambio', 'Tope'], // vie 30 17:00
+      ['cambio', 'Aviso'], // vie 30 18:00
       ['suelta', 'Súsana Suelta'],
     ]);
   });
@@ -128,6 +129,25 @@ describe('opcionesParaOcupar', () => {
     const opcion = opcionesParaOcupar(datos({ celda: destino, enLaClase: new Set(['Pau1']), ventana, saldos: [saldo('Aviso')] }))
       .find((o) => o.pacienteId === 'Aviso' && o.grupo === 'cambio');
     expect(opcion?.avisos).toContain('El aviso es de octubre: cuenta en octubre.');
+  });
+
+  it('cambio que cruza el mes: el aviso de tope usa el saldo del mes de la falta, no el de la clase', () => {
+    const lun = clase('2026-11-02', '10:30');
+    const s = armarSemanaTPA(parseISO('2026-11-02'), { horarios: HORARIOS, clases: [lun], asistencias: [] });
+    const destino = s.lunes.find((c) => c.hora === '10:30') as CeldaTPA;
+    const ventana = [...todas(semana()), ...todas(s)];
+    const cambioDeAviso = (d: Partial<DatosOcupar>) =>
+      opcionesParaOcupar(datos({ celda: destino, enLaClase: new Set(['Pau1']), ventana, ...d }))
+        .find((o) => o.pacienteId === 'Aviso' && o.grupo === 'cambio');
+
+    // Octubre (la falta) ya está en el tope; noviembre (la clase), libre → avisa con octubre.
+    const lleno = cambioDeAviso({ saldos: [saldo('Aviso')], saldosPorMes: { '2026-10': [saldo('Aviso', { topeUsado: 1 })] } });
+    expect(lleno?.avisos).toEqual(['Ya usó 1 de 1 recuperaciones de octubre.', 'El aviso es de octubre: cuenta en octubre.']);
+    expect(lleno?.saldo).toBe('usó 1 de 1');
+
+    // Al revés: noviembre lleno no importa, octubre tiene lugar → solo el aviso de otro mes.
+    const libre = cambioDeAviso({ saldos: [saldo('Aviso', { topeUsado: 1 })], saldosPorMes: { '2026-10': [saldo('Aviso')] } });
+    expect(libre?.avisos).toEqual(['El aviso es de octubre: cuenta en octubre.']);
   });
 
   it('filtra por nombre sin acentos ni mayúsculas', () => {

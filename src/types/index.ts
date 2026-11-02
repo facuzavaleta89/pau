@@ -87,12 +87,29 @@ export interface AsistenciaTPA {
   avisado_at: string | null;
   /** Solo en tipo 'cambio': fila del aviso del mismo alumno en su horario de origen. */
   cambio_de: string | null;
-  nota: string | null;
   created_at: string;
   updated_at: string;
   // Relaciones opcionales
   pacientes?: Pick<Paciente, 'nombre'>;
   clases_tpa?: Pick<ClaseTPA, 'fecha' | 'hora'>;
+}
+
+/**
+ * Nota de evolución (datos de salud): una por alumno por clase de TPA, o
+ * libre (clase_tpa_id null, cargada desde la historia clínica).
+ */
+export interface NotaEvolucion {
+  id: string;
+  paciente_id: string;
+  /** 'yyyy-MM-dd'; en una nota de clase, la fecha de la clase. */
+  fecha: string;
+  texto: string;
+  clase_tpa_id: string | null;
+  created_at: string;
+  updated_at: string;
+  // Relaciones opcionales
+  pacientes?: Pick<Paciente, 'nombre'>;
+  clases_tpa?: Pick<ClaseTPA, 'fecha' | 'hora'> | null;
 }
 
 export interface Pago {
@@ -162,6 +179,8 @@ export interface CeldaTPA {
   lugares: LugaresTPA;
   /** Fijos de HOY en este día y hora (para inscribir/desinscribir). */
   fijosActuales: HorarioTPA[];
+  /** Notas de evolución de esta clase (de cualquiera, esté o no en la clase). */
+  notas: NotaEvolucion[];
 }
 
 export type SemanaTPA = Record<DiaSemana, CeldaTPA[]>;
@@ -205,7 +224,8 @@ export interface UsoRecuperacion {
 }
 
 export interface SinDerechoRecuperacion {
-  motivo: 'no_aviso' | 'tope' | 'vencio';
+  /** no_es_fijo: clase que canceló Pau de alguien sin horario fijo vigente (vuelve si se reinscribe). */
+  motivo: 'no_aviso' | 'tope' | 'vencio' | 'no_es_fijo';
   fecha: string;
   hora: string;
   texto: string;

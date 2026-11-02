@@ -3,19 +3,20 @@
 import { useCallback, useMemo, useState } from 'react';
 import { addDays, addWeeks, format, parseISO, subWeeks } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { RotateCcw } from 'lucide-react';
-import { cambiarCancelacionTPA, cargarDatosRecuperaciones, cargarSemanaTPA } from '@/lib/queries';
+import { CalendarDays, RotateCcw } from 'lucide-react';
+import { cambiarCancelacionTPA, cargarDatosAlertas, cargarDatosRecuperaciones, cargarSemanaTPA } from '@/lib/queries';
 import { armarSemanaTPA, DIAS_TPA, diaTPAInicial, inicioDeSemana } from '@/lib/tpa';
 import { calcularRecuperaciones } from '@/lib/recuperaciones';
+import { alertasDeFaltas, DIAS_HACIA_ATRAS_ALERTA } from '@/lib/alertas';
 import { mensajeErrorAlGuardar, registrarError } from '@/lib/errores';
 import { MOTIVOS_CANCELACION } from '@/lib/estados';
-import { cn } from '@/lib/utils';
 import { useDatos } from '@/hooks/useDatos';
 import { useEsCelular } from '@/hooks/useEsCelular';
 import { useToast } from '@/components/ui/ToastProvider';
 import { SemanaNav } from '@/components/ui/SemanaNav';
 import { EstadoCarga } from '@/components/ui/EstadoCarga';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { Pestanias } from '@/components/ui/Pestanias';
 import { HistoriaClinicaModal } from '@/components/pacientes/HistoriaClinicaModal';
 import type { CeldaTPA, DiaSemana, MotivoCancelacionTPA } from '@/types';
 import { TpaGrillaSemana } from './TpaGrillaSemana';
@@ -40,7 +41,8 @@ export function TpaAgenda() {
   const toast = useToast();
   const esCelular = useEsCelular();
   const inicial = useMemo(() => diaTPAInicial(new Date()), []);
-  const [hoy] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+  const [ahora] = useState(() => new Date());
+  const hoy = format(ahora, 'yyyy-MM-dd');
   const [pestania, setPestania] = useState<Pestania>('semana');
   const [semanaInicio, setSemanaInicio] = useState(inicial.semana);
   const [dia, setDia] = useState<DiaSemana>(inicial.dia);
@@ -56,9 +58,21 @@ export function TpaAgenda() {
     [desde, semanaInicio]
   );
   const { datos, cargando, error, recargar } = useDatos(desde, cargar, 'No se pudo cargar la agenda TPA.');
-  const rec = useDatos('recuperaciones', cargarDatosRecuperaciones, 'No se pudieron cargar las recuperaciones.');
+  const cargarRec = useCallback(() => cargarDatosRecuperaciones(), []);
+  const rec = useDatos('recuperaciones', cargarRec, 'No se pudieron cargar las recuperaciones.');
+  // Alerta de 2 faltas seguidas sin avisar: lo marcado de los últimos meses (si falla, la grilla anda igual).
+  const cargarAlertas = useCallback(
+    () => cargarDatosAlertas(format(addDays(ahora, -DIAS_HACIA_ATRAS_ALERTA), 'yyyy-MM-dd'), hoy),
+    [ahora, hoy]
+  );
+  const filasAlertas = useDatos('alertas', cargarAlertas, 'No se pudieron cargar las alertas de faltas.');
   const recargarRec = rec.recargar;
-  const recargarTodo = useCallback(() => { recargar(); recargarRec(); }, [recargar, recargarRec]);
+  const recargarAlertas = filasAlertas.recargar;
+  const recargarTodo = useCallback(
+    () => { recargar(); recargarRec(); recargarAlertas(); },
+    [recargar, recargarRec, recargarAlertas]
+  );
+  const alertas = useMemo(() => alertasDeFaltas(filasAlertas.datos ?? [], ahora), [filasAlertas.datos, ahora]);
 
   const semana = useMemo(() => (datos ? armarSemanaTPA(semanaInicio, datos) : null), [datos, semanaInicio]);
   const pendientes = useMemo(
@@ -104,6 +118,7 @@ export function TpaAgenda() {
     onAbrir: (c) => setAbierta({ clave: c.clave }),
     onOcupar: (c) => setAbierta({ clave: c.clave, abrirOcupar: true }),
     onAbrirPaciente: setPacienteHistoria,
+    alertaDe: (pacienteId) => alertas.get(pacienteId) ?? null,
     onCancelarDia: setACancelar,
     onReactivarDia: setAReactivar,
   };
@@ -122,23 +137,15 @@ export function TpaAgenda() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <div role="tablist" aria-label="Vista de TPA" className="flex gap-6 border-b border-stone-200">
-        {([['semana', 'Semana'], ['recuperaciones', `Recuperaciones${pendientes ? ` (${pendientes})` : ''}`]] as const).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={pestania === id}
-            onClick={() => setPestania(id)}
-            className={cn(
-              'h-11 text-sm font-semibold border-b-2 transition-colors duration-150',
-              pestania === id ? 'border-teal-600 text-teal-700' : 'border-transparent text-stone-500 hover:text-stone-800'
-            )}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <Pestanias
+        etiqueta="Vista de TPA"
+        activa={pestania}
+        onCambiar={setPestania}
+        pestanias={[
+          { id: 'semana', label: 'Semana', icono: CalendarDays },
+          { id: 'recuperaciones', label: 'Recuperaciones', icono: RotateCcw, contador: pendientes },
+        ]}
+      />
 
       {pestania === 'recuperaciones' ? (
         <TpaRecuperaciones
@@ -187,6 +194,7 @@ export function TpaAgenda() {
           key={celdaAbierta.clave}
           celda={celdaAbierta}
           datosRec={rec.datos}
+          filasAlertas={filasAlertas.datos}
           abrirOcupar={abierta.abrirOcupar}
           ocupanteInicial={abierta.ocupante ?? null}
           onClose={() => setAbierta(null)}

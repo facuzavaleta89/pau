@@ -36,9 +36,11 @@ export interface BorradorClase {
   liberar: string[];
   /** Cambios de horario en OTRA clase cuyo aviso de origen es de esta y se quitan. */
   quitarCambios: (ClaseHora & { pacienteId: string })[];
+  /** Texto de la nota de evolución por paciente, como quedó en el modal ('' = sin nota). */
+  notas: Record<string, string>;
 }
 
-export const BORRADOR_VACIO: BorradorClase = { estados: {}, nuevos: [], quitar: [], liberar: [], quitarCambios: [] };
+export const BORRADOR_VACIO: BorradorClase = { estados: {}, nuevos: [], quitar: [], liberar: [], quitarCambios: [], notas: {} };
 
 /** Una persona en el modal, con las marcas sin guardar aplicadas. */
 export interface FilaClase {
@@ -124,6 +126,41 @@ export function filasDeLaClase(celda: CeldaTPA, b: BorradorClase): FilaClase[] {
   return ordenarFilas([...existentes, ...nuevos]);
 }
 
+/**
+ * "Marcar el resto como presente" (diseño 7.2): a todos los que siguen en
+ * "Sin marcar" (fijos y quienes ocupan un lugar), Presente. No toca avisos ni
+ * "No avisó". Devuelve solo los estados que cambian.
+ */
+export function marcarRestoPresente(filas: FilaClase[]): Record<string, EstadoAsistenciaTPA> {
+  return Object.fromEntries(filas.filter((f) => f.estado === 'pendiente').map((f) => [f.pacienteId, 'presente' as const]));
+}
+
+// ---------------------------------------------------------------------
+// Notas de evolución de la clase
+// ---------------------------------------------------------------------
+
+/** Nota guardada de ese paciente en esta clase ('' si no tiene). */
+export function notaGuardada(celda: CeldaTPA, pacienteId: string): string {
+  return celda.notas.find((n) => n.paciente_id === pacienteId)?.texto ?? '';
+}
+
+/** Nota como se ve en el modal (con lo que se escribió sin guardar). */
+export function notaDe(celda: CeldaTPA, b: BorradorClase, pacienteId: string): string {
+  return b.notas[pacienteId] ?? notaGuardada(celda, pacienteId);
+}
+
+export function notaSinGuardar(celda: CeldaTPA, b: BorradorClase, pacienteId: string): boolean {
+  return pacienteId in b.notas && b.notas[pacienteId].trim() !== notaGuardada(celda, pacienteId).trim();
+}
+
+/** Notas de esta clase de personas que ya no están en ella (por ejemplo, quitadas): se siguen viendo. */
+export function notasSinFila(celda: CeldaTPA, filas: FilaClase[]): { pacienteId: string; nombre: string }[] {
+  const enLaClase = new Set(filas.map((f) => f.pacienteId));
+  return celda.notas
+    .filter((n) => !enLaClase.has(n.paciente_id))
+    .map((n) => ({ pacienteId: n.paciente_id, nombre: n.pacientes?.nombre ?? 'Sin nombre' }));
+}
+
 /** Quien ocupa el lugar de ese fijo (con las marcas sin guardar). */
 export function ocupanteDe(filas: FilaClase[], fijoId: string): FilaClase | undefined {
   return filas.find((f) => f.tipo !== 'fijo' && f.ocupaLugarDe === fijoId);
@@ -153,8 +190,16 @@ export interface CambioAsistencia {
   cambio_de?: ClaseHora | null;
 }
 
+export interface NotaAGuardar {
+  paciente_id: string;
+  /** null = borrar la nota de ese paciente en esta clase. */
+  texto: string | null;
+}
+
 export interface ClaseAGuardar extends ClaseHora {
   cambios: CambioAsistencia[];
+  /** Solo si cambió alguna nota (sin la clave, la base no toca las notas). */
+  notas?: NotaAGuardar[];
 }
 
 /**
@@ -210,6 +255,12 @@ export function cambiosParaGuardar(celda: CeldaTPA, b: BorradorClase, ahora: Dat
 
   for (const q of b.quitarCambios) enOtra(q, { paciente_id: q.pacienteId, tipo: 'cambio', estado: null });
 
-  const propia = cambios.length > 0 ? [{ fecha: celda.fecha, hora: celda.hora, cambios }] : [];
+  const notas: NotaAGuardar[] = Object.keys(b.notas)
+    .filter((pacienteId) => notaSinGuardar(celda, b, pacienteId))
+    .map((pacienteId) => ({ paciente_id: pacienteId, texto: b.notas[pacienteId].trim() || null }));
+
+  const propia: ClaseAGuardar[] = cambios.length > 0 || notas.length > 0
+    ? [{ fecha: celda.fecha, hora: celda.hora, cambios, ...(notas.length > 0 ? { notas } : {}) }]
+    : [];
   return [...propia, ...otras.values()];
 }

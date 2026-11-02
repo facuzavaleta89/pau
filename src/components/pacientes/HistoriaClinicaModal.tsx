@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
-import { X, User, ShieldAlert, Calendar, FileText, CheckCircle, Phone, Info } from 'lucide-react';
-import { getPacienteById, getSesionesRPGPorPaciente, getAsistenciasTPAPorPaciente } from '@/lib/queries';
-import { mensajeError, registrarError } from '@/lib/errores';
-import { useToast } from '@/components/ui/ToastProvider';
-import type { Paciente, SesionRPG, AsistenciaTPA } from '@/types';
+import { useCallback, useMemo, useState } from 'react';
+import { NotebookPen, User, X } from 'lucide-react';
+import { cargarHistoriaClinica } from '@/lib/queries';
+import { alertasDeFaltas, textoAlertaFaltas } from '@/lib/alertas';
+import { ALERTA_FALTAS } from '@/lib/estados';
 import { cn } from '@/lib/utils';
-import { ESTADOS_PAGO, ESTADOS_SESION_RPG, estadoAsistencia } from '@/lib/estados';
-import { format, parseISO } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { useDatos } from '@/hooks/useDatos';
+import { EstadoCarga } from '@/components/ui/EstadoCarga';
+import { HistoriaFicha } from './HistoriaFicha';
+import { HistoriaEvolucion } from './HistoriaEvolucion';
 
 interface HistoriaClinicaModalProps {
   isOpen: boolean;
@@ -17,90 +17,63 @@ interface HistoriaClinicaModalProps {
   pacienteId?: string | null;
 }
 
+type Pestania = 'ficha' | 'evolucion';
+
+const PESTANIAS: { id: Pestania; label: string; icono: typeof User }[] = [
+  { id: 'ficha', label: 'Ficha del paciente', icono: User },
+  { id: 'evolucion', label: 'Evolución', icono: NotebookPen },
+];
+
+// Historia clínica: Ficha y Evolución (notas, asistencias de TPA y sesiones de
+// RPG en una línea de tiempo, con la alerta de faltas y el resumen del mes).
+// Se monta cada vez que se abre (y por paciente): siempre carga datos frescos
+// y arranca en "Ficha".
 export function HistoriaClinicaModal({ isOpen, onClose, pacienteId }: HistoriaClinicaModalProps) {
-  const [activeTab, setActiveTab] = useState<'ficha' | 'historial' | 'alertas'>('ficha');
-  const [paciente, setPaciente] = useState<Paciente | null>(null);
-  const [rpgSessions, setRpgSessions] = useState<SesionRPG[]>([]);
-  const [tpaAttendances, setTpaAttendances] = useState<AsistenciaTPA[]>([]);
-  const [loading, setLoading] = useState(false);
-  const toast = useToast();
+  if (!isOpen || !pacienteId) return null;
+  return <HistoriaClinicaAbierta key={pacienteId} pacienteId={pacienteId} onClose={onClose} />;
+}
 
-  useEffect(() => {
-    if (isOpen && pacienteId) {
-      const loadDatos = async () => {
-        setLoading(true);
-        try {
-          const [pacienteData, rpgData, tpaData] = await Promise.all([
-            getPacienteById(pacienteId),
-            getSesionesRPGPorPaciente(pacienteId),
-            getAsistenciasTPAPorPaciente(pacienteId)
-          ]);
-          setPaciente(pacienteData);
-          setRpgSessions(rpgData);
-          setTpaAttendances(tpaData);
-        } catch (error) {
-          registrarError("Error cargando historia clínica", error);
-          toast.error(`No se pudo cargar la historia clínica. ${mensajeError(error)}`);
-        } finally {
-          setLoading(false);
-        }
-      };
-      loadDatos();
-    }
-  }, [isOpen, pacienteId, toast]);
+function HistoriaClinicaAbierta({ pacienteId, onClose }: { pacienteId: string; onClose: () => void }) {
+  const [activa, setActiva] = useState<Pestania>('ficha');
+  const [ahora] = useState(() => new Date());
 
-  // --- ALERTS SYSTEM ---
-  const hasThreeConsecutiveAbsences = useMemo(() => {
-    if (tpaAttendances.length < 3) return false;
-    const recentThree = tpaAttendances.slice(0, 3);
-    return recentThree.every(a => a.estado === 'falto_sin_avisar');
-  }, [tpaAttendances]);
-
-  const hasAlertPresion = useMemo(() => {
-    const containsPresion = (text: string | null) => 
-      text ? text.toLowerCase().includes('presión') || text.toLowerCase().includes('presion') : false;
-    
-    return rpgSessions.some(s => containsPresion(s.nota)) || tpaAttendances.some(a => containsPresion(a.nota));
-  }, [rpgSessions, tpaAttendances]);
-
-  const hasAlertLesionDolor = useMemo(() => {
-    const containsLesionDolor = (text: string | null) => 
-      text ? text.toLowerCase().includes('lesión') || text.toLowerCase().includes('lesion') || text.toLowerCase().includes('dolor') : false;
-
-    return rpgSessions.some(s => containsLesionDolor(s.nota)) || tpaAttendances.some(a => containsLesionDolor(a.nota));
-  }, [rpgSessions, tpaAttendances]);
-
-  const alertsCount = (hasThreeConsecutiveAbsences ? 1 : 0) + (hasAlertPresion ? 1 : 0) + (hasAlertLesionDolor ? 1 : 0);
-
-  if (!isOpen) return null;
+  const cargar = useCallback(() => cargarHistoriaClinica(pacienteId), [pacienteId]);
+  const { datos: historia, cargando, error, recargar } = useDatos(pacienteId, cargar, 'No se pudo cargar la historia clínica.');
+  const alerta = useMemo(
+    () => (historia ? alertasDeFaltas(historia.asistencias, ahora).get(historia.paciente.id) ?? null : null),
+    [historia, ahora]
+  );
+  const IconoAlerta = ALERTA_FALTAS.icono;
 
   return (
     <div className="fixed inset-0 z-[60] flex md:items-center justify-center md:p-4 bg-stone-900/50 backdrop-blur-sm">
       {/* Celular: pantalla completa. Compu: modal centrado. */}
-      <div role="dialog" aria-modal="true" className="bg-white w-full h-[100dvh] md:h-[85vh] md:max-w-4xl md:border md:border-stone-200 md:rounded-2xl shadow-xl overflow-hidden flex flex-col text-stone-900">
-        
-        {/* Header */}
+      <div role="dialog" aria-modal="true" aria-label="Historia clínica" className="bg-white w-full h-[100dvh] md:h-[85vh] md:max-w-4xl md:border md:border-stone-200 md:rounded-2xl shadow-xl overflow-hidden flex flex-col text-stone-900">
         <div className="px-4 md:px-6 pb-3 md:py-5 pt-[max(0.75rem,env(safe-area-inset-top))] border-b border-stone-200 flex items-start justify-between gap-3 bg-white">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <h2 className="text-lg md:text-xl font-bold text-stone-900 tracking-tight">
-                {paciente ? paciente.nombre : 'Cargando Historia Clínica...'}
+                {historia ? historia.paciente.nombre : 'Historia clínica'}
               </h2>
-              {alertsCount > 0 && (
-                <span className="flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-0.5 rounded-full text-xs font-semibold">
-                  <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
-                  {alertsCount} {alertsCount === 1 ? 'alerta' : 'alertas'}
-                </span>
+              {alerta && (
+                <button
+                  type="button"
+                  onClick={() => setActiva('evolucion')}
+                  className={cn('flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-xs font-semibold', ALERTA_FALTAS.clases)}
+                >
+                  <IconoAlerta className="w-3.5 h-3.5 text-red-600" aria-hidden="true" />
+                  {textoAlertaFaltas(alerta)}
+                </button>
               )}
             </div>
-            {paciente && (
+            {historia && (
               <p className="text-xs text-stone-600 mt-1">
-                Clase: <span className="font-semibold text-teal-600 uppercase">{paciente.tipo_clase || 'No asignada'}</span> • Edad: {paciente.edad || 'No registrada'} años
+                Clase: <span className="font-semibold text-teal-600 uppercase">{historia.paciente.tipo_clase || 'No asignada'}</span> • Edad: {historia.paciente.edad || 'No registrada'} años
               </p>
             )}
           </div>
-          <button 
-            onClick={onClose} 
+          <button
+            onClick={onClose}
             aria-label="Cerrar"
             className="shrink-0 -mr-2 h-11 w-11 flex items-center justify-center text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition-colors"
           >
@@ -108,272 +81,38 @@ export function HistoriaClinicaModal({ isOpen, onClose, pacienteId }: HistoriaCl
           </button>
         </div>
 
-        {loading ? (
-          <div className="flex-1 flex items-center justify-center bg-stone-50">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
+        {!historia ? (
+          <div className="flex-1 flex items-center justify-center bg-stone-50 p-4">
+            <EstadoCarga cargando={cargando} error={error} onReintentar={recargar} />
           </div>
         ) : (
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-stone-50">
-            {/* Sidebar Tabs */}
-            <div className="shrink-0 w-full md:w-56 bg-white border-b md:border-b-0 md:border-r border-stone-200 flex md:flex-col p-2 gap-1 overflow-x-auto md:overflow-x-visible">
-              <button
-                onClick={() => setActiveTab('ficha')}
-                className={cn(
-                  "flex items-center gap-2.5 px-4 min-h-11 rounded-lg text-sm font-semibold transition-all md:w-full shrink-0 md:shrink whitespace-nowrap cursor-pointer",
-                  activeTab === 'ficha' 
-                    ? "bg-teal-600 text-white shadow-sm" 
-                    : "text-stone-500 hover:bg-stone-50 hover:text-stone-900"
-                )}
-              >
-                <User className="w-4 h-4" />
-                Ficha del Paciente
-              </button>
-              <button
-                onClick={() => setActiveTab('historial')}
-                className={cn(
-                  "flex items-center gap-2.5 px-4 min-h-11 rounded-lg text-sm font-semibold transition-all md:w-full shrink-0 md:shrink whitespace-nowrap cursor-pointer",
-                  activeTab === 'historial' 
-                    ? "bg-teal-600 text-white shadow-sm" 
-                    : "text-stone-500 hover:bg-stone-50 hover:text-stone-900"
-                )}
-              >
-                <Calendar className="w-4 h-4" />
-                Historial de Sesiones
-              </button>
-              <button
-                onClick={() => setActiveTab('alertas')}
-                className={cn(
-                  "flex items-center gap-2.5 px-4 min-h-11 rounded-lg text-sm font-semibold transition-all md:w-full shrink-0 md:shrink whitespace-nowrap relative cursor-pointer",
-                  activeTab === 'alertas' 
-                    ? "bg-teal-600 text-white shadow-sm" 
-                    : "text-stone-500 hover:bg-stone-50 hover:text-stone-900"
-                )}
-              >
-                <ShieldAlert className="w-4 h-4" />
-                Alertas Clínicas
-                {alertsCount > 0 && activeTab !== 'alertas' && (
-                  <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-amber-500 rounded-full border border-white" />
-                )}
-              </button>
+            <div role="tablist" aria-label="Historia clínica" className="shrink-0 w-full md:w-56 bg-white border-b md:border-b-0 md:border-r border-stone-200 flex md:flex-col p-2 gap-1">
+              {PESTANIAS.map(({ id: pid, label, icono: Icono }) => (
+                <button
+                  key={pid}
+                  type="button"
+                  role="tab"
+                  aria-selected={activa === pid}
+                  onClick={() => setActiva(pid)}
+                  className={cn(
+                    'flex-1 md:flex-none flex items-center justify-center md:justify-start gap-2.5 px-4 min-h-11 rounded-lg text-sm font-semibold transition-colors duration-150 md:w-full whitespace-nowrap',
+                    activa === pid ? 'bg-teal-600 text-white shadow-sm' : 'text-stone-500 hover:bg-stone-50 hover:text-stone-900'
+                  )}
+                >
+                  <Icono className="w-4 h-4" />
+                  {label}
+                  {pid === 'evolucion' && alerta && activa !== pid && (
+                    <span className="w-2 h-2 bg-red-500 rounded-full" aria-label="Tiene una alerta" />
+                  )}
+                </button>
+              ))}
             </div>
 
-            {/* Content Area */}
-            <div className="flex-1 overflow-y-auto overscroll-contain p-4 md:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-6 bg-stone-50">
-              
-              {/* Tab 1: Ficha del Paciente */}
-              {activeTab === 'ficha' && paciente && (
-                <div className="space-y-6 animate-in fade-in duration-200">
-                  {/* Datos Básicos */}
-                  <div className="bg-white border border-stone-200 rounded-xl p-5 space-y-4 shadow-sm">
-                    <h3 className="text-xs font-semibold text-stone-400 uppercase tracking-wider flex items-center gap-2 border-b border-stone-100 pb-2">
-                      <Phone className="w-4 h-4 text-teal-600" /> Datos de Contacto
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Teléfono Principal</span>
-                        <span className="text-stone-700 font-semibold">{paciente.telefono || 'No registrado'}</span>
-                      </div>
-                      <div>
-                        <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Contacto de Emergencia</span>
-                        <span className="text-stone-700 font-semibold">{paciente.telefono_emergencia || 'No registrado'}</span>
-                      </div>
-                      <div>
-                        <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Dirección</span>
-                        <span className="text-stone-700 font-semibold">{paciente.direccion || 'No registrada'}</span>
-                      </div>
-                      <div>
-                        <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Profesión</span>
-                        <span className="text-stone-700 font-semibold">{paciente.profesion || 'No registrada'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Datos Clínicos */}
-                  <div className="bg-white border border-stone-200 rounded-xl p-5 space-y-4 shadow-sm">
-                    <h3 className="text-xs font-semibold text-stone-400 uppercase tracking-wider flex items-center gap-2 border-b border-stone-100 pb-2">
-                      <FileText className="w-4 h-4 text-teal-600" /> Antecedentes y Evaluación
-                    </h3>
-                    <div className="space-y-4 text-sm">
-                      <div>
-                        <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Motivo de Consulta</span>
-                        <p className="text-stone-600 mt-1 leading-relaxed bg-stone-50 p-3 rounded-lg border border-stone-200">{paciente.motivo_consulta || 'Sin registrar'}</p>
-                      </div>
-                      <div>
-                        <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Antecedentes Clínicos</span>
-                        <p className="text-stone-600 mt-1 leading-relaxed bg-stone-50 p-3 rounded-lg border border-stone-200">{paciente.antecedentes_clinicos || 'Sin antecedentes registrados'}</p>
-                      </div>
-                      <div>
-                        <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Estudios Imagenológicos (Rayos X, RM, etc.)</span>
-                        <p className="text-stone-600 mt-1 leading-relaxed bg-stone-50 p-3 rounded-lg border border-stone-200">{paciente.estudios_imagenologicos || 'Sin estudios cargados'}</p>
-                      </div>
-                      <div>
-                        <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Evaluación Inicial</span>
-                        <p className="text-stone-600 mt-1 leading-relaxed bg-stone-50 p-3 rounded-lg border border-stone-200 whitespace-pre-line">{paciente.evaluacion_inicial || 'Sin registrar'}</p>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Actividad Física</span>
-                          <p className="text-stone-600 mt-1 leading-relaxed bg-stone-50 p-3 rounded-lg border border-stone-200">{paciente.actividad_fisica || 'No realiza / no registrada'}</p>
-                        </div>
-                        <div>
-                          <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Objetivo del Tratamiento</span>
-                          <p className="text-stone-600 mt-1 leading-relaxed bg-stone-50 p-3 rounded-lg border border-stone-200">{paciente.objetivo_tratamiento || 'Sin definir'}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Tab 2: Historial de Sesiones */}
-              {activeTab === 'historial' && (
-                <div className="space-y-6 animate-in fade-in duration-200">
-                  {/* Sesiones RPG */}
-                  <div className="space-y-3">
-                    <h3 className="text-xs font-semibold text-stone-400 uppercase tracking-wider border-b border-stone-200 pb-2">Sesiones RPG (Individuales)</h3>
-                    {rpgSessions.length === 0 ? (
-                      <p className="text-sm text-stone-400 italic">No registra sesiones individuales.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {rpgSessions.map(session => (
-                          <div key={session.id} className="bg-white border border-stone-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm hover:border-stone-300 transition-colors">
-                            <div>
-                              <div className="flex items-center gap-2.5">
-                                <span className="text-sm font-bold text-stone-900">
-                                  {format(parseISO(session.fecha), "d 'de' MMMM, yyyy", { locale: es })}
-                                </span>
-                                <span className="text-xs text-stone-600 bg-stone-50 border border-stone-200 px-2 py-0.5 rounded">
-                                  {session.hora} hs
-                                </span>
-                              </div>
-                              {session.nota && (
-                                <p className="text-xs text-stone-500 mt-2 bg-stone-50 p-2.5 rounded border border-stone-100 leading-relaxed font-sans">
-                                  Nota: {session.nota}
-                                </p>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <span className={cn(
-                                "px-2.5 py-0.5 rounded-full text-xs font-semibold border",
-                                ESTADOS_SESION_RPG[session.estado_sesion ?? 'pendiente'].clases
-                              )}>
-                                {ESTADOS_SESION_RPG[session.estado_sesion ?? 'pendiente'].label}
-                              </span>
-                              <span className={cn(
-                                "px-2.5 py-0.5 rounded-full text-xs font-semibold border",
-                                ESTADOS_PAGO[session.estado_pago ?? 'pendiente'].clases
-                              )}>
-                                {ESTADOS_PAGO[session.estado_pago ?? 'pendiente'].label}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Asistencias TPA */}
-                  <div className="space-y-3">
-                    <h3 className="text-xs font-semibold text-stone-400 uppercase tracking-wider border-b border-stone-200 pb-2">Clases TPA (Grupales)</h3>
-                    {tpaAttendances.length === 0 ? (
-                      <p className="text-sm text-stone-400 italic">No registra asistencias a clases grupales.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {tpaAttendances.map(att => (
-                          <div key={att.id} className="bg-white border border-stone-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm hover:border-stone-300 transition-colors">
-                            <div>
-                              <div className="flex items-center gap-2.5">
-                                <span className="text-sm font-bold text-stone-900">
-                                  {att.clases_tpa?.fecha 
-                                    ? format(parseISO(att.clases_tpa.fecha), "d 'de' MMMM, yyyy", { locale: es }) 
-                                    : 'Fecha no registrada'}
-                                </span>
-                                <span className="text-xs text-stone-600 bg-stone-50 border border-stone-200 px-2 py-0.5 rounded">
-                                  {att.clases_tpa?.hora ?? '--:--'} hs
-                                </span>
-                              </div>
-                              {att.nota && (
-                                <p className="text-xs text-stone-500 mt-2 bg-stone-50 p-2.5 rounded border border-stone-100 leading-relaxed font-sans">
-                                  Nota: {att.nota}
-                                </p>
-                              )}
-                            </div>
-                            <span className={cn(
-                              "px-2.5 py-0.5 rounded-full text-xs font-semibold border self-start sm:self-center",
-                              estadoAsistencia(att.estado).clases
-                            )}>
-                              {estadoAsistencia(att.estado).label}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Tab 3: Alertas Clínicas */}
-              {activeTab === 'alertas' && (
-                <div className="space-y-4 animate-in fade-in duration-200">
-                  <h3 className="text-xs font-semibold text-stone-400 uppercase tracking-wider border-b border-stone-200 pb-2">Sistema de Monitoreo de Alertas</h3>
-                  
-                  {alertsCount === 0 ? (
-                    <div className="bg-white border border-stone-200 rounded-xl p-6 flex flex-col items-center justify-center text-center shadow-sm">
-                      <CheckCircle className="w-12 h-12 text-emerald-500 mb-3" />
-                      <h4 className="font-semibold text-stone-900">Paciente sin alertas clínicas</h4>
-                      <p className="text-sm text-stone-500 mt-1 max-w-sm">
-                        No se detectaron inasistencias reiteradas ni palabras de alarma en las observaciones clínicas recientes.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {hasThreeConsecutiveAbsences && (
-                        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 flex gap-3.5 shadow-sm">
-                          <ShieldAlert className="w-6 h-6 shrink-0 mt-0.5 text-amber-600" />
-                          <div>
-                            <h4 className="font-bold text-sm">Alerta: Inasistencia Recurrente (TPA)</h4>
-                            <p className="text-xs text-amber-700 mt-1 leading-relaxed font-medium">
-                              El alumno ha registrado <strong className="font-semibold">3 ausencias sin previo aviso de forma consecutiva</strong> en las clases de TPA. Se recomienda contactar para corroborar su estado.
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      {hasAlertPresion && (
-                        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 flex gap-3.5 shadow-sm">
-                          <ShieldAlert className="w-6 h-6 shrink-0 mt-0.5 text-amber-600" />
-                          <div>
-                            <h4 className="font-bold text-sm">Alerta: Monitoreo Cardiovascular</h4>
-                            <p className="text-xs text-amber-700 mt-1 leading-relaxed font-medium">
-                              Se ha detectado el término <strong className="font-semibold">"presión"</strong> en las observaciones clínicas de sus sesiones más recientes. Por favor, verificar y controlar la presión arterial del paciente antes de realizar la actividad física.
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      {hasAlertLesionDolor && (
-                        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 flex gap-3.5 shadow-sm">
-                          <ShieldAlert className="w-6 h-6 shrink-0 mt-0.5 text-amber-600" />
-                          <div>
-                            <h4 className="font-bold text-sm">Alerta: Reporte de Lesión / Dolor Agudo</h4>
-                            <p className="text-xs text-amber-700 mt-1 leading-relaxed font-medium">
-                              Se registraron palabras clave de alarma como <strong className="font-semibold">"lesión"</strong> o <strong className="font-semibold">"dolor"</strong> en las evoluciones más recientes. Ajustar las posturas de RPG o ejercicios de TPA para evitar exacerbación de síntomas.
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="bg-white border border-stone-200 rounded-xl p-4 flex gap-3 text-xs text-stone-500 leading-relaxed shadow-sm">
-                    <Info className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
-                    <p>
-                      El sistema escanea de manera automática las notas de las sesiones RPG y asistencias de TPA para disparar banderas preventivas de seguridad clínica de acuerdo con la convención establecida.
-                    </p>
-                  </div>
-                </div>
-              )}
-
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 md:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] bg-stone-50">
+              {activa === 'ficha'
+                ? <HistoriaFicha paciente={historia.paciente} />
+                : <HistoriaEvolucion historia={historia} alerta={alerta} onCambio={recargar} />}
             </div>
           </div>
         )}

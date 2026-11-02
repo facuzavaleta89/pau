@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { esAviso, type EstadoAviso } from "@/lib/avisos";
 import {
-  BORRADOR_VACIO, filasDeLaClase, lugarParaOcupar, ocupanteDe,
+  BORRADOR_VACIO, filasDeLaClase, lugarParaOcupar, marcarRestoPresente, ocupanteDe,
   type BorradorClase, type EnlacesCambio, type FilaClase, type TipoOcupante,
 } from "@/lib/clase-tpa";
 import type { OpcionOcupar } from "@/lib/ocupar";
@@ -88,6 +88,13 @@ export function useBorradorClase(celda: CeldaTPA, enlaces: EnlacesCambio, inicia
     if (fila) setBorrador((b) => sacar(b, fila));
   };
 
+  /** "Marcar el resto como presente": los "Sin marcar" pasan a Presente (sin guardar todavía). */
+  const marcarResto = () =>
+    setBorrador((b) => ({ ...b, estados: { ...b.estados, ...marcarRestoPresente(filasDeLaClase(celda, b)) } }));
+
+  const cambiarNota = (pacienteId: string, texto: string) =>
+    setBorrador((b) => ({ ...b, notas: { ...b.notas, [pacienteId]: texto } }));
+
   const cambiarTipo = (pacienteId: string, tipo: TipoOcupante) =>
     setBorrador((b) => ({ ...b, nuevos: b.nuevos.map((n) => (n.pacienteId === pacienteId ? { ...n, tipo } : n)) }));
 
@@ -109,6 +116,7 @@ export function useBorradorClase(celda: CeldaTPA, enlaces: EnlacesCambio, inicia
   return {
     borrador, filas, preguntas,
     hayPreguntas: Object.keys(preguntas).length > 0,
-    cambiarEstado, resolver, quitar, cambiarTipo, agregar,
+    restoSinMarcar: filas.filter((f) => f.estado === 'pendiente').length,
+    cambiarEstado, resolver, quitar, cambiarTipo, agregar, marcarResto, cambiarNota,
   };
 }

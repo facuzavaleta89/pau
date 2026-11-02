@@ -22,6 +22,8 @@ interface TpaOcuparSelectorProps {
   /** Nombre del fijo cuyo lugar se ocupa (null = lugar libre). */
   lugarDe: string | null;
   saldos: SaldoRecuperaciones[];
+  /** Saldos de los meses vecinos (cambio de horario que cruza el mes). */
+  saldosPorMes: Record<string, SaldoRecuperaciones[]>;
   pacientes: Paciente[];
   horarios: HorarioTPA[];
   historial: AsistenciaConClase[];
@@ -36,7 +38,7 @@ interface TpaOcuparSelectorProps {
 // Selector "Ocupar lugar" (diseño 7.3): en el orden de prioridad de Pau, cada
 // persona con su motivo y su saldo. Los avisos (tope, otro mes, 5/4) no bloquean.
 export function TpaOcuparSelector({
-  celda, enLaClase, lugarDe, saldos, pacientes, horarios, historial, ahora, completa, onElegir, onVolver,
+  celda, enLaClase, lugarDe, saldos, saldosPorMes, pacientes, horarios, historial, ahora, completa, onElegir, onVolver,
 }: TpaOcuparSelectorProps) {
   const [busqueda, setBusqueda] = useState('');
   const desde = format(addDays(parseISO(celda.fecha), -6), 'yyyy-MM-dd');
@@ -48,10 +50,10 @@ export function TpaOcuparSelector({
   const opciones = useMemo(() => {
     if (!datos) return null;
     return opcionesParaOcupar({
-      celda, enLaClase, saldos, pacientes, horarios, historial, ahora,
+      celda, enLaClase, saldos, saldosPorMes, pacientes, horarios, historial, ahora,
       ventana: celdasEntre(desde, hasta, datos),
     });
-  }, [datos, celda, enLaClase, saldos, pacientes, horarios, historial, ahora, desde, hasta]);
+  }, [datos, celda, enLaClase, saldos, saldosPorMes, pacientes, horarios, historial, ahora, desde, hasta]);
 
   const visibles = opciones ? filtrarOpciones(opciones, busqueda) : [];
 

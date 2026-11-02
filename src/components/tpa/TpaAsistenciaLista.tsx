@@ -1,12 +1,14 @@
 "use client";
 
-import { AlertTriangle, Info, Plus, RotateCcw } from "lucide-react";
+import { AlertTriangle, CheckCheck, Info, Plus, RotateCcw } from "lucide-react";
 import type { SugerenciaAviso } from "@/lib/avisos";
 import { CLASES_CANCELADA, ICONO_CANCELADA, LUGAR_LIBRE, MOTIVOS_CANCELACION } from "@/lib/estados";
 import { ocupanteDe, type EnlacesCambio, type FilaClase, type TipoOcupante } from "@/lib/clase-tpa";
+import type { AlertaFaltas } from "@/lib/alertas";
 import type { EstadoAsistenciaTPA, LugaresTPA, MotivoCancelacionTPA } from "@/types";
 import { cn } from "@/lib/utils";
 import { TpaAsistenciaFila, type PreguntaFila } from "./TpaAsistenciaFila";
+import { TpaNotaClase } from "./TpaNotaClase";
 
 interface TpaAsistenciaListaProps {
   filas: FilaClase[];
@@ -18,6 +20,16 @@ interface TpaAsistenciaListaProps {
   motivoCancelacion: MotivoCancelacionTPA | null;
   enlaces: EnlacesCambio;
   preguntas: Record<string, PreguntaFila>;
+  alertaDe: (pacienteId: string) => AlertaFaltas | null;
+  /** Notas de evolución: texto como está en el modal y si cambió. */
+  notaDe: (pacienteId: string) => string;
+  notaSinGuardar: (pacienteId: string) => boolean;
+  /** Notas de esta clase de quienes ya no están en ella. */
+  notasSinFila: { pacienteId: string; nombre: string }[];
+  onCambiarNota: (pacienteId: string, texto: string) => void;
+  /** Cuántos siguen en "Sin marcar" (para "Marcar el resto como presente"). */
+  restoSinMarcar: number;
+  onMarcarResto: () => void;
   onCambiar: (pacienteId: string, estado: EstadoAsistenciaTPA) => void;
   /** Abrir el selector para el lugar de ese fijo (null = un lugar libre). */
   onOcupar: (lugarDe: string | null) => void;
@@ -72,6 +84,18 @@ export function TpaAsistenciaLista(p: TpaAsistenciaListaProps) {
         </p>
       )}
 
+      {/* Al terminar la clase: todos Presente y después se corrigen las excepciones. No toca avisos ni "No avisó". */}
+      {!p.claseFutura && !bloqueada && p.restoSinMarcar > 0 && (
+        <button
+          type="button"
+          onClick={p.onMarcarResto}
+          className="w-full md:w-auto min-h-11 px-4 flex items-center justify-center gap-2 text-sm font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors duration-150"
+        >
+          <CheckCheck size={16} />
+          Marcar el resto como presente ({p.restoSinMarcar})
+        </button>
+      )}
+
       {filas.length === 0 && (
         <div className="text-center py-6 px-4 text-sm text-stone-500 bg-stone-50 rounded-xl border border-dashed border-stone-200">
           No hay alumnos fijos en este horario.
@@ -97,6 +121,10 @@ export function TpaAsistenciaLista(p: TpaAsistenciaListaProps) {
             origenCambio={p.enlaces.origenDe.get(fila.pacienteId) ?? null}
             destinoCambio={p.enlaces.destinoDe.get(fila.pacienteId) ?? null}
             pregunta={p.preguntas[fila.pacienteId] ?? null}
+            alerta={p.alertaDe(fila.pacienteId)}
+            nota={p.notaDe(fila.pacienteId)}
+            notaSinGuardar={p.notaSinGuardar(fila.pacienteId)}
+            onCambiarNota={(texto) => p.onCambiarNota(fila.pacienteId, texto)}
             onCambiar={(estado) => p.onCambiar(fila.pacienteId, estado)}
             onOcuparSuLugar={() => p.onOcupar(fila.pacienteId)}
             onQuitar={() => p.onQuitar(fila.pacienteId)}
@@ -133,6 +161,26 @@ export function TpaAsistenciaLista(p: TpaAsistenciaListaProps) {
           </li>
         )}
       </ul>
+
+      {p.notasSinFila.length > 0 && (
+        <section className="space-y-2 pt-2">
+          <h3 className="text-xs font-semibold text-stone-400 uppercase tracking-wider">Notas de quienes ya no están en esta clase</h3>
+          <ul className="space-y-2">
+            {p.notasSinFila.map((n) => (
+              <li key={n.pacienteId} className="p-3 rounded-xl border border-stone-200 bg-stone-50/50 space-y-2">
+                <p className="font-semibold text-stone-900 truncate">{n.nombre}</p>
+                <TpaNotaClase
+                  nombre={n.nombre}
+                  texto={p.notaDe(n.pacienteId)}
+                  sinGuardar={p.notaSinGuardar(n.pacienteId)}
+                  bloqueada={bloqueada}
+                  onCambiar={(texto) => p.onCambiarNota(n.pacienteId, texto)}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

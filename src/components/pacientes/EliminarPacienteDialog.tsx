@@ -62,8 +62,8 @@ export function EliminarPacienteDialog({ paciente, onCancelar, onEliminado }: El
           <p>
             Se va a borrar su ficha y <strong>toda su historia</strong>
             {datos
-              ? `: ${plural(datos.turnos, 'turno RPG', 'turnos RPG')}, ${plural(datos.asistencias, 'asistencia TPA', 'asistencias TPA')}, ${plural(datos.pagos, 'pago', 'pagos')} y ${plural(datos.horarios, 'horario fijo', 'horarios fijos')}.`
-              : ' (turnos, asistencias, pagos y horarios fijos).'}
+              ? `: ${plural(datos.turnos, 'turno RPG', 'turnos RPG')}, ${plural(datos.asistencias, 'asistencia TPA', 'asistencias TPA')}, ${plural(datos.notas, 'nota de evolución', 'notas de evolución')}, ${plural(datos.pagos, 'pago', 'pagos')} y ${plural(datos.horarios, 'horario fijo', 'horarios fijos')}.`
+              : ' (turnos, asistencias, notas de evolución, pagos y horarios fijos).'}
           </p>
           <p className="font-semibold text-red-700">No se puede deshacer.</p>
         </>
