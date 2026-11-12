@@ -4,7 +4,8 @@ import { CircleAlert, RotateCcw } from 'lucide-react';
 
 interface EstadoCargaProps {
   cargando: boolean;
-  error: boolean;
+  /** Mensaje de la carga que falló (el mismo del Toast, de useDatos); null si no falló. */
+  error: string | null;
   onReintentar: () => void;
 }
 
@@ -15,7 +16,7 @@ export function EstadoCarga({ cargando, error, onReintentar }: EstadoCargaProps)
     return (
       <div role="alert" className="bg-white border border-red-200 rounded-xl p-6 flex flex-col items-center gap-3 text-center">
         <CircleAlert size={24} className="text-red-600" />
-        <p className="text-sm text-stone-700">No se pudieron cargar los datos. Revisá la conexión.</p>
+        <p className="text-sm text-stone-700">{error}</p>
         <button
           type="button"
           onClick={onReintentar}

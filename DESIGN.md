@@ -144,7 +144,7 @@ En pantallas < 768px los modales se muestran como **hoja desde abajo** (ancho co
 - La columna de contenido lleva `min-w-0`: sin eso, cualquier hijo ancho estira la página y aparece el desplazamiento lateral.
 - Barra inferior del celular con `pb-[env(safe-area-inset-bottom)]` y textos cortos (`RPG`, `TPA`, `Pacientes`, `Pagos`) en `text-xs`.
 - **Sin conexión:** franja `bg-amber-50 text-amber-800 border-amber-200` con ícono `WifiOff` debajo del Header: "Sin conexión. Lo que ves puede no estar actualizado y no se puede guardar."
-- **Carga y error** (`EstadoCarga`): spinner teal mientras carga; si falla, card con borde rojo, "No se pudieron cargar los datos. Revisá la conexión." y botón "Reintentar". Nunca una lista vacía que parezca "no hay datos".
+- **Carga y error** (`EstadoCarga`): spinner teal mientras carga; si falla, card con borde rojo, **el mismo mensaje del Toast** (lo guarda `useDatos`: "No se pudo cargar la agenda TPA. Falta aplicar un cambio en la base de datos. Avisale a Facu.") y botón "Reintentar". Nunca una lista vacía que parezca "no hay datos".
 - Navegación de semana/mes (`SemanaNav`): ‹ · etiqueta · Hoy · ›, botones de 44px, sobre `bg-stone-100 rounded-xl`.
 
 ---

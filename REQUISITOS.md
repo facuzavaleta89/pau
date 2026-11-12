@@ -77,7 +77,38 @@ Cada horario tiene **4 lugares** (columnas de su grilla).
 - Vista mensual tipo calendario para ver clases llenas, huecos y cancelaciones
 - Estructura en 4 módulos conectados: Agenda RPG, Agenda TPA, Historia clínica, Pagos
 
-## 4. Contexto de uso (inferido, confirmar)
+## 4. Pagos y calendario general (respuestas de Pau, octubre 2026)
 
-- Lo va a usar **sobre todo desde el celular**, entre clases o al terminar cada una.
+Diseño en `docs/DISENO_PAGOS.md`.
+
+### TPA: plan mensual
+- Se paga un **plan mensual según la cantidad de veces por semana**.
+- La cuota mensual cubre **4 clases por cada vez por semana** (1 vez = 4 clases, 2 veces = 8, 3 veces = 12).
+- El plan tiene **descuento solo si se paga todo junto entre el 1 y el 10 del mes**. Si no, se cobra por **clase suelta**. Pau a veces hace excepciones: la app **sugiere, no bloquea**.
+- Los **precios cambian mes a mes**:
+
+| Mes | 1 vez por semana | 2 veces | 3 veces | Clase suelta |
+|---|---|---|---|---|
+| Septiembre 2026 | $46.000 | $74.000 | $100.000 | $16.000 |
+| Octubre 2026 | $50.000 | $80.000 | $110.000 | $18.000 |
+
+- Las **clases sueltas** de TPA (quien viene a una clase sin ser fijo y sin usar una recuperación: `asistencia_tpa` con tipo "suelta") se cobran aparte.
+
+### RPG: por sesión
+- Cada sesión se cobra **suelta**: **$46.000**, y todas valen lo mismo (RPG, masajes, evaluación inicial).
+- Ya existe el estado de pago por sesión (`sesiones_rpg.estado_pago`).
+
+### Su Word de pagos del mes
+- Lista de alumnos **por plan** (1, 2 o 3 veces por semana).
+- **Clases sueltas**: persona × cantidad.
+- **Total por plan** y **total del mes**.
+- Marca si pagó en **efectivo**.
+
+### Calendario general del mes (lo primero que mira en TPA)
+- Grilla **lunes / miércoles / viernes × horarios × 4 lugares** con los fijos.
+- **Verde** = pagó el mes · **rosa** = todavía no pagó · **amarillo** = LIBRE.
+
+## 5. Contexto de uso
+
+- ✅ Confirmado (22/10/2026): la usa **sobre todo desde la compu**; el celular tiene que seguir andando bien (entre clases o al terminar cada una). _Antes decía "sobre todo desde el celular" (inferido)._
 - Es la única usuaria. No hay recepcionista ni pacientes que entren a la app.

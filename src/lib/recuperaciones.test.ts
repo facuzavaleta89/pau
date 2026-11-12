@@ -437,6 +437,41 @@ describe('textoResumenMes (historia clínica)', () => {
     expect(textoResumenMes('2026-10', s, asistencias)).toBe('Octubre: sin faltas avisadas, 1 sin avisar, ninguna recuperada, no le queda ninguna');
   });
 
+  it('separa las recuperadas de los "No vino": "Octubre: 2 faltas avisadas, 1 recuperada, 1 no vino, no le queda ninguna"', () => {
+    const asistencias = [
+      fila('Ana', '2026-10-05', '10:30', 'aviso_con_tiempo'),
+      fila('Ana', '2026-10-07', '10:30', 'aviso_con_tiempo'),
+      recupera('Ana', '2026-10-09', '10:30', 'presente'),
+      recupera('Ana', '2026-10-16', '10:30', 'falto_sin_avisar'),
+    ];
+    const horarios = [fijo('Ana', 'lunes', '10:30'), fijo('Ana', 'miercoles', '10:30')];
+    const s = saldo('2026-10', { horarios, asistencias });
+    expect(textoResumenMes('2026-10', s, asistencias)).toBe('Octubre: 2 faltas avisadas, 1 recuperada, 1 no vino, no le queda ninguna');
+  });
+
+  it('las anotadas para recuperar que todavía no se marcaron van aparte', () => {
+    const asistencias = [
+      fila('Ana', '2026-10-05', '10:30', 'aviso_con_tiempo'),
+      recupera('Ana', '2026-10-30', '10:30', 'pendiente'),
+    ];
+    const s = saldo('2026-10', { horarios: [fijo('Ana', 'lunes', '10:30')], asistencias });
+    expect(textoResumenMes('2026-10', s, asistencias)).toBe('Octubre: 1 falta avisada, ninguna recuperada, 1 anotada para recuperar, no le queda ninguna');
+  });
+
+  it('varios "No vino" y varias recuperadas', () => {
+    const asistencias = [
+      fila('Ana', '2026-10-05', '10:30', 'aviso_con_tiempo'),
+      fila('Ana', '2026-10-07', '10:30', 'aviso_con_tiempo'),
+      fila('Ana', '2026-10-09', '10:30', 'aviso_sin_tiempo'),
+      recupera('Ana', '2026-10-12', '12:30', 'presente'),
+      recupera('Ana', '2026-10-14', '12:30', 'presente'),
+      recupera('Ana', '2026-10-16', '12:30', 'falto_sin_avisar'),
+    ];
+    const horarios = [fijo('Ana', 'lunes', '10:30'), fijo('Ana', 'miercoles', '10:30'), fijo('Ana', 'viernes', '10:30')];
+    const s = saldo('2026-10', { horarios, asistencias });
+    expect(textoResumenMes('2026-10', s, asistencias)).toBe('Octubre: 3 faltas avisadas, 2 recuperadas, 1 no vino, no le queda ninguna');
+  });
+
   it('sin saldo ni nada en el mes (no es de TPA) → null', () => {
     expect(textoResumenMes('2026-10', undefined, [])).toBeNull();
   });

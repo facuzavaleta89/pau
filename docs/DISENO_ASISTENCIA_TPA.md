@@ -2,7 +2,7 @@
 
 _Referencia para las entregas de la Fase 1 (asistencia). Sale del diagnóstico del 20/10/2026 con las decisiones de Facu del 21/10/2026 aplicadas. En los ejemplos se usan "Alumna A", "Alumno B", etc.: no son datos reales._
 
-**Estado:** entregas 1, 2 y 3 mergeadas y con sus migraciones aplicadas y verificadas por Facu (la de la 3, `20261023000001`, el 23/10/2026, con el preview probado en compu y celular). Entrega 4 escrita (rama `fase-1/notas-y-alertas`, 23/10/2026): migración `20261024000001` lista para que Facu la aplique. Pau respondió las preguntas de recuperaciones el 21/10/2026 (reglas en la sección 3.2); los casos borde (10.2) los decidió Facu el 22/10/2026 con criterios que Pau puede corregir cuando lo vea en uso.
+**Estado:** entregas 1, 2 y 3 mergeadas y con sus migraciones aplicadas y verificadas por Facu (la de la 3, `20261023000001`, el 23/10/2026, con el preview probado en compu y celular). Entrega 4 mergeada y con su migración `20261024000001` aplicada (probada por Facu). Las respuestas de Facu a la entrega 4 están en la decisión 14. Pagos y calendario general: `docs/DISENO_PAGOS.md`. Pau respondió las preguntas de recuperaciones el 21/10/2026 (reglas en la sección 3.2); los casos borde (10.2) los decidió Facu el 22/10/2026 con criterios que Pau puede corregir cuando lo vea en uso.
 
 ---
 
@@ -35,6 +35,10 @@ _Referencia para las entregas de la Fase 1 (asistencia). Sale del diagnóstico d
     - Las recuperaciones por clases que canceló Pau de un alumno que **ya no tiene ningún horario fijo vigente** no cuentan como pendientes (ni en el chip ni en la pestaña): se muestran solo en "Sin derecho a recuperar" con "ya no es fijo". Siguen pasando de mes en mes por dentro y reaparecen como pendientes si se vuelve a inscribir.
     - El chip y la pestaña cuentan **recuperaciones**, no personas.
     - Cambio de horario: de **6 días antes a 6 días después**, ordenado por **cercanía** a la clase.
+14. **Respuestas de Facu a la entrega 4 (12/11/2026)** (Pau puede corregirlas cuando lo use):
+    - **Un aviso (C.T. o S.T.) corta la racha de "No avisó"**: queda como está (3.3).
+    - **Notas en clases que todavía no empezaron**: se permiten, queda como está (6.2).
+    - **Resumen del mes en Evolución**: separa las recuperaciones de los "No vino" (7.5).
 
 ---
 
@@ -147,7 +151,7 @@ Función pura `alertasDeFaltas(filas, ahora)` en `src/lib/alertas.ts` (11 tests)
 
 - se ignoran las clases canceladas y las **sin marcar** (no tienen fila: no cortan la racha);
 - si las dos últimas marcadas son `falto_sin_avisar` → alerta en la grilla, en el modal y en la ficha ("2 faltas seguidas sin avisar", o 3, 4…);
-- un aviso (C.T./S.T.) o un Presente cortan la racha;
+- un aviso (C.T./S.T.) o un Presente cortan la racha (confirmado por Facu el 12/11/2026: queda así);
 - el lugar no se libera solo (Pau dijo que no).
 
 Cómo quedó (criterios por defecto, Pau los puede cambiar):
@@ -250,7 +254,7 @@ create table public.notas_evolucion (
 4. `cambiar_cancelacion_tpa`: al reactivar, no borra las clases con notas.
 5. `alter table asistencia_tpa drop column nota`.
 - Las notas libres y la edición o el borrado desde la ficha van directo a la tabla (`crearNotaLibre`, `actualizarNota`, `borrarNota` en `queries.ts`). Si una nota de clase era lo único de esa clase y se borra desde la ficha, la clase queda vacía hasta que se vuelva a guardar (sin efecto en los saldos).
-- Notas en el modal: en cualquier clase que no esté cancelada (también futuras: "avisó que viene con dolor"); en una cancelada se ven y no se editan. Las de quien ya no está en la clase (por ejemplo, quitado) se siguen viendo al final del modal.
+- Notas en el modal: en cualquier clase que no esté cancelada (también futuras: "avisó que viene con dolor"; confirmado por Facu el 12/11/2026); en una cancelada se ven y no se editan. Las de quien ya no está en la clase (por ejemplo, quitado) se siguen viendo al final del modal.
 
 ### 6.3 Para no complicar la fase 2 (pagos y calendario general)
 
@@ -258,6 +262,7 @@ create table public.notas_evolucion (
 - **Frecuencia** = cantidad de horarios fijos: la usan el tope de recuperaciones y, en la fase 2, el plan (1, 2 o 3 veces por semana).
 - **Clase suelta** (`tipo = 'suelta'`) queda registrada para cobrarla.
 - **Precios que cambian por mes y descuento del 1 al 10:** tabla `precios` en la fase 2. Nada de esto lo impide.
+- Diseño completo de pagos: **`docs/DISENO_PAGOS.md`** (12/11/2026).
 
 ---
 
@@ -343,7 +348,7 @@ TPA tiene dos pestañas: **Semana** | **Recuperaciones** (desde la entrega 4, co
 ### 7.5 Historia clínica
 
 - **Ficha:** **Evaluación inicial** visible (✅ entrega 1).
-- **Pestaña "Evolución"** (entrega 4, ✅, reemplaza a "Historial" y a "Alertas"): alerta de 2 faltas; resumen del mes en curso ("Octubre: 3 faltas avisadas, 1 recuperada, le queda 1", `textoResumenMes` con `calcularRecuperaciones`; "recuperadas" = usos del mes, incluidos los "No vino"); una línea de tiempo (`lineaDeTiempo` en `src/lib/evolucion.ts`) con las clases de TPA (asistencia + nota de esa clase juntas), notas libres, sesiones de RPG con su nota (sin tocar RPG); botón **"+ Nota"** (nota libre con fecha, hoy por defecto); cada nota se edita (lápiz) y se borra (con `ConfirmDialog`).
+- **Pestaña "Evolución"** (entrega 4, ✅, reemplaza a "Historial" y a "Alertas"): alerta de 2 faltas; resumen del mes en curso (`textoResumenMes` con `calcularRecuperaciones`). Desde el 12/11/2026 separa los usos del mes por estado: Presente = "recuperada", No vino = "no vino" (la perdió igual), Sin marcar = "anotada para recuperar". Ejemplo: "Octubre: 2 faltas avisadas, 1 recuperada, 1 no vino, no le queda ninguna"; una línea de tiempo (`lineaDeTiempo` en `src/lib/evolucion.ts`) con las clases de TPA (asistencia + nota de esa clase juntas), notas libres, sesiones de RPG con su nota (sin tocar RPG); botón **"+ Nota"** (nota libre con fecha, hoy por defecto); cada nota se edita (lápiz) y se borra (con `ConfirmDialog`).
 - **Alertas por palabra clave:** ✅ sacadas en la entrega 4.
 
 ### 7.6 Paso a paso, desde el punto de vista de Pau
