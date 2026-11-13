@@ -68,13 +68,14 @@ export function AgendaRPG() {
         />
       )}
 
-      <TurnoModal
-        isOpen={turnoModal !== null}
-        onClose={() => setTurnoModal(null)}
-        turno={turnoModal?.turno ?? null}
-        selectedDate={turnoModal?.fecha}
-        onSave={recargar}
-      />
+      {turnoModal && (
+        <TurnoModal
+          onClose={() => setTurnoModal(null)}
+          turno={turnoModal.turno}
+          selectedDate={turnoModal.fecha}
+          onSave={recargar}
+        />
+      )}
 
       <HistoriaClinicaModal
         isOpen={pacienteHistoria !== null}

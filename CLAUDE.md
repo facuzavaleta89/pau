@@ -30,6 +30,8 @@ Antes de trabajar, leé en este orden:
 | **Clase cancelada** | `clases_tpa.motivo_cancelacion`: **Feriado** (recupera solo si le quedan menos de 4 clases en el mes por cada vez por semana) o **Cancelada por Pau** (enfermedad, viaje, corte de luz: todos los fijos la recuperan, sin tope y sin vencimiento). |
 | **Recuperación** | Saldo calculado (no guardado) por alumno y por mes: `calcularRecuperaciones()` (`src/lib/recuperaciones.ts`). Reglas en `docs/DISENO_ASISTENCIA_TPA.md`, sección 3.2. |
 | **Nota de evolución** | Observación clínica clase a clase (bajó la presión, dolor, avance en un ejercicio) o libre (sin clase, desde la historia clínica). Va en `notas_evolucion`. Datos de salud: nunca a la consola ni en un mensaje de error. |
+| **Cuota** | Pago mensual de TPA según las veces por semana (plan 1, 2 o 3 veces). Cubre el mes entero. Con descuento si se paga hasta el 10; después, la app sugiere igual el plan y avisa cuánto sería por clase. Pendiente = sin fila en `pagos_tpa` (se calcula, no se guarda). |
+| **Precios del mes** | `precios_mes`: cuotas, clase suelta y sesión de RPG de cada mes. Un mes sin precios usa los del anterior, con aviso. Lo cobrado guarda su importe y no cambia. |
 | **Alerta de faltas** | 2 o más faltas seguidas sin avisar como fijo, en cualquiera de sus horarios (las sin marcar no cortan la racha): `alertasDeFaltas()` (`src/lib/alertas.ts`). Solo avisa: no libera el lugar. |
 
 ## Stack
@@ -67,16 +69,18 @@ src/
 │   ├── login/                # pantalla de login (pública)
 │   └── (app)/                # grupo de rutas con sesión (no cambia las URLs)
 │       ├── layout.tsx        # Navigation + Header + AvisoSinConexion + SesionWatcher + VerificadorAutorizacion
-│       └── rpg/ tpa/ pacientes/ pagos/
+│       └── rpg/ tpa/ pacientes/ pagos/ (pagos/ = PagosDelMes)
 ├── components/
 │   ├── auth/                 # LoginForm, SesionWatcher, VerificadorAutorizacion
 │   ├── layout/               # Header (con Salir), Navigation, AvisoSinConexion
 │   ├── pacientes/            # HistoriaClinicaModal (Ficha | Evolución), HistoriaFicha, HistoriaEvolucion,
 │   │                         # EvolucionItem, NotaEvolucionForm, PacienteFormModal, PacientesTabla (compu),
 │   │                         # PacientesListaCelular, EliminarPacienteDialog
+│   ├── pagos/                # PagosDelMes, PagosCifras, PagosSecciones, TablaPagos, AvisoPrecios, PreciosMesModal,
+│   │                         # CobrarCuota, CobrarSueltas, CobrarSesionRPG, CamposPago, EstadoPagoChip, ResumenPagoGuardado
 │   ├── rpg/                  # AgendaRPG (carga + modales), CalendarMonthView (compu),
 │   │                         # RpgSemanaLista (celular), TurnoCard, TurnoModal
-│   ├── tpa/                  # TpaAgenda (carga + modales), TpaGrillaSemana (compu), TpaListaDia (celular),
+│   ├── tpa/                  # TpaAgenda (carga + modales + pestañas), TpaCalendario (+ TpaCalendarioCelda, TpaInscribirFijo), TpaGrillaSemana (compu), TpaListaDia (celular),
 │   │                         # TpaHorarioCard (ambas), TpaAccionesDia, TpaClaseModal (+ useBorradorClase),
 │   │                         # TpaAsistenciaLista, TpaAsistenciaFila, TpaNotaClase, TpaOcuparSelector, TpaCancelarDialog,
 │   │                         # TpaInscripcion, TpaRecuperaciones, TpaPendientesGrupo, TpaBuscarLugar
@@ -85,6 +89,7 @@ src/
 ├── hooks/
 │   ├── useDatos.ts           # carga con clave + Toast y estado de error SIEMPRE que falla
 │   ├── useEsCelular.ts       # true / false / null (< 768px), sin cargar las dos vistas
+│   ├── useValorGuardado.ts   # valor chico recordado en el navegador (última pestaña de TPA)
 │   └── useConexion.ts        # navigator.onLine
 ├── lib/
 │   ├── supabase.ts           # cliente de navegador (createBrowserClient)
@@ -102,6 +107,7 @@ src/
 │   ├── ocupar.ts             # opciones del selector "Ocupar lugar" y "Buscar lugar"
 │   ├── alertas.ts            # alerta de 2 faltas seguidas sin avisar (alertasDeFaltas)
 │   ├── evolucion.ts          # línea de tiempo de la pestaña Evolución (lineaDeTiempo)
+│   ├── pagos.ts              # precios del mes, fijos y cuotas, aviso por clase, sueltas, RPG, resumen, calendario
 │   └── utils.ts              # cn(), nuevoId()
 └── types/index.ts            # tipos mapeados a las tablas
 ```
@@ -111,12 +117,14 @@ src/
 | Tabla | Uso |
 |---|---|
 | `pacientes` | Ficha / historia clínica |
-| `sesiones_rpg` | Turnos individuales (estado_pago, estado_sesion, nota) |
+| `sesiones_rpg` | Turnos individuales (estado_pago, estado_sesion, nota; desde `20261113000001`, `importe`, `pagado_el`, `medio_pago`: solo si está pagada, un trigger los limpia al pasar a pendiente) |
 | `horarios_tpa` | Horario fijo semanal por alumno (dia_semana, hora, activo) |
 | `clases_tpa` | Clase concreta (fecha, hora) |
 | `asistencia_tpa` | Estado por alumno por clase. Unique `(clase_id, paciente_id)`. Sin columna `nota` desde la migración `20261024000001` |
 | `notas_evolucion` | Nota de evolución: una por alumno por clase (`clase_tpa_id`) o libre (`clase_tpa_id` null). Migración `20261024000001` |
-| `pagos` | Pago mensual (mes, año, plan, precio, estado) |
+| `precios_mes` | Precios de cada mes (`mes` = día 1; cuotas 1/2/3 veces, suelta, RPG). Migración `20261113000001` |
+| `pagos_tpa` | Pagos hechos de TPA: `concepto` `cuota` (una por alumno y mes: índice único parcial) o `sueltas` (una fila por pago). Importe, fecha, medio, nota. Migración `20261113000001` |
+| `pagos` | **Vieja, sin uso desde la Fase 2.** Se borra en la tanda de datos reales (tiene 2 filas de prueba) |
 | `lista_espera` | Cola de espera (tabla creada, sin UI todavía) |
 
 Proyecto Supabase: **`pau`** (ref `dmwtoozbctnwccaaitos`, región `us-east-2`, plan Free).
@@ -140,7 +148,8 @@ Estados válidos (migración `20261022000001_tpa_faltas_y_lugares.sql`):
 - El trigger `validar_asistencia_tpa` no deja insertar ni cambiar asistencias de una **clase cancelada** (cancelar/reactivar no las toca).
 - Si falta una función, tabla o columna (la app es más nueva que la base: PGRST202/204/205, 42883, 42703, 42P01), `mensajeError` dice "Falta aplicar un cambio en la base de datos. Avisale a Facu.".
 - `horarios_tpa.fecha_alta`: desde qué fecha es fijo (inclusive); `fecha_baja` exclusive y `>= fecha_alta`
-- `sesiones_rpg.estado_pago`: `pagado | pendiente`
+- `sesiones_rpg.estado_pago`: `pagado | pendiente`; `medio_pago` y `pagos_tpa.medio`: `efectivo | transferencia`
+- `pagos_tpa.concepto`: `cuota` (con `veces_por_semana` 1–3 y `modalidad` `plan | por_clase`; `clases` solo en por clase) `| sueltas` (con `clases`, sin plan). `mes` y `precios_mes.mes` siempre el día 1
 - `sesiones_rpg.estado_sesion`: `realizada | cancelada | pendiente`
 
 ## Convenciones de código
@@ -156,6 +165,7 @@ Estados válidos (migración `20261022000001_tpa_faltas_y_lugares.sql`):
 - Componentes funcionales, props con `interface`, un componente por archivo, idealmente < 150 líneas.
 - **Compu primero.** Cada pantalla se diseña primero para la compu (modales anchos, tablas, grilla). El celular tiene que seguir andando bien: ninguna pantalla puede desplazarse de costado en 390px. Si una vista de compu no entra (grilla, calendario, tabla), se hace una vista de celular aparte y se elige con `useEsCelular()` (si cada vista carga datos distintos) o con `md:hidden` / `hidden md:block` (si usan los mismos datos). Modales con el componente `Modal` (centrado en la compu; hoja desde abajo o pantalla completa en celular, pie fijo).
 - **Cargas de datos** con `useDatos()`: si falla, avisa con Toast y la pantalla muestra `EstadoCarga` con el mismo mensaje (`error` de `useDatos`) y "Reintentar". Nunca una pantalla vacía que parezca "no hay datos".
+- **Pagos:** todo lo que se calcula (fijos del mes, cuota pendiente, aviso por clase, sueltas, RPG, totales, calendario) sale **solo** de `src/lib/pagos.ts`; importes con `formatoPesos()`, meses como `'yyyy-MM'` con `moverMes()` (nunca `setMonth`). Pendiente = sin pago guardado: nunca crear filas "pendiente". Guardar un pago: alta con `nuevoId()` (`crearPagoTPA`); la cuota repetida choca con el índice único parcial y se avisa.
 - **TPA:** quién está en cada horario de una semana lo calcula **solo** `armarSemanaTPA()` (fijos de esa fecha + asistencias registradas). No volver a filtrar `horarios_tpa` a mano en un componente. Los saldos de recuperación salen **solo** de `calcularRecuperaciones()`. Una clase se guarda **siempre** con `guardarClasesTPA()` (función `guardar_clase_tpa` de la base, una transacción, notas de la clase incluidas), nunca fila por fila. La alerta de faltas sale **solo** de `alertasDeFaltas()`.
 - Nada de `alert()` / `confirm()` nativos: `useToast()` (`toast.exito / error / aviso`) y `ConfirmDialog`. Los errores que se muestran salen de `mensajeError(error)`.
 - Todo lo visual sigue **DESIGN.md**.
@@ -208,9 +218,9 @@ git checkout -b <rama-de-la-siguiente-tarea>
 1. Al empezar una sesión, leer PENDIENTES.md y decir (en `respuesta.md`) en qué tarea vas a trabajar.
 2. Trabajar **una fase o tarea por vez**. Para tareas grandes, presentar un plan corto antes de tocar código.
 3. Ante decisiones de producto o de arquitectura (sobre todo si dependen de Pau), plantear opciones con pros y contras y **preguntar**; no inventar reglas de negocio.
-4. Antes de dar una tarea por terminada: `npx tsc --noEmit`, `npm run lint`, `npm run build` y `npm test` sin errores nuevos. Las funciones puras nuevas con reglas (cálculos de TPA, recuperaciones, alertas, pagos) llevan tests en un `*.test.ts` al lado: **las reglas de cálculo se prueban con Vitest**, no a mano. No hay pruebas automáticas de navegador: si no tenés un navegador conectado, **no digas que lo probaste**. La prueba a mano de cada entrega va en `respuesta.md`, **siempre con estas tres partes** (Facu, 12/11/2026):
+4. Antes de dar una tarea por terminada: `npx tsc --noEmit`, `npm run lint`, `npm run build` y `npm test` sin errores nuevos. Las funciones puras nuevas con reglas (cálculos de TPA, recuperaciones, alertas, pagos) llevan tests en un `*.test.ts` al lado: **las reglas de cálculo se prueban con Vitest**, no a mano. No hay pruebas automáticas de navegador: si no tenés un navegador conectado, **no digas que lo probaste**. La prueba a mano de cada entrega va en `respuesta.md`, **corta** (Facu, 13/11/2026; reemplaza el formato del 12/11):
    1. **SQL del escenario:** un solo bloque para el SQL Editor de Supabase que arma todo lo que hace falta de una vez (pacientes llamados `"Prueba …"` con sus horarios, clases, asistencias, notas o pagos ya cargados), así Facu no prepara nada a mano. Usar nombres que no choquen con pacientes existentes, fechas relativas al mes en curso cuando se pueda y respetar los checks y triggers de la base (por ejemplo, `avisado_at` en los avisos). Antes de escribirlo, revisar con el MCP (solo lectura) qué horarios están ocupados.
-   2. **Lista corta para mirar:** de 8 a 10 puntos, todos juntos, cada uno con **qué hacer** y **qué tiene que verse** (unos 10 minutos): compu primero y al final un repaso corto en celular (390px o el emulador del navegador).
+   2. **Hasta 6 cosas para mirar** (unos 5 minutos), cada una con **qué hacer** y **qué tiene que verse**, en la compu salvo que algo sea propio del celular.
    3. **SQL de borrado:** primero un `select` que muestra exactamente qué va a borrar y después el borrado en una transacción, limitado a lo que creó el escenario (por nombre exacto, nunca `like 'Prueba%'` a secas: puede haber otras pruebas o datos de Pau).
 5. Al terminar: actualizar PENDIENTES.md (tildar lo hecho, agregar lo descubierto) y reportar en `respuesta.md` qué funciona, qué no y qué se podría mejorar.
 6. No instalar dependencias nuevas sin decir cuáles y para qué.

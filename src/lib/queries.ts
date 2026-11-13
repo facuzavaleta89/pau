@@ -6,9 +6,11 @@ import type { DatosRecuperaciones } from './recuperaciones';
 import type { ClaseAGuardar } from './clase-tpa';
 import { format } from 'date-fns';
 import type { FilaAlerta } from './alertas';
+import type { AsistenciaSuelta, DatosPagosMes, Mes } from './pagos';
+import { moverMes, primerDia, ultimoDia } from './pagos';
 import type {
-  Paciente, SesionRPG, Pago, HorarioTPA, ClaseTPA, AsistenciaTPA, AsistenciaConClase, DiaSemana, MotivoCancelacionTPA,
-  NotaEvolucion,
+  Paciente, SesionRPG, HorarioTPA, ClaseTPA, AsistenciaTPA, AsistenciaConClase, DiaSemana, MotivoCancelacionTPA,
+  NotaEvolucion, PagoTPA, PreciosMes, MedioPago,
 } from '@/types';
 
 // Con RLS, una escritura que la base no permite (sesión vencida, usuario no
@@ -139,18 +141,105 @@ export async function deleteSesionRPG(id: string) {
 }
 
 // ==========================================
-// PAGOS
+// PAGOS (datos personales: nunca a la consola). Diseño: docs/DISENO_PAGOS.md.
+// La tabla vieja `pagos` ya no se lee ni se escribe.
 // ==========================================
 
-export async function getPagosMesActual(mes: number, año: number) {
+export async function getPreciosMes() {
+  const { data, error } = await supabase.from('precios_mes').select('*').order('mes', { ascending: true });
+  if (error) throw error;
+  return (data || []) as PreciosMes[];
+}
+
+// Upsert sobre la clave natural (mes): guardar de nuevo no duplica.
+export async function guardarPreciosMes(precios: PreciosMes) {
   const { data, error } = await supabase
-    .from('pagos')
-    .select('*')
-    .eq('mes', mes)
-    .eq('año', año);
+    .from('precios_mes')
+    .upsert([precios], { onConflict: 'mes' })
+    .select();
 
   if (error) throw error;
-  return data as Pago[];
+  return exigirUnaFila(data as PreciosMes[] | null, 'No se pudieron guardar los precios.');
+}
+
+// Todo lo que muestran /pagos y la pestaña Calendario de TPA para un mes ('yyyy-MM').
+export async function cargarPagosMes(mes: Mes): Promise<DatosPagosMes> {
+  const desde = primerDia(mes);
+  const hasta = ultimoDia(mes);
+  const [precios, horarios, pagos, sueltas, sesiones] = await Promise.all([
+    getPreciosMes(),
+    getHorariosTPA(),
+    leerTodo<PagoTPA>((d, h) =>
+      supabase.from('pagos_tpa').select('*, pacientes (nombre)')
+        .gte('mes', primerDia(moverMes(mes, -3))).lte('mes', desde)
+        .order('id').range(d, h)),
+    leerTodo<AsistenciaSuelta>((d, h) =>
+      supabase.from('asistencia_tpa')
+        .select('paciente_id, tipo, estado, pacientes (nombre), clases_tpa!inner (fecha, hora, motivo_cancelacion)')
+        .eq('tipo', 'suelta')
+        .gte('clases_tpa.fecha', desde)
+        .lte('clases_tpa.fecha', hasta)
+        .order('id').range(d, h)),
+    getSesionesRPGPorRango(desde, hasta),
+  ]);
+  return {
+    mes,
+    precios,
+    horarios,
+    pagos,
+    sueltas: sueltas.map((a) => ({ ...a, clases_tpa: conHora(a.clases_tpa) })),
+    sesiones,
+  };
+}
+
+export type PagoTPANuevo = Omit<PagoTPA, 'created_at' | 'updated_at' | 'pacientes'>;
+
+// Alta de un pago con `id` generado al abrir el panel (nuevoId()): tocar
+// Guardar de nuevo después de un corte no lo duplica. Una cuota repetida
+// (otro pago de la cuota del mismo alumno y mes, por ejemplo desde otra
+// pestaña) choca con el índice único parcial: se avisa en lugar de duplicar.
+export async function crearPagoTPA(pago: PagoTPANuevo) {
+  try {
+    return await insertarSinDuplicar<PagoTPA>('pagos_tpa', pago, 'No se pudo guardar el pago.');
+  } catch (err: unknown) {
+    if (typeof err === 'object' && err !== null && 'code' in err && (err as { code: unknown }).code === '23505') {
+      throw new ErrorApp('Ya hay un pago de la cuota de ese mes para este alumno. Recargá la pantalla para verlo.');
+    }
+    throw err;
+  }
+}
+
+export async function actualizarPagoTPA(id: string, cambios: Partial<PagoTPANuevo>) {
+  const { data, error } = await supabase
+    .from('pagos_tpa')
+    .update(cambios)
+    .eq('id', id)
+    .select();
+
+  if (error) throw error;
+  return exigirUnaFila(data as PagoTPA[] | null, 'No se pudo guardar el pago.');
+}
+
+// "Deshacer el pago": vuelve a quedar pendiente.
+export async function borrarPagoTPA(id: string) {
+  const { data, error } = await supabase
+    .from('pagos_tpa')
+    .delete()
+    .eq('id', id)
+    .select('id');
+
+  if (error) throw error;
+  exigirUnaFila(data, 'No se pudo deshacer el pago.');
+}
+
+// Pago de una sesión de RPG. Con `null` vuelve a pendiente (la base limpia
+// importe, fecha y medio sola: trigger de la migración 20261113000001).
+export async function cambiarPagoSesionRPG(
+  id: string,
+  pago: { importe: number; pagado_el: string; medio_pago: MedioPago } | null,
+) {
+  const cambios = pago ? { estado_pago: 'pagado' as const, ...pago } : { estado_pago: 'pendiente' as const };
+  return updateSesionRPG(id, cambios);
 }
 
 // ==========================================
@@ -424,42 +513,6 @@ export async function cargarHistoriaClinica(pacienteId: string): Promise<Histori
   return { paciente, sesiones, asistencias, notas, recuperaciones };
 }
 
-export async function getPacientesConPagos(mes: number, año: number) {
-  const { data: pacientes, error: errPacientes } = await supabase
-    .from('pacientes')
-    .select('*')
-    .eq('activo', true)
-    .order('nombre', { ascending: true });
-
-  if (errPacientes) throw errPacientes;
-
-  const { data: pagos, error: errPagos } = await supabase
-    .from('pagos')
-    .select('*')
-    .eq('mes', mes)
-    .eq('año', año);
-
-  if (errPagos) throw errPagos;
-
-  return (pacientes || []).map(paciente => {
-    const pago = (pagos || []).find(p => p.paciente_id === paciente.id);
-    return {
-      ...paciente,
-      pago: pago || null
-    };
-  });
-}
-
-export async function upsertPago(pago: Partial<Pago>) {
-  const { data, error } = await supabase
-    .from('pagos')
-    .upsert([pago])
-    .select();
-
-  if (error) throw error;
-  return exigirUnaFila(data as Pago[] | null, 'No se pudo guardar el pago.');
-}
-
 // `id` generado al abrir el formulario (nuevoId()): reintentar no duplica.
 export async function createPaciente(paciente: Partial<Paciente> & { id: string }) {
   return insertarSinDuplicar<Paciente>('pacientes', paciente, 'No se pudo crear el paciente.');
@@ -478,7 +531,7 @@ export async function updatePaciente(id: string, updates: Partial<Paciente>) {
 
 // Único punto de borrado de pacientes.
 // Hoy: borrado REAL. Las FK son ON DELETE CASCADE, así que se borran también
-// sus turnos, horarios, asistencias, notas de evolución, pagos y lista de espera.
+// sus turnos, horarios, asistencias, notas de evolución, pagos (viejos y de TPA) y lista de espera.
 // 🔴 Antes de la carga real se cambia a baja lógica (activo = false) + FK
 // ON DELETE RESTRICT, cambiando solo esta función (ver PENDIENTES.md).
 export async function eliminarPaciente(id: string) {
@@ -512,13 +565,14 @@ export async function contarDatosPaciente(id: string): Promise<DatosPaciente> {
     return count ?? 0;
   };
 
-  const [turnos, asistencias, notas, pagos, horarios] = await Promise.all([
+  const [turnos, asistencias, notas, pagosViejos, pagosTPA, horarios] = await Promise.all([
     contar('sesiones_rpg'),
     contar('asistencia_tpa'),
     contar('notas_evolucion'),
     contar('pagos'),
+    contar('pagos_tpa'),
     contar('horarios_tpa'),
   ]);
 
-  return { turnos, asistencias, notas, pagos, horarios };
+  return { turnos, asistencias, notas, pagos: pagosViejos + pagosTPA, horarios };
 }
