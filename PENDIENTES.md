@@ -1,13 +1,13 @@
 # PENDIENTES.md — Estado y plan de trabajo
 
-_Última revisión: 23/10/2026 — Fases 0 y 0.5 completas; Fase 1: **asistencia TPA en 4 entregas** (diseño en `docs/DISENO_ASISTENCIA_TPA.md`): entregas 1, 2 y 3 mergeadas y con sus migraciones aplicadas; **entrega 4 escrita** (rama `fase-1/notas-y-alertas`; falta aplicar la migración `20261024000001` y probar). **Pau usa la app sobre todo desde la compu** y lo que más le importa son las faltas y recuperaciones: CLAUDE.md y DESIGN.md pasaron a "compu primero". App en https://paukinesio.vercel.app. Base Supabase `pau` (`dmwtoozbctnwccaaitos`, Postgres 17, plan Free, región us-east-2)._
+_Última revisión: 12/11/2026 — Fases 0 y 0.5 completas; Fase 1: **asistencia TPA en 4 entregas** (diseño en `docs/DISENO_ASISTENCIA_TPA.md`): las 4 mergeadas y con sus migraciones aplicadas (la 4 probada por Facu). **Fase 2 (pagos):** diagnóstico y plan en `docs/DISENO_PAGOS.md` (rama `fase-2/pagos`); la entrega 1 va en `fase-2/pagos-entrega-1`. **Pau usa la app sobre todo desde la compu** y lo que más le importa son las faltas y recuperaciones: CLAUDE.md y DESIGN.md pasaron a "compu primero". App en https://paukinesio.vercel.app. Base Supabase `pau` (`dmwtoozbctnwccaaitos`, Postgres 17, plan Free, región us-east-2)._
 
 ## Estado actual (resumen)
 
 **Hecho y funcionando en lo básico:**
 - Navegación (sidebar en desktop, barra inferior en celular), estética teal/stone.
 - Agenda RPG: calendario mensual en la compu y lista semanal (martes y jueves) en el celular; crear y editar turnos, estado de pago y de sesión, nota.
-- Agenda TPA: semana armada con los fijos de esa fecha + las asistencias registradas, horarios reales de Pau y cupo 4; grilla en la compu y selector de día + lista en el celular; inscribir/desinscribir fijos (con "Fijo desde") y registrar asistencia con los estados de Pau (Presente, Avisó C.T., Avisó S.T., No avisó, Sin marcar), contador de lugares y "Libre" (entrega 2); ocupar lugares, recuperaciones, cambio de horario, cancelar clase/día y pestaña Recuperaciones (entrega 3). Entrega 4 (escrita): "Marcar el resto como presente", notas de evolución por clase y alerta de 2 faltas seguidas sin avisar.
+- Agenda TPA: semana armada con los fijos de esa fecha + las asistencias registradas, horarios reales de Pau y cupo 4; grilla en la compu y selector de día + lista en el celular; inscribir/desinscribir fijos (con "Fijo desde") y registrar asistencia con los estados de Pau (Presente, Avisó C.T., Avisó S.T., No avisó, Sin marcar), contador de lugares y "Libre" (entrega 2); ocupar lugares, recuperaciones, cambio de horario, cancelar clase/día y pestaña Recuperaciones (entrega 3). Entrega 4: "Marcar el resto como presente", notas de evolución por clase y alerta de 2 faltas seguidas sin avisar.
 - Historia clínica en modal: ficha (solo lectura) y, desde la entrega 4, **Evolución** (alerta de faltas, resumen del mes, notas de clase y libres, sesiones RPG y asistencias TPA en una línea de tiempo). Las alertas por palabra clave se sacaron.
 - Pacientes: listado, búsqueda local, alta y edición de ficha.
 - Pagos: lista mensual, toggle pagado/pendiente, plan e importe.
@@ -15,9 +15,17 @@ _Última revisión: 23/10/2026 — Fases 0 y 0.5 completas; Fase 1: **asistencia
 - Base técnica (Fase 0.5): horas normalizadas, `estados.ts`, Toast, `ConfirmDialog`, aviso de usuario no autorizado.
 - Celular: ninguna pantalla con desplazamiento lateral, modales en hoja o pantalla completa con pie fijo, área segura del iPhone, aviso de sin conexión.
 - Tests automáticos con **Vitest** (`npm test`) para las funciones puras de `src/lib/`.
-- `tsc`, `build` y `npm test` (153 tests) sin errores. `npm run lint`: **4 errores y 2 warnings**, todos en código anterior (2 `no-explicit-any` y 1 `set-state-in-effect` en `pagos/page`, 1 `set-state-in-effect` en `TurnoModal`; warnings: `cn` sin usar en `TurnoModal` y una dependencia de `useEffect` en Pagos). Las 6 comillas sin escapar de `HistoriaClinicaModal` se fueron con las alertas por palabra clave (entrega 4).
+- `tsc`, `build` y `npm test` (156 tests) sin errores. `npm run lint`: **4 errores y 2 warnings**, todos en código anterior (2 `no-explicit-any` y 1 `set-state-in-effect` en `pagos/page`, 1 `set-state-in-effect` en `TurnoModal`; warnings: `cn` sin usar en `TurnoModal` y una dependencia de `useEffect` en Pagos). Las 6 comillas sin escapar de `HistoriaClinicaModal` se fueron con las alertas por palabra clave (entrega 4).
 
-**Lo más importante que falta:** aplicar y probar la entrega 4 (notas de evolución y alerta de faltas); después, Fase 2 (pagos).
+**Lo más importante que falta:** Fase 2, entrega 1 de pagos (calendario general verde/rosa + cobrar cuotas TPA, `docs/DISENO_PAGOS.md` sección 5) para que Pau empiece a usar la app; después, mantener activo el proyecto de Supabase (bloqueante antes de la carga real).
+
+**Cómo se prueba cada entrega (Facu, 12/11/2026):** no hay pruebas automáticas de navegador. En `respuesta.md` van siempre un SQL que arma el escenario (pacientes "Prueba …"), una lista corta de 8 a 10 cosas para mirar con su resultado esperado (compu primero, repaso en celular) y un SQL de borrado que primero muestra qué borra. Las reglas de cálculo, con Vitest. Detalle en CLAUDE.md, flujo de trabajo, paso 4.
+
+**Avisos sobre la base (12/11/2026):**
+- ⚠️ En la base hay una **clase de prueba de Pau del vie 30/10/2026 10:30 con 3 asistencias "Recupera" de pacientes reales**. **No tocarla:** se borra cuando Pau confirme.
+- ⚠️ El **12/11/2026 el proyecto Supabase "pau" se pausó** por 7 días sin actividad. Facu lo reactivó, sin pérdida de datos. Por ahora Facu lo mantiene activo entrando a la app una vez por semana; la solución automática (función `ping` + Cron diario de Vercel) va **después de pagos** y es bloqueante antes de la carga real.
+- ⚠️ En Supabase, **no agregar una cuenta como Owner o Administrator en la organización de la otra**: el límite de 2 proyectos gratis es por persona y eso pausó el proyecto. Si hace falta dar acceso, rol **Developer**.
+- Quedan datos de prueba viejos: el paciente "Prueba 1" (3 horarios en el lunes 08:00, fuera de los horarios reales, y 1 turno RPG) y 2 filas en `pagos` con precios inventados. Las pruebas nuevas usan otros nombres y no los tocan; se borran con la entrega 2 de pagos o antes de la carga real.
 
 **Decisiones tomadas (Facu, 17/10/2026):** login con email y contraseña, una sola usuaria (Pau); los datos actuales son de prueba y se borran; plan Supabase Free; el deploy de Vercel se borró y se rehace al final de la Fase 0; el repo es público (pasarlo a privado queda fuera de esta fase); borrado de pacientes real con confirmación por ahora, baja lógica antes de la carga real.
 
@@ -45,7 +53,7 @@ Migraciones 000001 a 000004 aplicadas por Facu, usuaria de Pau autorizada, prueb
 - [x] Sin claves ni `.env` en el historial de git (verificado en el diagnóstico).
 
 ### Bloqueantes antes de la carga real de pacientes (antes de Fase 5)
-- [ ] 🔴 **Mantener activo el proyecto de Supabase** (decidido: Vercel Cron + `public.ping()`). El plan Free lo pausa tras 7 días sin actividad (por ejemplo, vacaciones de Pau). Plan: un **Vercel Cron Job** diario (el plan Hobby permite uno por día) que llame a una ruta `src/app/api/mantener-activo/route.ts`. La ruta (a) exige el header `Authorization: Bearer ${CRON_SECRET}` que manda Vercel; (b) queda excluida del redirect del proxy; (c) llama a una función mínima `public.ping()` (`select 1`, sin datos, `execute` solo para `anon`) creada en una migración nueva. Alternativa sin código: GitHub Actions con `schedule`, pero GitHub desactiva los workflows programados tras 60 días sin commits. ⚠️ Sin verificar: qué cuenta exactamente como "actividad" para Supabase. Confirmarlo en su documentación antes de implementar.
+- [ ] 🔴 **Mantener activo el proyecto de Supabase** (decidido: Vercel Cron + `public.ping()`; va **después de pagos**, entrega 3 de `docs/DISENO_PAGOS.md`). **Ya pasó el 12/11/2026** (reactivado sin pérdida de datos; mientras tanto Facu entra una vez por semana). El plan Free lo pausa tras 7 días sin actividad (por ejemplo, vacaciones de Pau). Plan: un **Vercel Cron Job** diario (el plan Hobby permite uno por día) que llame a una ruta `src/app/api/mantener-activo/route.ts`. La ruta (a) exige el header `Authorization: Bearer ${CRON_SECRET}` que manda Vercel; (b) queda excluida del redirect del proxy; (c) llama a una función mínima `public.ping()` (`select 1`, sin datos, `execute` solo para `anon`) creada en una migración nueva. Alternativa sin código: GitHub Actions con `schedule`, pero GitHub desactiva los workflows programados tras 60 días sin commits. ⚠️ Sin verificar: qué cuenta exactamente como "actividad" para Supabase. Confirmarlo en su documentación antes de implementar.
 - [ ] 🔴 **Usuario de prueba no autorizado** (creado a propósito por Facu el 18/10/2026 para probar el aviso): borrarlo o cambiarle la contraseña por una larga.
 - [ ] 🔴 **Cambiar la contraseña de prueba de Pau por una larga** (16+ caracteres, en un gestor de contraseñas) desde Authentication → Users.
 - [ ] 🔴 **Pasar a baja lógica** (archivar con `pacientes.activo`) y cambiar las FK a `ON DELETE RESTRICT`. Reemplazar el cuerpo de `eliminarPaciente` por "archivar", agregar "Dar de baja / Reactivar" en la ficha y una vista de archivados. Incluye N6 (editar fuerza `activo: true`; los inactivos no aparecen en el select de `TurnoModal`).
@@ -118,7 +126,7 @@ Respuestas de Facu (23/10/2026): compu primero en la documentación; trigger est
 - [ ] En la card, el fijo origen de un cambio de horario no muestra "· viene lun 18:00" (solo en el modal: la card no tiene el historial).
 - [ ] El tipo de quien ocupa un lugar (Recupera ↔ Clase suelta) solo se cambia antes de guardar; después hay que quitarlo y volver a agregarlo.
 
-#### Entrega 4 — cierre de clase, notas y alertas (rama `fase-1/notas-y-alertas`) — código listo, falta aplicar y probar
+#### Entrega 4 — cierre de clase, notas y alertas (rama `fase-1/notas-y-alertas`) — ✅ mergeada
 Respuestas de Facu (23/10/2026) a las preguntas de la entrega 3: las clases que canceló Pau de quien ya no tiene horario fijo vigente no cuentan como pendientes (van a "Sin derecho" con "ya no es fijo" y reaparecen si se reinscribe); el chip y la pestaña cuentan recuperaciones, no personas; cambio de horario de 6 días antes a 6 días después, ordenado por cercanía.
 - [x] **Arreglos de la entrega 3:** (a) si falta una función, tabla o columna en la base (PGRST202/204/205, 42883, 42703, 42P01), el mensaje es "Falta aplicar un cambio en la base de datos. Avisale a Facu." (con tests); (b) pestañas Semana | Recuperaciones como control segmentado con ícono y contador (`Pestanias` en `src/components/ui/`); (c) "Copiar lista" sin repetir el grupo ("• Prueba A: faltó el lun 26 (vence el 31/10)"); (d) el trigger no deja insertar ni cambiar asistencias de una clase cancelada (cancelar/reactivar no las toca; dejar un enlace en null sí, para poder borrar un paciente); (e) el aviso de tope de un cambio de horario que cruza el mes usa el saldo del mes de la falta.
 - [x] Quien ya no es fijo (respuesta 1) y cambio de horario ordenado por cercanía (respuesta 3), con tests.
@@ -128,7 +136,9 @@ Respuestas de Facu (23/10/2026) a las preguntas de la entrega 3: las clases que 
 - [x] **Alerta de 2 faltas seguidas sin avisar** (`src/lib/alertas.ts`, 11 tests): en la card (ícono rojo), en el modal (con las marcas sin guardar) y en la ficha.
 - [x] **Sacar las alertas por palabra clave** (bug #5).
 - [x] El diálogo de eliminar paciente cuenta también sus notas de evolución.
-- [ ] **Facu:** aplicar la migración `20261024000001` → probar el preview (compu y celular, con los casos de `respuesta.md`) → merge → borrar los datos de prueba (SQL al final de las pruebas de `respuesta.md`).
+- [x] **Facu:** migración `20261024000001` aplicada, preview probado y merge.
+- [x] **Respuestas de Facu (12/11/2026, rama `fase-2/pagos`):** (a) un aviso C.T. o S.T. corta la racha de "No avisó": queda como está; (b) notas en clases que todavía no empezaron: se permiten; (c) el resumen del mes en Evolución separa las recuperaciones de los "No vino" ("Octubre: 2 faltas avisadas, 1 recuperada, 1 no vino, no le queda ninguna"; las anotadas sin marcar, como "1 anotada para recuperar"). Anotadas en el diseño (decisión 14).
+- [x] `EstadoCarga` muestra el mismo mensaje que el Toast (`useDatos` lo guarda en `error`); antes decía siempre "Revisá la conexión".
 - [ ] La grilla lee las asistencias de los últimos 120 días para la alerta (la ficha usa todo el historial): una racha con más de 4 meses sin clases marcadas en el medio no se vería en la grilla.
 - [ ] Editar o borrar una nota de clase desde la ficha no pasa por `guardar_clase_tpa`: si era lo único de la clase, la clase queda vacía (sin efecto visible salvo "Ver asistencia" en vez de "Registrar asistencia"; se borra la próxima vez que se guarda esa clase).
 - [ ] `TpaClaseModal` creció a ~260 líneas: partirlo (por ejemplo, el pie y los diálogos de cancelar/reactivar) en Fase 4.
@@ -191,13 +201,13 @@ Reemplaza a `/rpg` como entrada de la app (`/` y el destino después del login).
 
 ## Fase 2 — Pagos y planes
 
-- [ ] Definir modelo con Pau: TPA = plan mensual por frecuencia; RPG = por sesión. Hoy Pagos lista a **todos** los activos, incluidos los de RPG, y los cuenta como deudores (bug #7).
-- [ ] Tabla de planes/precios configurable (hoy defaults hardcodeados de $12.000 y $8.000; su ejemplo es TPA 1×/semana $40.000).
-- [ ] Mostrar en la grilla TPA quién pagó el mes (el "verde" de su Word). Movido desde Fase 1: depende del modelo de pagos.
-- [ ] Cambio de mes con `addMonths`/`subMonths` (hoy `setMonth()` saltea meses los días 29–31, N4).
-- [ ] El `onBlur` del importe crea un pago sin cambios; precio `0` se trata como vacío (N5).
-- [ ] `upsertPago` sin `onConflict`: puede chocar con el unique `(paciente_id, mes, año)`.
-- [ ] Resumen del mes: cobrado, pendiente, deudores; separado RPG / TPA.
+**Diseño: [`docs/DISENO_PAGOS.md`](docs/DISENO_PAGOS.md)** (12/11/2026). Reglas de Pau (octubre 2026) en `REQUISITOS.md`, sección 4.
+
+- [x] Diagnóstico de la pantalla, las queries y la tabla `pagos` (2 filas de prueba, precios inventados) y modelo nuevo: `precios_mes` (historial) + `pagos_tpa` (cuota y sueltas: importe congelado, fecha, efectivo/transferencia) + columnas de pago en `sesiones_rpg`. Pendiente = sin pago guardado (se calcula).
+- [ ] **Entrega 1** (`fase-2/pagos-entrega-1`): funciones puras de cuotas + tests, pestaña **Calendario** en TPA (verde pagó / rosa no pagó / Libre) con **Cobrar** en 2 clics, precios del mes, `/pagos` mínima con cuotas TPA por plan (reemplaza la pantalla vieja: resuelve #7, N4, N5 y el upsert sin `onConflict`), pendiente en rosa. Migración `precios_mes` + `pagos_tpa` (no toca `pagos`).
+- [ ] **Entrega 2:** clases sueltas, RPG del mes con medio e importe, totales por plan / medio / mes, "Copiar pendientes", importe sugerido después del 10 y en altas según las respuestas de Pau. Migración: columnas en `sesiones_rpg` + drop de `pagos` con guarda.
+- [ ] **Entrega 3:** mantener activo Supabase (`ping` + Vercel Cron).
+- [ ] Después: punto de pago en la grilla de la semana, pagos pendientes en "Inicio", tope de recuperaciones desde el plan pagado (si Pau lo pide).
 
 ## Fase 3 — Extras sugeridos (después del núcleo)
 
@@ -238,8 +248,8 @@ Reemplaza a `/rpg` como entrada de la app (`/` y el destino después del login).
 1. **Colores:** en tu Word el rojo es "faltó avisando". ¿Querés mantener ese código o usamos ámbar = avisó, rojo = faltó sin avisar?
 2. **Cupo TPA:** ¿son 4 lugares por horario siempre?
 3. **Recuperaciones:** ¿hay un límite (ej. recuperar dentro del mes)? ¿Querés que la app lleve la cuenta de clases a recuperar?
-4. **Pagos TPA:** ¿qué planes existen (1, 2, 3 veces por semana) y a qué precio? ¿Se cobra igual si faltó?
-5. **Pagos RPG:** ¿cada sesión se cobra suelta? ¿Precios de RPG, masajes y evaluación inicial?
+4. ✅ **Pagos TPA** (octubre 2026): plan por veces por semana, precios por mes, descuento del 1 al 10, la cuota cubre 4 clases por vez. Ver `REQUISITOS.md`, sección 4.
+5. ✅ **Pagos RPG** (octubre 2026): cada sesión suelta, $46.000, todas iguales.
 6. **Notas:** ¿te sirve marcar con un toque "presión", "dolor", "lesión" además del texto libre?
 7. **Historial viejo:** ¿hace falta pasar los 3 años de Word a la app, o arrancamos de cero con los pacientes actuales?
 8. ✅ **Dispositivo:** sobre todo desde la **compu** (Facu, 22/10/2026). Se diseña primero para la compu; el celular tiene que seguir andando bien.
@@ -252,6 +262,16 @@ Reemplaza a `/rpg` como entrada de la app (`/` y el destino después del login).
 14. ✅ (criterio por defecto, implementado en la entrega 2: los que avisaron no ocupan lugar) **Cupo "3/4":** ¿cuenta a quien avisó que falta? Hoy el número suma a todos los que figuran en el horario esa semana (fijos + recuperaciones), aunque hayan avisado o faltado. Si querés ver "lugares libres para recuperar", habría que descontar a los que avisaron.
 
 Para Fase 1 bloquean la 1, 2, 3, 6 y 9; para Fase 2, la 4 y la 5. La 1, la 6 y la 14 tienen criterio por defecto desde el 21/10/2026 (colores como están; sin marcas rápidas en las notas; los que avisaron no ocupan lugar).
+
+### Pagos (12/11/2026) — sin responder
+
+Detalle, ejemplos y supuestos en `docs/DISENO_PAGOS.md`, sección 7. Ninguna frena la entrega 1.
+
+27. Si alguien paga **después del 10**, ¿cuánto le cobrás? (supuesto: 4 × veces por semana × clase suelta)
+28. En un mes con **5 lunes**, ¿la 5.ª clase se cobra aparte? (supuesto: no)
+29. Si alguien **empieza a mitad de mes**, ¿cómo le cobrás el primer mes? (supuesto: las clases que le quedan como sueltas, o el plan si sale más barato)
+30. Las **clases sueltas**, ¿se pagan el mismo día o juntas a fin de mes? (supuesto: por persona y mes, se puede pagar de a una)
+31. ¿Alguien paga la cuota **en partes**? (supuesto: no)
 
 ### Recuperaciones (21/10/2026) — ✅ respondidas por Pau el 21/10/2026
 
@@ -299,9 +319,11 @@ Además: cada pendiente de recuperar muestra su **origen** ("cancelé el mié 7"
 | N17 | 4 | `package.json` | ✅ `npm audit fix` (sin `--force`) aplicado en la entrega 2 (22/10/2026): de 11 avisos a **5 altos**, solo parches/menores en el lockfile. Los 5 restantes vienen de `fast-glob` 3.3.1 dentro de `@next/eslint-plugin-next` 16.4.2: el único "arreglo" que ofrece npm es bajar a `eslint-config-next` 14 (no tiene sentido); hay que esperar a que Next lo actualice. |
 | 5 | 1 ✅ / 3 | `HistoriaClinicaModal` | Alertas por palabra clave sobre **todo** el historial, aunque el texto dice "recientes". Sacadas en la entrega 4; las alertas clínicas nuevas, en Fase 3. |
 | N11 | 1 ✅ | `Navigation` | Área segura del iPhone con `env(safe-area-inset-bottom)` + `viewportFit: cover`. |
-| 7 | 2 | `pagos/page` | Precios hardcodeados; mezcla RPG (por sesión) con mensual. |
-| N4 | 2 | `pagos/page.tsx:43, 51` | `setMonth()` saltea meses los días 29–31. |
-| N5 | 2 | `pagos/page.tsx:255` | `onBlur` crea un pago sin cambios; precio `0` = vacío. |
+| 7 | 2 | `pagos/page` | Precios hardcodeados; mezcla RPG (por sesión) con mensual. Se va con la entrega 1 de pagos (pantalla nueva). |
+| N4 | 2 | `pagos/page.tsx:43, 51` | `setMonth()` saltea meses los días 29–31. Entrega 1 de pagos. |
+| N5 | 2 | `pagos/page.tsx:255` | `onBlur` crea un pago sin cambios; precio `0` = vacío. Entrega 1 de pagos. |
+| N18 | 2 | `queries.ts` `upsertPago` | `upsert` sin `onConflict`: choca con el unique `(paciente_id, mes, año)`. Entrega 1 de pagos (se reemplaza). |
+| N19 | 2 | `pagos/page.tsx:41` | Carga sin `useDatos`: si falla, la tabla dice "No hay pacientes registrados". Entrega 1 de pagos. |
 | 8 | 4 | Global | Clases `animate-in` sin plugin instalado → no animan. |
 | N8 | 4 ✅ | `HistoriaClinicaModal` | Datos del paciente anterior si falla la carga; estados en crudo; pestaña no se resetea. Resuelto en la entrega 4 (se monta al abrir, `useDatos` con "Reintentar"). |
 | N9 | 1 ✅ | `CalendarMonthView` | Refresco sin `catch`, esqueleto en una celda, días de relleno sin turnos: corregidos al pasar la carga a `AgendaRPG` + `useDatos`. |

@@ -19,7 +19,7 @@ import { TpaBuscarLugar } from "./TpaBuscarLugar";
 interface TpaRecuperacionesProps {
   datos: DatosRecuperaciones | null;
   cargando: boolean;
-  error: boolean;
+  error: string | null;
   onReintentar: () => void;
   /** 'yyyy-MM-dd' */
   hoy: string;

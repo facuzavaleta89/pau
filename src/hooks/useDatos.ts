@@ -8,14 +8,18 @@ interface EstadoDatos<T> {
   datos: T | null;
   /** Está cargando (si ya había datos, se siguen mostrando mientras tanto). */
   cargando: boolean;
-  /** La última carga falló: mostrar un estado de error con "Reintentar". */
-  error: boolean;
+  /**
+   * La última carga falló: el mismo mensaje del Toast (por ejemplo, "No se
+   * pudo cargar la agenda TPA. Falta aplicar un cambio en la base de datos.
+   * Avisale a Facu."), para mostrarlo en EstadoCarga con "Reintentar". null si no falló.
+   */
+  error: string | null;
   recargar: () => void;
 }
 
 /**
  * Carga datos con una clave (por ejemplo, la semana) y avisa SIEMPRE si falla:
- * Toast de error + `error: true` para que la pantalla muestre "Reintentar"
+ * Toast de error + `error` con el mismo mensaje para que la pantalla muestre "Reintentar"
  * en lugar de quedar vacía como si no hubiera datos.
  *
  * `cargar` tiene que depender solo de `clave` (envolverla en useCallback).
@@ -24,10 +28,10 @@ interface EstadoDatos<T> {
 export function useDatos<T>(clave: string | null, cargar: () => Promise<T>, mensajeFallo: string): EstadoDatos<T> {
   const toast = useToast();
   const [version, setVersion] = useState(0);
-  const [resultado, setResultado] = useState<{ clave: string; datos: T | null; error: boolean }>({
+  const [resultado, setResultado] = useState<{ clave: string; datos: T | null; error: string | null }>({
     clave: '',
     datos: null,
-    error: false,
+    error: null,
   });
 
   const claveCompleta = `${clave}#${version}`;
@@ -37,16 +41,17 @@ export function useDatos<T>(clave: string | null, cargar: () => Promise<T>, mens
     let cancelado = false;
     cargar()
       .then((datos) => {
-        if (!cancelado) setResultado({ clave: claveCompleta, datos, error: false });
+        if (!cancelado) setResultado({ clave: claveCompleta, datos, error: null });
       })
       .catch((err: unknown) => {
         registrarError(mensajeFallo, err);
         if (cancelado) return;
-        toast.error(`${mensajeFallo} ${mensajeError(err)}`);
+        const mensaje = `${mensajeFallo} ${mensajeError(err)}`;
+        toast.error(mensaje);
         setResultado((prev) => ({
           clave: claveCompleta,
           datos: prev.clave.split('#')[0] === clave ? prev.datos : null,
-          error: true,
+          error: mensaje,
         }));
       });
     return () => { cancelado = true; };
@@ -61,7 +66,7 @@ export function useDatos<T>(clave: string | null, cargar: () => Promise<T>, mens
   return {
     datos: mismaClave ? resultado.datos : null,
     cargando: resultado.clave !== claveCompleta,
-    error: resultado.clave === claveCompleta && resultado.error,
+    error: resultado.clave === claveCompleta ? resultado.error : null,
     recargar,
   };
 }

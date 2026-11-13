@@ -327,10 +327,12 @@ export function textoListaRecuperaciones(saldos: SaldoRecuperaciones[], mes: str
 const contar = (n: number, uno: string, varios: string, ninguno: string) => (n === 0 ? ninguno : n === 1 ? `1 ${uno}` : `${n} ${varios}`);
 
 /**
- * Resumen del mes para la historia clínica: "Octubre: 3 faltas avisadas,
- * 1 recuperada, le queda 1". `saldo` = el de calcularRecuperaciones para ese
- * alumno y mes; `asistencias` = las suyas (con su clase). null si en el mes no
- * tuvo nada que contar y no es fijo.
+ * Resumen del mes para la historia clínica: "Octubre: 2 faltas avisadas,
+ * 1 recuperada, 1 no vino, no le queda ninguna". Los usos del mes se separan
+ * por estado (Facu, 12/11/2026): Presente = "recuperada", No vino = "no vino"
+ * (la perdió igual), Sin marcar = "anotada para recuperar" (todavía no se sabe).
+ * `saldo` = el de calcularRecuperaciones para ese alumno y mes; `asistencias` =
+ * las suyas (con su clase). null si en el mes no tuvo nada que contar y no es fijo.
  */
 export function textoResumenMes(
   mes: string,
@@ -340,15 +342,20 @@ export function textoResumenMes(
   const delMes = asistencias.filter((a) => a.tipo === 'fijo' && mesDe(a.clases_tpa.fecha) === mes && !a.clases_tpa.motivo_cancelacion);
   const avisadas = delMes.filter((a) => esAviso(a.estado)).length;
   const sinAvisar = delMes.filter((a) => a.estado === 'falto_sin_avisar').length;
-  const usadas = saldo?.usos.length ?? 0;
+  const usos = saldo?.usos ?? [];
+  const recuperadas = usos.filter((u) => u.estado === 'presente').length;
+  const noVino = usos.filter((u) => u.estado === 'falto_sin_avisar').length;
+  const anotadas = usos.length - recuperadas - noVino;
   const quedan = saldo?.pendientes.length ?? 0;
-  if (!saldo?.frecuencia && avisadas + sinAvisar + usadas + quedan === 0) return null;
+  if (!saldo?.frecuencia && avisadas + sinAvisar + usos.length + quedan === 0) return null;
 
   const nombreMes = format(parseISO(`${mes}-01`), 'MMMM', { locale: es });
   const partes = [
     contar(avisadas, 'falta avisada', 'faltas avisadas', 'sin faltas avisadas'),
     ...(sinAvisar > 0 ? [`${sinAvisar} sin avisar`] : []),
-    contar(usadas, 'recuperada', 'recuperadas', 'ninguna recuperada'),
+    contar(recuperadas, 'recuperada', 'recuperadas', 'ninguna recuperada'),
+    ...(noVino > 0 ? [`${noVino} no vino`] : []),
+    ...(anotadas > 0 ? [`${anotadas} ${anotadas === 1 ? 'anotada' : 'anotadas'} para recuperar`] : []),
     quedan === 0 ? 'no le queda ninguna' : quedan === 1 ? 'le queda 1' : `le quedan ${quedan}`,
   ];
   return `${nombreMes.charAt(0).toUpperCase()}${nombreMes.slice(1)}: ${partes.join(', ')}`;
