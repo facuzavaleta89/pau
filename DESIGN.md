@@ -62,9 +62,11 @@ Definidos **una sola vez** en `src/lib/estados.ts` (label, clases de color, íco
 | `realizada` | Realizada | `bg-emerald-50 text-emerald-700 border-emerald-200` | `CircleCheck` |
 | `cancelada` | Cancelada | `bg-stone-100 text-stone-500 border-stone-300` | `CircleX` |
 
-### Pago
-- pagado → badge `bg-emerald-50 text-emerald-700 border-emerald-200`, punto `bg-emerald-500`
-- pendiente → badge `bg-amber-50 text-amber-700 border-amber-200`, punto `bg-amber-500`
+### Pago (`ESTADOS_PAGO`)
+Los colores del calendario de Pau: **verde = pagó, rosa = todavía no pagó**, en toda la app (TPA, Pagos y RPG). El ámbar queda solo para "avisó" y para avisos.
+- pagado → badge `bg-emerald-50 text-emerald-700 border-emerald-200`, punto `bg-emerald-500`, ícono `CircleCheck`. Con fecha y medio: "Pagó el 5/11 · Efectivo" (`EstadoPagoChip`).
+- pendiente → badge `bg-pink-50 text-pink-700 border-pink-200`, punto `bg-pink-500`, ícono `Clock`. Pendiente que todavía no es deuda (sesión de RPG que no se hizo, sueltas sin nada para cobrar): gris `bg-stone-50 text-stone-500 border-stone-200`.
+- Importes siempre con `formatoPesos()` (`src/lib/pagos.ts`): "$50.000", igual en cualquier navegador. Cifras con `tabular-nums`.
 - En RPG el pago es **por sesión**: el texto es "Sesión: pagado / pendiente", nunca "Mes".
 
 ### Alertas clínicas
@@ -168,16 +170,17 @@ En pantallas < 768px los modales se muestran como **hoja desde abajo** (ancho co
 ### Agenda RPG
 - **Desktop:** calendario mensual (lunes a domingo, martes y jueves resaltados).
 - **Celular** (`RpgSemanaLista`): la semana como **lista por día**: martes y jueves siempre (otro día solo si tiene turnos), con "+ Turno" por día y navegación por semana. El calendario mensual no se muestra en celular.
-- Turno (`TurnoCard`): hora, nombre (tocable → historia clínica), tipo de sesión, punto de pago, color e ícono del estado.
+- Turno (`TurnoCard`): hora, nombre (tocable → historia clínica), tipo de sesión, punto de pago (verde / rosa), color e ícono del estado.
+- En el modal del turno, con Pago = Pagado aparece **Medio de pago** (Transferencia / Efectivo); el importe y la fecha se ven y se corrigen en Pagos.
 
 ### Pestañas de una pantalla (`Pestanias`, `src/components/ui/`)
-- Para las **vistas principales** de una pantalla (TPA: Semana | Recuperaciones). Tienen que verse a primera vista: el subrayado fino pasaba desapercibido.
+- Para las **vistas principales** de una pantalla (TPA: Semana | Calendario | Recuperaciones). Tienen que verse a primera vista: el subrayado fino pasaba desapercibido.
 - Control segmentado: contenedor `bg-stone-100 border-stone-200 rounded-xl p-1`; cada pestaña 44px con ícono (16px) y texto `text-sm font-semibold`; la activa `bg-white text-teal-700 shadow-sm ring-1 ring-stone-200` con el ícono teal; las otras `text-stone-600`, hover `bg-white/60`. Contador opcional en un círculo `bg-blue-600 text-white` (azul = recuperar, como el chip).
-- En el celular ocupa todo el ancho (columnas iguales); en la compu, lo que necesita.
+- En el celular ocupa todo el ancho (columnas iguales); en la compu, lo que necesita. Con 3 o más pestañas, en el celular van sin ícono y con el texto corto si hace falta (`corto`: "Recuperar") para que entren en 390px.
 - Las pestañas **dentro de un modal** (Asistencia | Alumnos fijos) siguen con subrayado teal: ahí el modal ya enmarca.
 
 ### Agenda TPA
-- Pestañas arriba (`Pestanias`): **Semana** (`CalendarDays`) | **Recuperaciones** (`RotateCcw`, con el contador de pendientes).
+- Pestañas arriba (`Pestanias`): **Semana** (`CalendarDays`) | **Calendario** (`CalendarRange`) | **Recuperaciones** (`RotateCcw`, con el contador de pendientes). Abre en **Calendario** la primera vez y después en la última pestaña usada (`useValorGuardado`, en este navegador).
 - Junto a la navegación de la semana, chip **"N pendientes de recuperar"** (`bg-blue-50 text-blue-700 border-blue-200 rounded-full`, ícono `RotateCcw`) que lleva a la pestaña Recuperaciones. Solo si hay pendientes este mes.
 - En el encabezado de cada día (grilla de la compu y lista del celular): **"Cancelar el día"** (texto `text-stone-500`, hover rojo, ícono `Ban`) y, si hay clases canceladas, **"Reactivar el día"** (hover teal, ícono `RotateCcw`). 32px en la compu, 44px en el celular.
 - **Desktop** (`TpaGrillaSemana`): grilla de 3 días × horarios reales (`HORARIOS_TPA`). Si un día no tiene clase en esa hora (viernes 19:00), celda punteada "Sin clase".
@@ -186,6 +189,28 @@ En pantallas < 768px los modales se muestran como **hoja desde abajo** (ancho co
 - Junto al nombre, íconos de 14px: **alerta de faltas** (`ALERTA_FALTAS.icono` = `OctagonAlert`, `text-red-600`) si tiene 2 o más faltas seguidas sin avisar, y **nota** (`ICONO_NOTA` = `NotebookPen`) si tiene nota de evolución en esa clase. Los dos también en el `title` y en el texto para lectores de pantalla.
 - **Contador:** ocupados = fijos que no avisaron (incluye Sin marcar y No avisó) + quienes vienen a ocupar un lugar. Badge `bg-stone-50 text-stone-600 border-stone-200`; completo, `bg-teal-50 text-teal-700 border-teal-200`; con más personas que lugares ("5/4"), `bg-amber-50 text-amber-800 border-amber-200` con `AlertTriangle` (avisa, no bloquea).
 - Tocar el botón → registro rápido de asistencia; tocar un nombre → historia clínica.
+
+### Calendario general del mes (TPA, `TpaCalendario`)
+- Lo primero que mira Pau en TPA: el mes entero con los fijos y si pagaron. Navegación por mes (`SemanaNav` con "Mes anterior / siguiente") y al lado "Pagaron **12 de 18** · Falta cobrar **$430.000**" (solo cuotas; la cifra en `text-pink-700`).
+- Si el mes no tiene precios propios, franja ámbar "Noviembre sin precios: se usan los de octubre" con el botón **"Cargar precios de noviembre"** (abre `PreciosMesModal` con los del mes anterior ya completos).
+- **Compu:** grilla horarios (columna de 4rem a la izquierda) × Lun / Mié / Vie, como la semana. Cada horario es una card blanca (`TpaCalendarioCelda`) con **sus 4 lugares** en filas de 36px: fijo en **verde** (pagó) o **rosa** (no pagó) con `ESTADOS_PAGO[…].clases`, "desde 15/11" o "baja 20/11" en chico si entra o sale en el mes; un clic abre **Cobrar** (2 clics para cobrar). Los lugares sin fijo: el mismo "Libre" teal punteado de la semana con **"+ Inscribir fijo"** (abre `TpaInscribirFijo`: el `TpaInscripcion` de siempre, con "Fijo desde" = el 1 del mes que se mira). Sin clase a esa hora (viernes 19:00): celda punteada "Sin clase".
+- **Celular:** selector Lun / Mié / Vie (44px, el activo en teal) y una card por horario con la hora arriba y sus lugares en filas de 44px.
+
+### Cobrar (`CobrarCuota`, `CobrarSueltas`, `CobrarSesionRPG`)
+- Modal `md` (hoja desde abajo en el celular). Título: el nombre; subtítulo: "Cuota de noviembre · 1 vez por semana (lun 10:30)".
+- Todo viene completo con lo sugerido: **plan** (control segmentado 1 vez / 2 veces / 3 veces, el activo `bg-teal-50 border-teal-500`), **importe** (`$` adentro del campo, editable), **fecha de pago** (hoy), **medio** (Transferencia / Efectivo, el activo `bg-teal-600 text-white`; arranca en el de su último pago) y **nota** opcional. En el caso normal: abrir → **Guardar**.
+- El importe sugerido es siempre el plan. Debajo, el motivo en `text-stone-600` ("Plan 1 vez por semana (paga del 1 al 10).") o, si paga después del 10 o empieza en el mes y sale más barato por clase, franja ámbar "Después del 10: por clase serían 4 × $18.000 = $72.000 · **Usar**" (link teal subrayado: un clic lo aplica; se recalcula al cambiar la fecha o el plan). Aplicado: "Por clase: 4 clases · **Volver al plan**".
+- Avisos en franja ámbar con `AlertTriangle`: plan distinto de sus horarios, más de 3 horarios, ya no es fijo.
+- **Ya pagado:** caja verde "Pagó el 5/11 · Transferencia · $50.000" (+ plan y nota), y en el pie **"Deshacer"** (texto rojo, a la izquierda en la compu, con `ConfirmDialog` danger) y **"Editar"**.
+- Clases sueltas: lista de los pagos del mes (caja verde por pago con "Deshacer") y el formulario con **Clases** (importe = clases × suelta, editable). Cada pago es una fila nueva.
+- Link "Ver historia clínica" (`User`, `text-stone-600`, hover teal) al pie del contenido.
+
+### Pagos del mes (`/pagos`, `PagosDelMes`)
+- Arriba: navegación de mes y **"Copiar pendientes"** (botón secundario con `Copy`; texto para WhatsApp; sin portapapeles, modal con el texto para copiar a mano, como en Recuperaciones).
+- **Cuatro cifras** (`PagosCifras`), cards blancas en 2 columnas en el celular y 4 en la compu: Cobrado (`text-emerald-700`) · Falta cobrar (`text-pink-700`) · Total del mes · Efectivo / Transferencia (y "Sin medio (RPG)" en gris si hay).
+- **Precios** en una línea ("1 vez $50.000 · 2 veces $80.000 · … · RPG $46.000") con "Editar"; si son heredados, la franja ámbar de arriba con "Cargar precios de noviembre".
+- Secciones (`TablaPagos`): **TPA por plan** ("TPA · 1 vez por semana · pagaron 2 de 3": Alumno · Horarios · Estado · Importe · Cobrar/Ver), **Clases sueltas TPA** (Persona · Clases "× 3 (vino 3 · 1 no vino)" · Estado · Importe · Cobrar/Ver) y **RPG** (Paciente · Fecha · Tipo · Estado · Importe · Cobrar/Ver). Al pie de cada una, "Cobrado $X · Falta cobrar $Y". Compu: tabla `bg-white border-stone-200 rounded-xl`; celular: una card por fila con los datos en dos columnas y el botón de ancho completo (44px). Botón "Cobrar" primario teal; "Ver" (ya pagado) secundario.
+- Nombre tocable → historia clínica.
 
 ### Registro rápido de asistencia (modal)
 - Modal `ancho="2xl"` en la compu (los 5 chips entran en una fila); pantalla completa en el celular. Subtítulo: "lunes 26 de octubre · 3/4 · 1 libre" (con las marcas sin guardar).

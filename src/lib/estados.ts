@@ -111,8 +111,10 @@ export const ESTADOS_SESION_RPG: Record<EstadoSesionRPG, ConfigEstado> = {
 export const ORDEN_ESTADOS_SESION_RPG: EstadoSesionRPG[] = ['pendiente', 'realizada', 'cancelada'];
 
 // ---------------------------------------------------------------------
-// Pago (RPG por sesión y pagos mensuales)
+// Pago (RPG por sesión y cuotas / sueltas de TPA)
 // ---------------------------------------------------------------------
+// Colores del calendario de Pau: verde = pagó, rosa = todavía no pagó (en
+// toda la app, también RPG). El ámbar queda solo para "avisó".
 
 export interface ConfigPago extends ConfigEstado {
   /** Color del punto indicador. */
@@ -121,7 +123,7 @@ export interface ConfigPago extends ConfigEstado {
 
 export const ESTADOS_PAGO: Record<EstadoPago, ConfigPago> = {
   pagado:    { label: 'Pagado',    clases: 'bg-emerald-50 text-emerald-700 border-emerald-200', icono: CircleCheck, punto: 'bg-emerald-500' },
-  pendiente: { label: 'Pendiente', clases: 'bg-amber-50 text-amber-700 border-amber-200',       icono: Clock,       punto: 'bg-amber-500' },
+  pendiente: { label: 'Pendiente', clases: 'bg-pink-50 text-pink-700 border-pink-200',          icono: Clock,       punto: 'bg-pink-500' },
 };
 
 export const ORDEN_ESTADOS_PAGO: EstadoPago[] = ['pendiente', 'pagado'];

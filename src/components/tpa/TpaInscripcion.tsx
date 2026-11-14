@@ -12,19 +12,23 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { cn } from "@/lib/utils";
 
 interface TpaInscripcionProps {
-  celda: CeldaTPA;
+  /** Día y hora, fijos de hoy y cupo (una celda de la semana o del calendario). */
+  celda: Pick<CeldaTPA, 'dia' | 'hora' | 'fijosActuales' | 'cupo'>;
   todosPacientes: Paciente[];
   /** Recarga la semana (el modal se actualiza sin cerrarse ni perder marcas). */
   onCambio: () => void;
+  /** "Fijo desde" al abrir; hoy si no se indica. */
+  fechaAltaInicial?: string;
 }
 
-// Pestaña "Alumnos fijos": quiénes son fijos HOY de este día y hora.
-export function TpaInscripcion({ celda, todosPacientes, onCambio }: TpaInscripcionProps) {
+// Pestaña "Alumnos fijos": quiénes son fijos HOY de este día y hora. También
+// la usa "+ Inscribir fijo" del Calendario.
+export function TpaInscripcion({ celda, todosPacientes, onCambio, fechaAltaInicial }: TpaInscripcionProps) {
   const toast = useToast();
   const [seleccionado, setSeleccionado] = useState('');
   // Desde qué fecha es fijo: hoy por defecto; se puede elegir otra (pasada o futura).
   const [hoy] = useState(() => format(new Date(), 'yyyy-MM-dd'));
-  const [fechaAlta, setFechaAlta] = useState(hoy);
+  const [fechaAlta, setFechaAlta] = useState(fechaAltaInicial ?? hoy);
   const [inscribiendo, setInscribiendo] = useState(false);
   const [aDesinscribir, setADesinscribir] = useState<HorarioTPA | null>(null);
   const [desinscribiendo, setDesinscribiendo] = useState(false);
@@ -38,7 +42,7 @@ export function TpaInscripcion({ celda, todosPacientes, onCambio }: TpaInscripci
     try {
       await createHorarioTPA({ paciente_id: seleccionado, dia_semana: celda.dia, hora: celda.hora, fecha_alta: fechaAlta });
       setSeleccionado('');
-      setFechaAlta(hoy);
+      setFechaAlta(fechaAltaInicial ?? hoy);
       toast.exito('Alumno inscripto');
       onCambio();
     } catch (err: unknown) {

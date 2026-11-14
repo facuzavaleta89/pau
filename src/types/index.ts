@@ -46,6 +46,10 @@ export interface SesionRPG {
   estado_pago: EstadoPago;
   estado_sesion: EstadoSesionRPG;
   nota: string | null;
+  /** Pago de la sesión (migración 20261113000001): solo si está pagada; null = sin dato. */
+  importe?: number | null;
+  pagado_el?: string | null;
+  medio_pago?: MedioPago | null;
   created_at: string;
   // Relación opcional para consultas
   pacientes?: Pick<Paciente, 'nombre' | 'telefono'>;
@@ -112,16 +116,43 @@ export interface NotaEvolucion {
   clases_tpa?: Pick<ClaseTPA, 'fecha' | 'hora'> | null;
 }
 
-export interface Pago {
+// La tabla vieja `pagos` ya no se usa (Fase 2): se borra en la tanda de datos reales.
+
+export type MedioPago = 'efectivo' | 'transferencia';
+export type ConceptoPagoTPA = 'cuota' | 'sueltas';
+/** Cuota: plan (del 1 al 10) o por clase. */
+export type ModalidadCuota = 'plan' | 'por_clase';
+
+/** Precios de un mes (precios_mes). Pesos enteros. */
+export interface PreciosMes {
+  /** Primer día del mes: 'yyyy-MM-01'. */
+  mes: string;
+  tpa_1_vez: number;
+  tpa_2_veces: number;
+  tpa_3_veces: number;
+  tpa_suelta: number;
+  rpg_sesion: number;
+}
+
+/** Un pago de TPA ya hecho (pagos_tpa). Sin fila = pendiente. */
+export interface PagoTPA {
   id: string;
   paciente_id: string;
-  mes: number;
-  año: number;
-  plan: string | null;
-  precio: number | null;
-  estado: EstadoPago;
-  fecha_pago: string | null;
+  /** Primer día del mes que paga: 'yyyy-MM-01'. */
+  mes: string;
+  concepto: ConceptoPagoTPA;
+  /** Solo cuota: 1, 2 o 3. */
+  veces_por_semana: number | null;
+  /** Solo cuota. */
+  modalidad: ModalidadCuota | null;
+  /** Por clase y sueltas: cuántas clases paga. */
+  clases: number | null;
+  importe: number;
+  pagado_el: string;
+  medio: MedioPago;
+  nota: string | null;
   created_at: string;
+  updated_at: string;
   // Relación opcional
   pacientes?: Pick<Paciente, 'nombre'>;
 }

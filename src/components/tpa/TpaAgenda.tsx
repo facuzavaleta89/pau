@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { addDays, addWeeks, format, parseISO, subWeeks } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { CalendarDays, RotateCcw } from 'lucide-react';
+import { CalendarDays, CalendarRange, RotateCcw } from 'lucide-react';
 import { cambiarCancelacionTPA, cargarDatosAlertas, cargarDatosRecuperaciones, cargarSemanaTPA } from '@/lib/queries';
 import { armarSemanaTPA, DIAS_TPA, diaTPAInicial, inicioDeSemana } from '@/lib/tpa';
 import { calcularRecuperaciones } from '@/lib/recuperaciones';
@@ -12,6 +12,7 @@ import { mensajeErrorAlGuardar, registrarError } from '@/lib/errores';
 import { MOTIVOS_CANCELACION } from '@/lib/estados';
 import { useDatos } from '@/hooks/useDatos';
 import { useEsCelular } from '@/hooks/useEsCelular';
+import { useValorGuardado } from '@/hooks/useValorGuardado';
 import { useToast } from '@/components/ui/ToastProvider';
 import { SemanaNav } from '@/components/ui/SemanaNav';
 import { EstadoCarga } from '@/components/ui/EstadoCarga';
@@ -24,10 +25,12 @@ import { TpaListaDia } from './TpaListaDia';
 import { TpaClaseModal } from './TpaClaseModal';
 import { TpaCancelarDialog } from './TpaCancelarDialog';
 import { TpaRecuperaciones } from './TpaRecuperaciones';
+import { TpaCalendario } from './TpaCalendario';
 import type { AccionesSemanaTPA } from './TpaAccionesDia';
 import type { OcupanteInicial } from './useBorradorClase';
 
-type Pestania = 'semana' | 'recuperaciones';
+type Pestania = 'semana' | 'calendario' | 'recuperaciones';
+const PESTANIAS: readonly Pestania[] = ['semana', 'calendario', 'recuperaciones'];
 
 interface ClaseAbierta {
   clave: string;
@@ -36,14 +39,16 @@ interface ClaseAbierta {
 }
 
 // Agenda TPA: pestañas Semana (grilla en la compu, lista por día en el
-// celular) y Recuperaciones. El modal de la clase y cancelar el día viven acá.
+// celular), Calendario (pagos del mes y lugares libres) y Recuperaciones. El
+// modal de la clase y cancelar el día viven acá. Abre en Calendario la
+// primera vez y después en la última pestaña usada (Facu, 13/11/2026).
 export function TpaAgenda() {
   const toast = useToast();
   const esCelular = useEsCelular();
   const inicial = useMemo(() => diaTPAInicial(new Date()), []);
   const [ahora] = useState(() => new Date());
   const hoy = format(ahora, 'yyyy-MM-dd');
-  const [pestania, setPestania] = useState<Pestania>('semana');
+  const [pestania, setPestania] = useValorGuardado<Pestania>('pau.tpa.pestania', 'calendario', PESTANIAS);
   const [semanaInicio, setSemanaInicio] = useState(inicial.semana);
   const [dia, setDia] = useState<DiaSemana>(inicial.dia);
   const [abierta, setAbierta] = useState<ClaseAbierta | null>(null);
@@ -143,11 +148,14 @@ export function TpaAgenda() {
         onCambiar={setPestania}
         pestanias={[
           { id: 'semana', label: 'Semana', icono: CalendarDays },
-          { id: 'recuperaciones', label: 'Recuperaciones', icono: RotateCcw, contador: pendientes },
+          { id: 'calendario', label: 'Calendario', icono: CalendarRange },
+          { id: 'recuperaciones', label: 'Recuperaciones', corto: 'Recuperar', icono: RotateCcw, contador: pendientes },
         ]}
       />
 
-      {pestania === 'recuperaciones' ? (
+      {pestania === 'calendario' ? (
+        <TpaCalendario onAbrirPaciente={setPacienteHistoria} onCambioFijos={recargarTodo} />
+      ) : pestania === 'recuperaciones' ? (
         <TpaRecuperaciones
           datos={rec.datos}
           cargando={rec.cargando}

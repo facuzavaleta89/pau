@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ESTADOS_ASISTENCIA, ORDEN_ESTADOS_FIJO, ORDEN_ESTADOS_OCUPANTE, estadoAsistencia, etiquetaAsistencia,
+  ESTADOS_ASISTENCIA, ESTADOS_PAGO, ORDEN_ESTADOS_FIJO, ORDEN_ESTADOS_OCUPANTE, estadoAsistencia, etiquetaAsistencia,
 } from './estados';
 
 describe('estadoAsistencia', () => {
@@ -43,5 +43,13 @@ describe('estados de asistencia TPA (palabras de Pau)', () => {
     expect(etiquetaAsistencia('falto_sin_avisar', 'recupera')).toBe('No vino');
     expect(etiquetaAsistencia('falto_sin_avisar', 'fijo')).toBe('No avisó');
     expect(etiquetaAsistencia('estado_raro', 'suelta')).toBe('Estado raro');
+  });
+});
+
+describe('pagos (colores del calendario de Pau)', () => {
+  it('pagado en verde y pendiente en rosa; el ámbar queda para los avisos', () => {
+    expect(ESTADOS_PAGO.pagado.clases).toContain('emerald');
+    expect(ESTADOS_PAGO.pendiente.clases).toContain('pink');
+    expect(ESTADOS_PAGO.pendiente.punto).toContain('pink');
   });
 });
