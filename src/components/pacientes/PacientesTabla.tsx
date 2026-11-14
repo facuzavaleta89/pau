@@ -2,6 +2,7 @@
 
 import { Edit2, FileText, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { textoBaja } from '@/lib/pacientes';
 import type { Paciente } from '@/types';
 
 interface PacientesTablaProps {
@@ -38,7 +39,9 @@ export function PacientesTabla({ pacientes, onAbrirHistoria, onEditar }: Pacient
                   </div>
                   <div>
                     <div className="text-sm font-semibold text-stone-900 group-hover:text-teal-600 transition-colors">{paciente.nombre}</div>
-                    <div className="text-xs text-stone-500 mt-0.5">{paciente.edad ? `${paciente.edad} años` : 'Edad no registrada'}</div>
+                    <div className="text-xs text-stone-500 mt-0.5">
+                      {paciente.activo ? (paciente.edad ? `${paciente.edad} años` : 'Edad no registrada') : textoBaja(paciente)}
+                    </div>
                   </div>
                 </div>
               </td>

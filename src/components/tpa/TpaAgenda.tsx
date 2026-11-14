@@ -233,6 +233,7 @@ export function TpaAgenda() {
         isOpen={pacienteHistoria !== null}
         onClose={() => setPacienteHistoria(null)}
         pacienteId={pacienteHistoria}
+        onCambioPaciente={recargarTodo}
       />
     </div>
   );

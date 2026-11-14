@@ -93,7 +93,8 @@ Diseño en `docs/DISENO_PAGOS.md`.
 | Octubre 2026 | $50.000 | $80.000 | $110.000 | $18.000 |
 
 - Las **clases sueltas** de TPA (quien viene a una clase sin ser fijo y sin usar una recuperación: `asistencia_tpa` con tipo "suelta") se cobran aparte.
-- ✅ (Facu, 13/11/2026) La cuota cubre **el mes entero**, también en los meses con 5 lunes. La app sugiere **siempre el plan**; si paga después del 10, avisa al lado cuánto sería por clase (4 × clase suelta por cada vez por semana) y Pau lo aplica con un clic si quiere.
+- ✅ (Facu, 13/11/2026) La cuota cubre **el mes entero**, también en los meses con 5 lunes.
+- ✅ (Pau, 13/11/2026) **Después del 10 cobra el mismo precio del plan** (en la práctica no aplica el recargo de la línea de arriba). **Alta a mitad de mes: por clase** (clase suelta del mes × clases que le quedan desde su alta). Las **sueltas** se pagan cuando vienen o al comienzo del mes, nunca al final. Los precios de noviembre y diciembre los carga ella desde la app.
 
 ### RPG: por sesión
 - Cada sesión se cobra **suelta**: **$46.000**, y todas valen lo mismo (RPG, masajes, evaluación inicial).

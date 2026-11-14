@@ -2,13 +2,17 @@
 
 import { FileText, Phone } from 'lucide-react';
 import type { Paciente } from '@/types';
+import { EstadoPacienteCard } from './EstadoPacienteCard';
 
 interface HistoriaFichaProps {
   paciente: Paciente;
+  /** Se dio de baja o se reactivó. */
+  onCambio: () => void;
 }
 
-// Pestaña "Ficha" de la historia clínica: contacto y datos clínicos (solo lectura).
-export function HistoriaFicha({ paciente }: HistoriaFichaProps) {
+// Pestaña "Ficha" de la historia clínica: contacto y datos clínicos (solo
+// lectura) y, al pie, "Dar de baja" / "Reactivar".
+export function HistoriaFicha({ paciente, onCambio }: HistoriaFichaProps) {
   return (
     <div className="space-y-6">
       {/* Datos Básicos */}
@@ -70,6 +74,8 @@ export function HistoriaFicha({ paciente }: HistoriaFichaProps) {
           </div>
         </div>
       </div>
+
+      <EstadoPacienteCard paciente={paciente} onCambio={onCambio} />
     </div>
   );
 }

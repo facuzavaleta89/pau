@@ -131,7 +131,7 @@ export function PagosDelMes() {
         </Modal>
       )}
 
-      <HistoriaClinicaModal isOpen={pacienteHistoria !== null} onClose={() => setPacienteHistoria(null)} pacienteId={pacienteHistoria} />
+      <HistoriaClinicaModal isOpen={pacienteHistoria !== null} onClose={() => setPacienteHistoria(null)} pacienteId={pacienteHistoria} onCambioPaciente={recargar} />
     </div>
   );
 }

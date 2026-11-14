@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { AsistenciaConClase, DiaSemana, HorarioTPA, PagoTPA, PreciosMes, SesionRPG } from '@/types';
 import {
-  avisoPorClase, calendarioDelMes, medioSugerido, cuotasDelMes, esDelUnoAlDiez, fijosDelMes, formatoPesos, hoyArgentina, moverMes,
-  preciosDelMes, resumenDelMes, sesionesRPGDelMes, sueltasDelMes, textoHorarios, textoPendientes, textoSueltas,
+  calendarioDelMes, cuotaSugerida, medioSugerido, cuotasDelMes, fijosDelMes, formatoPesos, hoyArgentina, moverMes,
+  preciosDelMes, resumenDelMes, sesionesRPGDelMes, sueltasDelMes, textoHorarios, textoPendientes, textoPorClase, textoSueltas,
   type AsistenciaSuelta,
 } from './pagos';
 
@@ -162,36 +162,42 @@ describe('cuotasDelMes', () => {
   });
 });
 
-describe('avisoPorClase (el importe sugerido siempre es el plan)', () => {
-  const base = { veces: 1, precios: OCTUBRE, mes: '2026-10', fijo: null };
-
-  it('paga el 10/10: sin aviso', () => {
-    expect(avisoPorClase({ ...base, pagadoEl: '2026-10-10' })).toBeNull();
-    expect(esDelUnoAlDiez('2026-10-10', '2026-10')).toBe(true);
+describe('cuotaSugerida (Pau, 13/11/2026: plan siempre; alta a mitad de mes, por clase)', () => {
+  it('fijo de todo el mes: el plan, pague cuando pague (no hay recargo después del 10)', () => {
+    const [a] = fijosDelMes([horario('A', 'lunes', '10:30')], '2026-10');
+    expect(cuotaSugerida(a, 1, OCTUBRE)).toEqual({ modalidad: 'plan', clases: null, importe: 50000 });
+    expect(cuotaSugerida(a, 2, OCTUBRE).importe).toBe(80000);
   });
 
-  it('paga el 11/10: aviso por clase 4 × $18.000 = $72.000', () => {
-    expect(avisoPorClase({ ...base, pagadoEl: '2026-10-11' })).toEqual({
-      motivo: 'despues_del_10', clases: 4, importe: 72000, texto: 'Después del 10: por clase serían 4 × $18.000 = $72.000',
-    });
+  it('alta el 15/10 los lunes (19 y 26): por clase, 2 × $18.000 = $36.000', () => {
+    const [a] = fijosDelMes([horario('A', 'lunes', '10:30', '2026-10-15')], '2026-10');
+    expect(a.altaEnElMes).toBe(true);
+    expect(cuotaSugerida(a, 1, OCTUBRE)).toEqual({ modalidad: 'por_clase', clases: 2, importe: 36000 });
+    expect(textoPorClase(a, OCTUBRE)).toBe('Empieza el 15/10: por clase, 2 × $18.000 = $36.000');
   });
 
-  it('2 veces después del 10: 8 clases', () => {
-    expect(avisoPorClase({ ...base, veces: 2, pagadoEl: '2026-10-20' })?.importe).toBe(144000);
+  it('alta el 15/10 LMV: por clase aunque salga más que el plan (7 × $18.000 = $126.000)', () => {
+    const [a] = fijosDelMes([
+      horario('A', 'lunes', '10:30', '2026-10-15'), horario('A', 'miercoles', '10:30', '2026-10-15'), horario('A', 'viernes', '10:30', '2026-10-15'),
+    ], '2026-10');
+    expect(cuotaSugerida(a, 3, OCTUBRE)).toEqual({ modalidad: 'por_clase', clases: 7, importe: 126000 });
   });
 
-  it('paga el 30/9 la cuota de octubre: cuenta como del 1 al 10', () => {
-    expect(avisoPorClase({ ...base, pagadoEl: '2026-09-30' })).toBeNull();
+  it('alta el 5/10, el primer lunes del mes: tiene todas las clases → plan', () => {
+    const [a] = fijosDelMes([horario('A', 'lunes', '10:30', '2026-10-05')], '2026-10');
+    expect(a).toMatchObject({ desde: '2026-10-05', altaEnElMes: false });
+    expect(cuotaSugerida(a, 1, OCTUBRE).modalidad).toBe('plan');
+    expect(textoPorClase(a, OCTUBRE)).toBeNull();
   });
 
-  it('alta el 15/10 los lunes: 2 × $18.000 = $36.000, aunque pague después del 10', () => {
-    expect(avisoPorClase({ ...base, pagadoEl: '2026-10-20', fijo: { desde: '2026-10-15', clases: 2 } })).toEqual({
-      motivo: 'alta', clases: 2, importe: 36000, texto: 'Empieza el 15/10: por clase serían 2 × $18.000 = $36.000',
-    });
+  it('suma un horario a mitad de mes (ya era fijo): plan de 2 veces, no por clase', () => {
+    const [a] = fijosDelMes([horario('A', 'lunes', '10:30'), horario('A', 'miercoles', '10:30', '2026-10-15')], '2026-10');
+    expect(cuotaSugerida(a, a.vecesPorSemana, OCTUBRE)).toEqual({ modalidad: 'plan', clases: null, importe: 80000 });
   });
 
-  it('alta el 15/10 LMV: 7 × $18.000 = $126.000 > plan de 3 veces: sin aviso (queda el plan)', () => {
-    expect(avisoPorClase({ ...base, veces: 3, pagadoEl: '2026-10-15', fijo: { desde: '2026-10-15', clases: 7 } })).toBeNull();
+  it('el pendiente de la cuota es lo sugerido', () => {
+    const [a] = cuotasDelMes([horario('A', 'lunes', '10:30', '2026-10-15')], [], '2026-10', OCTUBRE);
+    expect(a.importePendiente).toBe(36000);
   });
 });
 

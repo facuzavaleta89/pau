@@ -80,13 +80,16 @@ Fuente: **Inter** (`next/font/google`, ya cargada en `layout.tsx`). Eliminar las
 
 ```
 Título de página   text-2xl font-semibold text-stone-900
-Título de sección  text-xs font-semibold text-stone-400 uppercase tracking-wider
+Título de sección  text-base font-semibold text-stone-900 (+ detalle al lado: text-sm text-stone-500)
+Rótulo chico       text-xs font-semibold text-stone-400 uppercase tracking-wider (solo dentro de una card o un modal)
 Título de card     text-base font-medium text-stone-900
 Cuerpo             text-sm text-stone-700
 Metadata / label   text-xs text-stone-500
 ```
 
 Evitar tamaños arbitrarios como `text-[10px]`; mínimo `text-xs` para que se lea en el celular.
+
+Las secciones de una pantalla (por ejemplo, Cuotas / Clases sueltas / RPG en `/pagos`) llevan **título de sección visible**: el rótulo chico en gris claro casi no se ve y Facu no encontró "Clases sueltas" (13/11/2026). El rótulo chico queda para agrupar campos dentro de una card o un modal.
 
 ## Espaciado y forma
 
@@ -193,13 +196,13 @@ En pantallas < 768px los modales se muestran como **hoja desde abajo** (ancho co
 ### Calendario general del mes (TPA, `TpaCalendario`)
 - Lo primero que mira Pau en TPA: el mes entero con los fijos y si pagaron. Navegación por mes (`SemanaNav` con "Mes anterior / siguiente") y al lado "Pagaron **12 de 18** · Falta cobrar **$430.000**" (solo cuotas; la cifra en `text-pink-700`).
 - Si el mes no tiene precios propios, franja ámbar "Noviembre sin precios: se usan los de octubre" con el botón **"Cargar precios de noviembre"** (abre `PreciosMesModal` con los del mes anterior ya completos).
-- **Compu:** grilla horarios (columna de 4rem a la izquierda) × Lun / Mié / Vie, como la semana. Cada horario es una card blanca (`TpaCalendarioCelda`) con **sus 4 lugares** en filas de 36px: fijo en **verde** (pagó) o **rosa** (no pagó) con `ESTADOS_PAGO[…].clases`, "desde 15/11" o "baja 20/11" en chico si entra o sale en el mes; un clic abre **Cobrar** (2 clics para cobrar). Los lugares sin fijo: el mismo "Libre" teal punteado de la semana con **"+ Inscribir fijo"** (abre `TpaInscribirFijo`: el `TpaInscripcion` de siempre, con "Fijo desde" = el 1 del mes que se mira). Sin clase a esa hora (viernes 19:00): celda punteada "Sin clase".
+- **Compu:** grilla horarios (columna de 4rem a la izquierda, horas en `text-sm font-semibold text-stone-700`) × Lun / Mié / Vie (encabezados `text-base font-semibold text-stone-900`, no el rótulo chico), como la semana. Cada horario es una card blanca (`TpaCalendarioCelda`) con **sus 4 lugares** en filas de 36px: fijo en **verde** (pagó) o **rosa** (no pagó) con `ESTADOS_PAGO[…].clases`, "desde 15/11" o "baja 20/11" en chico si entra o sale en el mes; un clic abre **Cobrar** (2 clics para cobrar). Los lugares sin fijo: el mismo "Libre" teal punteado de la semana con **"+ Inscribir fijo"** (abre `TpaInscribirFijo`: el `TpaInscripcion` de siempre, con "Fijo desde" = el 1 del mes que se mira). Sin clase a esa hora (viernes 19:00): celda punteada "Sin clase".
 - **Celular:** selector Lun / Mié / Vie (44px, el activo en teal) y una card por horario con la hora arriba y sus lugares en filas de 44px.
 
 ### Cobrar (`CobrarCuota`, `CobrarSueltas`, `CobrarSesionRPG`)
 - Modal `md` (hoja desde abajo en el celular). Título: el nombre; subtítulo: "Cuota de noviembre · 1 vez por semana (lun 10:30)".
 - Todo viene completo con lo sugerido: **plan** (control segmentado 1 vez / 2 veces / 3 veces, el activo `bg-teal-50 border-teal-500`), **importe** (`$` adentro del campo, editable), **fecha de pago** (hoy), **medio** (Transferencia / Efectivo, el activo `bg-teal-600 text-white`; arranca en el de su último pago) y **nota** opcional. En el caso normal: abrir → **Guardar**.
-- El importe sugerido es siempre el plan. Debajo, el motivo en `text-stone-600` ("Plan 1 vez por semana (paga del 1 al 10).") o, si paga después del 10 o empieza en el mes y sale más barato por clase, franja ámbar "Después del 10: por clase serían 4 × $18.000 = $72.000 · **Usar**" (link teal subrayado: un clic lo aplica; se recalcula al cambiar la fecha o el plan). Aplicado: "Por clase: 4 clases · **Volver al plan**".
+- Importe sugerido (respuestas de Pau, 13/11/2026): el **plan**, pague cuando pague (debajo, "Plan 1 vez por semana." en `text-stone-600`). **Alta a mitad de mes:** arranca por clase, "Empieza el 15/11: por clase, 2 × $18.000 = $36.000 · **Volver al plan**" (link teal subrayado); en el plan, "Plan 1 vez por semana. Empieza el 15/11: por clase serían … · **Usar**".
 - Avisos en franja ámbar con `AlertTriangle`: plan distinto de sus horarios, más de 3 horarios, ya no es fijo.
 - **Ya pagado:** caja verde "Pagó el 5/11 · Transferencia · $50.000" (+ plan y nota), y en el pie **"Deshacer"** (texto rojo, a la izquierda en la compu, con `ConfirmDialog` danger) y **"Editar"**.
 - Clases sueltas: lista de los pagos del mes (caja verde por pago con "Deshacer") y el formulario con **Clases** (importe = clases × suelta, editable). Cada pago es una fila nueva.
@@ -209,7 +212,7 @@ En pantallas < 768px los modales se muestran como **hoja desde abajo** (ancho co
 - Arriba: navegación de mes y **"Copiar pendientes"** (botón secundario con `Copy`; texto para WhatsApp; sin portapapeles, modal con el texto para copiar a mano, como en Recuperaciones).
 - **Cuatro cifras** (`PagosCifras`), cards blancas en 2 columnas en el celular y 4 en la compu: Cobrado (`text-emerald-700`) · Falta cobrar (`text-pink-700`) · Total del mes · Efectivo / Transferencia (y "Sin medio (RPG)" en gris si hay).
 - **Precios** en una línea ("1 vez $50.000 · 2 veces $80.000 · … · RPG $46.000") con "Editar"; si son heredados, la franja ámbar de arriba con "Cargar precios de noviembre".
-- Secciones (`TablaPagos`): **TPA por plan** ("TPA · 1 vez por semana · pagaron 2 de 3": Alumno · Horarios · Estado · Importe · Cobrar/Ver), **Clases sueltas TPA** (Persona · Clases "× 3 (vino 3 · 1 no vino)" · Estado · Importe · Cobrar/Ver) y **RPG** (Paciente · Fecha · Tipo · Estado · Importe · Cobrar/Ver). Al pie de cada una, "Cobrado $X · Falta cobrar $Y". Compu: tabla `bg-white border-stone-200 rounded-xl`; celular: una card por fila con los datos en dos columnas y el botón de ancho completo (44px). Botón "Cobrar" primario teal; "Ver" (ya pagado) secundario.
+- Secciones (`TablaPagos`), con **título de sección visible** (`text-base font-semibold text-stone-900`) y el detalle al lado en gris: **Cuotas TPA por plan** ("Cuotas TPA · 1 vez por semana" · "pagaron 2 de 3"; solo los planes con alumnos): Alumno · Horarios · Estado · Importe · Cobrar/Ver), **Clases sueltas TPA** (Persona · Clases "× 3 (vino 3 · 1 no vino)" · Estado · Importe · Cobrar/Ver) y **RPG** (Paciente · Fecha · Tipo · Estado · Importe · Cobrar/Ver). Al pie de cada una, "Cobrado $X · Falta cobrar $Y". **Clases sueltas** y **RPG** se muestran siempre: sin filas, caja punteada con cómo se cargan ("Se anotan desde TPA → Semana → Ocupar lugar → Clase suelta"). Compu: tabla `bg-white border-stone-200 rounded-xl`; celular: una card por fila con los datos en dos columnas y el botón de ancho completo (44px). Botón "Cobrar" primario teal; "Ver" (ya pagado) secundario.
 - Nombre tocable → historia clínica.
 
 ### Registro rápido de asistencia (modal)
@@ -241,11 +244,18 @@ En pantallas < 768px los modales se muestran como **hoja desde abajo** (ancho co
 - **"Buscar lugar"** (`TpaBuscarLugar`, modal `lg`): clases con lugar de esta semana y la siguiente, dentro del vencimiento, con "Elegir". Elegir abre la clase con la persona ya agregada ("Sin guardar"): Pau revisa y guarda. No aparece en meses que ya cerraron.
 - **Adelantos** y **Sin derecho a recuperar**: listas informativas en una card. "Adelantó y no faltó en octubre: decidís vos" en `text-amber-700`.
 
+### Pacientes (`/pacientes`)
+- Encabezado: título, y a la derecha **"Descargar copia"** (botón secundario con `Download`; mientras arma el archivo, `Loader2` y "Preparando la copia…") con una línea debajo: "Última copia en esta compu: 13/11/2026 (hoy)" en `text-xs text-stone-500`; si nunca se hizo o pasó más de una semana, en `text-amber-700 font-medium` con `AlertTriangle`. Al lado, **"Nuevo paciente"** (primario).
+- Pestañas (`Pestanias`) **Activos (N) · Dados de baja (M)** y al lado el buscador. En "Dados de baja", debajo del nombre "Dado de baja el 13/11/2026" en lugar de la edad.
+- **Dar de baja** (`DarDeBajaDialog`, `ConfirmDialog` no peligroso): qué pasa (deja las listas, la historia y los pagos quedan, los horarios fijos se cierran en esa fecha) y el campo **Fecha de baja** (hoy por defecto).
+- **Eliminar** (desde "Editar ficha", botón danger): si tiene **cualquier dato**, no se elimina: "X tiene historial" con lo que tiene ("3 turnos RPG, 12 asistencias TPA…") y el botón **"Dar de baja"**. Solo sin ningún dato: `ConfirmDialog` danger "Eliminar definitivamente".
+
 ### Historia clínica
 - Encabezado con nombre, edad, tipo (RPG/TPA), alertas activas y teléfono tocable (`tel:` / WhatsApp). La alerta de faltas es un chip `ALERTA_FALTAS.clases` ("2 faltas seguidas sin avisar") que lleva a Evolución.
 - Pestañas: **Ficha** · **Evolución** (desde la entrega 4; la de Alertas por palabra clave se sacó). En la compu, columna a la izquierda; en el celular, dos pestañas de ancho igual arriba. La activa `bg-teal-600 text-white`.
 - **Evolución:** arriba la alerta (franja `ALERTA_FALTAS.clases` con `OctagonAlert`), el resumen del mes en una card blanca con `CalendarCheck` teal ("Octubre: 3 faltas avisadas, 1 recuperada, le queda 1") y el botón primario **"+ Nota"** (nota libre: fecha + `textarea` de 4 líneas, "Cancelar" / "Guardar nota"). Debajo, la línea de tiempo (lo más nuevo arriba): una card por clase de TPA (fecha, hora, "TPA", chip del estado; la nota de esa clase adentro), por nota libre ("Nota") y por sesión de RPG (tipo, chips de sesión y pago, su nota en gris). Las notas de evolución en una caja `bg-teal-50/40 border-teal-100` con `NotebookPen`, lápiz para editar y tacho (`Trash2`, hover rojo) para borrar con `ConfirmDialog` danger.
 - La ficha se **edita en el mismo lugar** (no hay que ir a otra pantalla).
+- Al pie de la Ficha, card con el estado: activo → texto "Si ya no viene, dalo de baja…" y botón secundario **"Dar de baja"** (`Archive`); dado de baja → "Dado de baja el 13/11/2026. No aparece en las listas…" y botón **"Reactivar"** (`RotateCcw`, `bg-teal-50 text-teal-700 border-teal-200`). En el encabezado, chip gris `bg-stone-100 text-stone-600` "Dado de baja el 13/11/2026".
 - En celular, pestañas horizontales arriba con scroll.
 
 ---

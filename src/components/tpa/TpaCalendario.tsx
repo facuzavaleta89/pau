@@ -82,13 +82,13 @@ export function TpaCalendario({ onAbrirPaciente, onCambioFijos }: TpaCalendarioP
           <div className="hidden md:grid grid-cols-[4rem_repeat(3,minmax(0,1fr))] gap-3 lg:gap-4">
             <div />
             {DIAS_TPA.map((d) => (
-              <div key={d.id} className="text-center pb-1 border-b-2 border-stone-200 text-xs font-semibold text-stone-400 uppercase tracking-wider">
+              <div key={d.id} className="text-center pb-1.5 border-b-2 border-stone-200 text-base font-semibold text-stone-900">
                 {d.label}
               </div>
             ))}
             {filas.map((fila) => (
               <div key={fila.hora} className="contents">
-                <div className="pt-3 text-right text-sm font-semibold text-stone-400">{fila.hora}</div>
+                <div className="pt-3 text-right text-sm font-semibold text-stone-700">{fila.hora}</div>
                 {DIAS_TPA.map((d) => (
                   <div key={d.id}>
                     {celda(fila.celdas[d.id]) ?? (

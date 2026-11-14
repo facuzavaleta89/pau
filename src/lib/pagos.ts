@@ -13,10 +13,6 @@ import { normalizarHora } from './horas';
 /** Mes como 'yyyy-MM'. */
 export type Mes = string;
 
-/** El plan tiene descuento si se paga hasta este día del mes (inclusive) o antes del mes. */
-export const DIA_LIMITE_PLAN = 10;
-/** La cuota cubre 4 clases por cada vez por semana. */
-export const CLASES_POR_VEZ = 4;
 export const MAX_VECES_POR_SEMANA = 3;
 
 export const MEDIOS_PAGO: Record<MedioPago, string> = {
@@ -127,6 +123,12 @@ export interface FijoDelMes {
   horariosDeMas: boolean;
   /** Empieza dentro del mes (todas sus altas son posteriores al 1). */
   desde: string | null;
+  /**
+   * Alta a mitad de mes: empieza dentro del mes y se pierde al menos una clase
+   * de sus horarios. Se le cobra por clase (Pau, 13/11/2026). Un alta el 2 que
+   * es el primer lunes del mes no cuenta: tiene todas las clases.
+   */
+  altaEnElMes: boolean;
   /** Deja de ser fijo dentro del mes (todos sus horarios terminan antes de fin de mes). */
   baja: string | null;
   /** Clases que le tocan en el mes como fijo (para un alta a mitad de mes). */
@@ -160,13 +162,17 @@ export function fijosDelMes(horarios: HorarioTPA[], mes: Mes): FijoDelMes[] {
     const aLaVez = Math.max(...fechas.map((f) => lista.filter((h) => eraFijoEn(h.horario, f)).length));
     const desdes = lista.map((h) => h.desde);
     const bajas = lista.map((h) => h.baja);
+    const desde = desdes.every(Boolean) ? (desdes as string[]).sort()[0] : null;
+    const seSaltea = lista.some(({ horario: h, desde: d }) =>
+      d !== null && fechas.some((f) => f < d && diaSemanaDeFecha(f) === h.dia_semana));
     return {
       pacienteId,
       nombre: lista[0].horario.pacientes?.nombre ?? 'Sin nombre',
       horarios: lista,
       vecesPorSemana: Math.min(MAX_VECES_POR_SEMANA, Math.max(1, aLaVez)),
       horariosDeMas: aLaVez > MAX_VECES_POR_SEMANA,
-      desde: desdes.every(Boolean) ? (desdes as string[]).sort()[0] : null,
+      desde,
+      altaEnElMes: desde !== null && seSaltea,
       baja: bajas.every(Boolean) ? (bajas as string[]).sort().at(-1) ?? null : null,
       clases: lista.reduce((n, h) => n + h.clases.length, 0),
     };
@@ -192,7 +198,7 @@ export interface CuotaDelMes {
   pago: PagoTPA | null;
   /** Plan: el pagado si pagó; si no, el de sus horarios. */
   veces: number;
-  /** Lo que falta cobrar (precio del plan); 0 si pagó o si no hay precios. */
+  /** Lo que falta cobrar (lo sugerido: plan, o por clase si es alta en el mes); 0 si pagó o si no hay precios. */
   importePendiente: number;
 }
 
@@ -211,7 +217,7 @@ export function cuotasDelMes(horarios: HorarioTPA[], pagos: PagoTPA[], mes: Mes,
       fijo,
       pago,
       veces: pago?.veces_por_semana ?? fijo.vecesPorSemana,
-      importePendiente: pago || !precios ? 0 : precioPlan(precios, fijo.vecesPorSemana),
+      importePendiente: pago || !precios ? 0 : cuotaSugerida(fijo, fijo.vecesPorSemana, precios).importe,
     };
   });
   for (const pago of pagosCuota.filter((p) => !fijos.some((f) => f.pacienteId === p.paciente_id))) {
@@ -227,48 +233,34 @@ export function cuotasDelMes(horarios: HorarioTPA[], pagos: PagoTPA[], mes: Mes,
   return cuotas.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 }
 
-/** Pagar antes del mes o hasta el 10 inclusive: plan con descuento. */
-export function esDelUnoAlDiez(pagadoEl: string, mes: Mes): boolean {
-  return pagadoEl <= `${mes}-${String(DIA_LIMITE_PLAN).padStart(2, '0')}`;
-}
-
-export interface AvisoPorClase {
-  motivo: 'despues_del_10' | 'alta';
-  clases: number;
+export interface CuotaSugerida {
+  modalidad: 'plan' | 'por_clase';
+  /** Solo por clase. */
+  clases: number | null;
   importe: number;
-  /** "Después del 10: por clase serían 4 × $18.000 = $72.000" */
-  texto: string;
 }
 
 /**
- * El importe sugerido es SIEMPRE el plan (decisión de Facu, 13/11/2026). Este
- * aviso ofrece la alternativa por clase, que se aplica con un clic ("Usar"):
- * - Alta dentro del mes: las clases que le tocan desde su alta, solo si sale
- *   más barato que el plan (supuesto 3 del diseño). No se combina con el de
- *   después del 10: paga cuando empieza.
- * - Si no, pago después del 10: 4 × veces por semana × clase suelta.
- * Se recalcula al cambiar la fecha de pago o el plan.
+ * Importe sugerido al cobrar la cuota (Pau, 13/11/2026): el plan según las
+ * veces por semana, también si paga después del 10. Un alta a mitad de mes
+ * paga por clase: clase suelta del mes × clases que le quedan desde su alta
+ * (los feriados no se descuentan: se compensan con recuperaciones). Siempre
+ * editable, con "Volver al plan" a un clic.
  */
-export function avisoPorClase(args: {
-  veces: number;
-  precios: PreciosMes;
-  pagadoEl: string;
-  mes: Mes;
-  fijo: Pick<FijoDelMes, 'desde' | 'clases'> | null;
-}): AvisoPorClase | null {
-  const { veces, precios, pagadoEl, mes, fijo } = args;
-  const suelta = precios.tpa_suelta;
-  const texto = (inicio: string, clases: number) =>
-    `${inicio}: por clase serían ${clases} × ${formatoPesos(suelta)} = ${formatoPesos(clases * suelta)}`;
-
-  if (fijo?.desde) {
-    const importe = fijo.clases * suelta;
-    if (fijo.clases === 0 || importe >= precioPlan(precios, veces)) return null;
-    return { motivo: 'alta', clases: fijo.clases, importe, texto: texto(`Empieza el ${diaYMes(fijo.desde)}`, fijo.clases) };
+export function cuotaSugerida(
+  fijo: Pick<FijoDelMes, 'altaEnElMes' | 'clases'> | null, veces: number, precios: PreciosMes,
+): CuotaSugerida {
+  if (fijo?.altaEnElMes && fijo.clases > 0) {
+    return { modalidad: 'por_clase', clases: fijo.clases, importe: fijo.clases * precios.tpa_suelta };
   }
-  if (esDelUnoAlDiez(pagadoEl, mes)) return null;
-  const clases = CLASES_POR_VEZ * veces;
-  return { motivo: 'despues_del_10', clases, importe: clases * suelta, texto: texto('Después del 10', clases) };
+  return { modalidad: 'plan', clases: null, importe: precioPlan(precios, veces) };
+}
+
+/** "Empieza el 15/11: por clase, 2 × $18.000 = $36.000" (null si no es alta en el mes). */
+export function textoPorClase(fijo: Pick<FijoDelMes, 'altaEnElMes' | 'clases' | 'desde'> | null, precios: PreciosMes): string | null {
+  if (!fijo?.altaEnElMes || !fijo.desde || fijo.clases === 0) return null;
+  const suelta = precios.tpa_suelta;
+  return `Empieza el ${diaYMes(fijo.desde)}: por clase, ${fijo.clases} × ${formatoPesos(suelta)} = ${formatoPesos(fijo.clases * suelta)}`;
 }
 
 // ---------------------------------------------------------------------

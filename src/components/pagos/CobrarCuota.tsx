@@ -5,7 +5,7 @@ import { AlertTriangle, Pencil, Save, Undo2, User } from 'lucide-react';
 import { actualizarPagoTPA, borrarPagoTPA, crearPagoTPA } from '@/lib/queries';
 import { mensajeErrorAlGuardar, registrarError } from '@/lib/errores';
 import {
-  avisoPorClase, esDelUnoAlDiez, formatoPesos, hoyArgentina, nombreMes, precioPlan, primerDia, textoHorarios, textoVeces,
+  cuotaSugerida, formatoPesos, hoyArgentina, nombreMes, precioPlan, primerDia, textoHorarios, textoPorClase, textoVeces,
   type CuotaDelMes, type Mes,
 } from '@/lib/pagos';
 import type { MedioPago, ModalidadCuota, PreciosMes } from '@/types';
@@ -30,18 +30,20 @@ interface CobrarCuotaProps {
 const LINK = 'font-semibold text-teal-700 hover:text-teal-800 underline underline-offset-2';
 
 // Cobrar la cuota de TPA de un mes (diseño 4.1). Todo viene completo con lo
-// sugerido (plan según veces por semana, medio de su último pago, hoy): en el
-// caso normal es abrir → Guardar. Ya pagada: resumen, Editar y Deshacer.
+// sugerido (plan según veces por semana, también después del 10; por clase si
+// es un alta a mitad de mes; medio de su último pago; hoy): en el caso normal
+// es abrir → Guardar. Ya pagada: resumen, Editar y Deshacer.
 export function CobrarCuota({ cuota, mes, precios, medioSugerido, onCerrar, onGuardado, onAbrirPaciente }: CobrarCuotaProps) {
   const toast = useToast();
   const { pago, fijo } = cuota;
   const [idNuevo] = useState(() => nuevoId());
   const [editando, setEditando] = useState(!pago);
+  const [sugerida] = useState(() => (precios ? cuotaSugerida(fijo, cuota.veces, precios) : null));
   const [veces, setVeces] = useState(pago?.veces_por_semana ?? cuota.veces);
-  const [modalidad, setModalidad] = useState<ModalidadCuota>(pago?.modalidad ?? 'plan');
-  const [clases, setClases] = useState<number | null>(pago?.clases ?? null);
+  const [modalidad, setModalidad] = useState<ModalidadCuota>(pago?.modalidad ?? sugerida?.modalidad ?? 'plan');
+  const [clases, setClases] = useState<number | null>(pago ? pago.clases : sugerida?.clases ?? null);
   const [valores, setValores] = useState<ValoresPago>(() => ({
-    importe: pago?.importe ?? (precios ? precioPlan(precios, cuota.veces) : ''),
+    importe: pago?.importe ?? sugerida?.importe ?? '',
     medio: pago?.medio ?? medioSugerido,
     pagadoEl: pago?.pagado_el ?? hoyArgentina(new Date()),
     nota: pago?.nota ?? '',
@@ -56,9 +58,15 @@ export function CobrarCuota({ cuota, mes, precios, medioSugerido, onCerrar, onGu
     setClases(null);
     cambiar({ importe: precios ? precioPlan(precios, v) : valores.importe });
   };
-  const aviso = precios && valores.pagadoEl
-    ? avisoPorClase({ veces, precios, pagadoEl: valores.pagadoEl, mes, fijo })
-    : null;
+  // Alta a mitad de mes: por clase (lo sugerido) o el plan, a un clic.
+  const porClase = precios ? cuotaSugerida(fijo, veces, precios) : null;
+  const textoAlta = precios ? textoPorClase(fijo, precios) : null;
+  const usarPorClase = () => {
+    if (!porClase || porClase.modalidad !== 'por_clase') return;
+    setModalidad('por_clase');
+    setClases(porClase.clases);
+    cambiar({ importe: porClase.importe });
+  };
 
   const guardar = async () => {
     if (valores.importe === '' || !valores.pagadoEl) return;
@@ -159,19 +167,20 @@ export function CobrarCuota({ cuota, mes, precios, medioSugerido, onCerrar, onGu
               debajoDelImporte={
                 modalidad === 'por_clase' ? (
                   <p className="text-sm text-stone-600">
-                    Por clase: {clases} {clases === 1 ? 'clase' : 'clases'} ·{' '}
+                    {textoAlta && modalidad === sugerida?.modalidad && clases === sugerida.clases
+                      ? textoAlta
+                      : `Por clase: ${clases} ${clases === 1 ? 'clase' : 'clases'}`}
+                    {' · '}
                     <button type="button" onClick={() => usarPlan(veces)} className={LINK}>Volver al plan</button>
                   </p>
-                ) : aviso ? (
-                  <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                    {aviso.texto} ·{' '}
-                    <button type="button" onClick={() => { setModalidad('por_clase'); setClases(aviso.clases); cambiar({ importe: aviso.importe }); }} className={LINK}>
-                      Usar
-                    </button>
+                ) : textoAlta ? (
+                  <p className="text-sm text-stone-600">
+                    Plan {textoVeces(veces)}. {textoAlta.replace('por clase,', 'por clase serían')} ·{' '}
+                    <button type="button" onClick={usarPorClase} className={LINK}>Usar</button>
                   </p>
                 ) : (
                   <p className="text-sm text-stone-600">
-                    Plan {textoVeces(veces)}{valores.pagadoEl && esDelUnoAlDiez(valores.pagadoEl, mes) ? ' (paga del 1 al 10)' : ''}.
+                    Plan {textoVeces(veces)}.
                     {!precios && ' Sin precios cargados: escribí el importe.'}
                   </p>
                 )

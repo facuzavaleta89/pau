@@ -8,7 +8,7 @@ interface PagosCifrasProps {
 }
 
 const CARD = 'bg-white border border-stone-200 rounded-xl p-4 shadow-sm space-y-1 min-w-0';
-const TITULO = 'text-xs font-semibold text-stone-500 uppercase tracking-wider';
+const TITULO = 'text-sm font-medium text-stone-600';
 const CIFRA = 'text-xl md:text-2xl font-semibold tabular-nums truncate';
 
 // Las cuatro cifras del mes: Cobrado · Falta cobrar · Total del mes · Efectivo / Transferencia.

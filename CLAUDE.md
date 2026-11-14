@@ -14,7 +14,7 @@ Antes de trabajar, leé en este orden:
 
 - Una sola usuaria: Pau. Usa la app **sobre todo desde la compu**; el celular tiene que seguir andando bien (lo usa entre clases).
 - Lo que más le importa: **las faltas y las recuperaciones** (quién avisó, quién recupera, qué lugares quedan libres). Que cargar una falta, ocupar un lugar o marcar una clase lleve **segundos**, con pocos clics.
-- La app guarda **datos de salud** (historia clínica). Son datos sensibles: nunca exponerlos sin autenticación, nunca loguearlos en consola en producción, nunca commitear datos reales ni claves.
+- La app guarda **datos de salud** (historia clínica). Son datos sensibles: nunca exponerlos sin autenticación, nunca loguearlos en consola en producción, nunca commitear datos reales ni claves. Las copias de seguridad ("Descargar copia" en Pacientes, `pau-kinesio-copia-*.json`) van solo a la compu de Pau: están en `.gitignore` y nunca se suben ni se pegan en la consola.
 
 ## Dominio
 
@@ -30,8 +30,9 @@ Antes de trabajar, leé en este orden:
 | **Clase cancelada** | `clases_tpa.motivo_cancelacion`: **Feriado** (recupera solo si le quedan menos de 4 clases en el mes por cada vez por semana) o **Cancelada por Pau** (enfermedad, viaje, corte de luz: todos los fijos la recuperan, sin tope y sin vencimiento). |
 | **Recuperación** | Saldo calculado (no guardado) por alumno y por mes: `calcularRecuperaciones()` (`src/lib/recuperaciones.ts`). Reglas en `docs/DISENO_ASISTENCIA_TPA.md`, sección 3.2. |
 | **Nota de evolución** | Observación clínica clase a clase (bajó la presión, dolor, avance en un ejercicio) o libre (sin clase, desde la historia clínica). Va en `notas_evolucion`. Datos de salud: nunca a la consola ni en un mensaje de error. |
-| **Cuota** | Pago mensual de TPA según las veces por semana (plan 1, 2 o 3 veces). Cubre el mes entero. Con descuento si se paga hasta el 10; después, la app sugiere igual el plan y avisa cuánto sería por clase. Pendiente = sin fila en `pagos_tpa` (se calcula, no se guarda). |
+| **Cuota** | Pago mensual de TPA según las veces por semana (plan 1, 2 o 3 veces). Cubre el mes entero. El mismo precio pague cuando pague (Pau, 13/11/2026). **Alta a mitad de mes:** por clase (suelta del mes × clases que le quedan), con "Volver al plan". Pendiente = sin fila en `pagos_tpa` (se calcula, no se guarda). |
 | **Precios del mes** | `precios_mes`: cuotas, clase suelta y sesión de RPG de cada mes. Un mes sin precios usa los del anterior, con aviso. Lo cobrado guarda su importe y no cambia. |
+| **Baja de un paciente** | Baja lógica: `pacientes.activo = false` + `fecha_baja`, con `dar_de_baja_paciente()` (cierra sus horarios fijos en esa fecha). No aparece en las listas para elegir (`getPacientesActivos`); su historia y pagos quedan. Se reactiva desde la ficha. Borrar de verdad solo si no tiene ningún dato (FK `ON DELETE RESTRICT`). |
 | **Alerta de faltas** | 2 o más faltas seguidas sin avisar como fijo, en cualquiera de sus horarios (las sin marcar no cortan la racha): `alertasDeFaltas()` (`src/lib/alertas.ts`). Solo avisa: no libera el lugar. |
 
 ## Stack
@@ -73,9 +74,9 @@ src/
 ├── components/
 │   ├── auth/                 # LoginForm, SesionWatcher, VerificadorAutorizacion
 │   ├── layout/               # Header (con Salir), Navigation, AvisoSinConexion
-│   ├── pacientes/            # HistoriaClinicaModal (Ficha | Evolución), HistoriaFicha, HistoriaEvolucion,
+│   ├── pacientes/            # HistoriaClinicaModal (Ficha | Evolución), HistoriaFicha (+ EstadoPacienteCard), HistoriaEvolucion,
 │   │                         # EvolucionItem, NotaEvolucionForm, PacienteFormModal, PacientesTabla (compu),
-│   │                         # PacientesListaCelular, EliminarPacienteDialog
+│   │                         # PacientesListaCelular, EliminarPacienteDialog, DarDeBajaDialog, CopiaDeSeguridad
 │   ├── pagos/                # PagosDelMes, PagosCifras, PagosSecciones, TablaPagos, AvisoPrecios, PreciosMesModal,
 │   │                         # CobrarCuota, CobrarSueltas, CobrarSesionRPG, CamposPago, EstadoPagoChip, ResumenPagoGuardado
 │   ├── rpg/                  # AgendaRPG (carga + modales), CalendarMonthView (compu),
@@ -89,7 +90,7 @@ src/
 ├── hooks/
 │   ├── useDatos.ts           # carga con clave + Toast y estado de error SIEMPRE que falla
 │   ├── useEsCelular.ts       # true / false / null (< 768px), sin cargar las dos vistas
-│   ├── useValorGuardado.ts   # valor chico recordado en el navegador (última pestaña de TPA)
+│   ├── useValorGuardado.ts   # valor chico recordado en el navegador (última pestaña de TPA, última copia)
 │   └── useConexion.ts        # navigator.onLine
 ├── lib/
 │   ├── supabase.ts           # cliente de navegador (createBrowserClient)
@@ -107,7 +108,9 @@ src/
 │   ├── ocupar.ts             # opciones del selector "Ocupar lugar" y "Buscar lugar"
 │   ├── alertas.ts            # alerta de 2 faltas seguidas sin avisar (alertasDeFaltas)
 │   ├── evolucion.ts          # línea de tiempo de la pestaña Evolución (lineaDeTiempo)
-│   ├── pagos.ts              # precios del mes, fijos y cuotas, aviso por clase, sueltas, RPG, resumen, calendario
+│   ├── pagos.ts              # precios del mes, fijos y cuotas, cuota sugerida, sueltas, RPG, resumen, calendario
+│   ├── copia.ts              # copia de seguridad: tablas, nombre del archivo, aviso de la última copia
+│   ├── pacientes.ts          # textos de la ficha (baja)
 │   └── utils.ts              # cn(), nuevoId()
 └── types/index.ts            # tipos mapeados a las tablas
 ```
@@ -116,7 +119,7 @@ src/
 
 | Tabla | Uso |
 |---|---|
-| `pacientes` | Ficha / historia clínica |
+| `pacientes` | Ficha / historia clínica. `activo` (obligatorio) y `fecha_baja` (migración `20261114000001`; un trigger la limpia al reactivar) |
 | `sesiones_rpg` | Turnos individuales (estado_pago, estado_sesion, nota; desde `20261113000001`, `importe`, `pagado_el`, `medio_pago`: solo si está pagada, un trigger los limpia al pasar a pendiente) |
 | `horarios_tpa` | Horario fijo semanal por alumno (dia_semana, hora, activo) |
 | `clases_tpa` | Clase concreta (fecha, hora) |
@@ -124,12 +127,12 @@ src/
 | `notas_evolucion` | Nota de evolución: una por alumno por clase (`clase_tpa_id`) o libre (`clase_tpa_id` null). Migración `20261024000001` |
 | `precios_mes` | Precios de cada mes (`mes` = día 1; cuotas 1/2/3 veces, suelta, RPG). Migración `20261113000001` |
 | `pagos_tpa` | Pagos hechos de TPA: `concepto` `cuota` (una por alumno y mes: índice único parcial) o `sueltas` (una fila por pago). Importe, fecha, medio, nota. Migración `20261113000001` |
-| `pagos` | **Vieja, sin uso desde la Fase 2.** Se borra en la tanda de datos reales (tiene 2 filas de prueba) |
+| ~~`pagos`~~ | **Borrada** en `20261114000002` (vieja, sin uso desde la Fase 2; tenía 2 filas de prueba) |
 | `lista_espera` | Cola de espera (tabla creada, sin UI todavía) |
 
 Proyecto Supabase: **`pau`** (ref `dmwtoozbctnwccaaitos`, región `us-east-2`, plan Free).
 
-Los cambios de **datos** que se corren una sola vez (borrar pruebas) van en `supabase/scripts/`, fuera de `migrations/`, para que `supabase db push` nunca los ejecute.
+Los cambios de **datos** que se corren una sola vez (borrar pruebas) y la restauración de una copia (`restaurar_copia.sql`) van en `supabase/scripts/`, fuera de `migrations/`, para que `supabase db push` nunca los ejecute.
 
 El esquema actual está en **`supabase/migrations/20260520000000_esquema_inicial.sql`** (línea base reconstruida leyendo la base; **no se ejecuta** contra el proyecto existente). **Todo cambio de esquema va en un archivo de migración nuevo** con fecha posterior, nunca a mano en el dashboard sin registrarlo.
 
@@ -138,6 +141,7 @@ El esquema actual está en **`supabase/migrations/20260520000000_esquema_inicial
 **RLS** (migración `20261017000001_rls_solo_usuaria_autorizada.sql`, aplicada): cada tabla tiene una sola política (`"Solo usuaria autorizada"`): solo el rol `authenticated` y solo si el UID está en `private.usuarias_autorizadas`. `anon` no tiene permisos de tabla. Las políticas de la línea base ya no existen. `public.soy_autorizada()` (migración `20261018000001`) le dice a la app si la usuaria logueada está autorizada. Consecuencias para el código:
 - Sin sesión válida (o con un usuario no autorizado) un `select` devuelve `[]` y un `update`/`delete` afecta **0 filas sin error**. Por eso toda escritura en `queries.ts` termina en `.select()` y verifica las filas con `exigirUnaFila()`; no usar `.single()` en escrituras.
 - Funciones nuevas en la base: revocar siempre `execute` también `from public`, no solo de `anon`/`authenticated`.
+- **FK a `pacientes`: `ON DELETE RESTRICT`** (migración `20261114000001`). Borrar un paciente con historial falla (23503): se da de baja con `darDeBajaPaciente()` (función `dar_de_baja_paciente`, security invoker, `execute` solo `authenticated`; mensajes con prefijo `"Pacientes: "`). Las tablas nuevas que apunten a `pacientes` también van con `restrict`.
 
 Estados válidos (migración `20261022000001_tpa_faltas_y_lugares.sql`):
 - `asistencia_tpa.tipo`: `fijo | recupera | cambio | suelta`
@@ -146,6 +150,7 @@ Estados válidos (migración `20261022000001_tpa_faltas_y_lugares.sql`):
 - `clases_tpa.motivo_cancelacion`: `null` (se da) `| feriado | cancelada_por_pau`
 - Funciones (migración `20261023000001`, reemplazadas con la misma firma en `20261024000001`; security invoker, `execute` solo `authenticated`): `guardar_clase_tpa(p_clases jsonb)` guarda una o varias clases en una transacción, **con sus notas** (clave `notas`); `cambiar_cancelacion_tpa(p_fecha, p_horas, p_motivo)` cancela o reactiva. Una clase con notas no se borra aunque quede sin asistencias. Sus mensajes de error empiezan con `"TPA: "` y la app los muestra tal cual (`mensajeError`).
 - El trigger `validar_asistencia_tpa` no deja insertar ni cambiar asistencias de una **clase cancelada** (cancelar/reactivar no las toca).
+- Los prefijos de mensaje que `mensajeError` muestra tal cual: `"TPA: "` y `"Pacientes: "`.
 - Si falta una función, tabla o columna (la app es más nueva que la base: PGRST202/204/205, 42883, 42703, 42P01), `mensajeError` dice "Falta aplicar un cambio en la base de datos. Avisale a Facu.".
 - `horarios_tpa.fecha_alta`: desde qué fecha es fijo (inclusive); `fecha_baja` exclusive y `>= fecha_alta`
 - `sesiones_rpg.estado_pago`: `pagado | pendiente`; `medio_pago` y `pagos_tpa.medio`: `efectivo | transferencia`
@@ -165,7 +170,8 @@ Estados válidos (migración `20261022000001_tpa_faltas_y_lugares.sql`):
 - Componentes funcionales, props con `interface`, un componente por archivo, idealmente < 150 líneas.
 - **Compu primero.** Cada pantalla se diseña primero para la compu (modales anchos, tablas, grilla). El celular tiene que seguir andando bien: ninguna pantalla puede desplazarse de costado en 390px. Si una vista de compu no entra (grilla, calendario, tabla), se hace una vista de celular aparte y se elige con `useEsCelular()` (si cada vista carga datos distintos) o con `md:hidden` / `hidden md:block` (si usan los mismos datos). Modales con el componente `Modal` (centrado en la compu; hoja desde abajo o pantalla completa en celular, pie fijo).
 - **Cargas de datos** con `useDatos()`: si falla, avisa con Toast y la pantalla muestra `EstadoCarga` con el mismo mensaje (`error` de `useDatos`) y "Reintentar". Nunca una pantalla vacía que parezca "no hay datos".
-- **Pagos:** todo lo que se calcula (fijos del mes, cuota pendiente, aviso por clase, sueltas, RPG, totales, calendario) sale **solo** de `src/lib/pagos.ts`; importes con `formatoPesos()`, meses como `'yyyy-MM'` con `moverMes()` (nunca `setMonth`). Pendiente = sin pago guardado: nunca crear filas "pendiente". Guardar un pago: alta con `nuevoId()` (`crearPagoTPA`); la cuota repetida choca con el índice único parcial y se avisa.
+- **Pacientes:** para elegir un paciente (turno, inscribir, ocupar lugar), siempre `getPacientesActivos()`; `getPacientes()` (con los dados de baja) solo en la pantalla Pacientes. Editar la ficha no toca `activo` (N6).
+- **Pagos:** todo lo que se calcula (fijos del mes, cuota pendiente, cuota sugerida, sueltas, RPG, totales, calendario) sale **solo** de `src/lib/pagos.ts`; importes con `formatoPesos()`, meses como `'yyyy-MM'` con `moverMes()` (nunca `setMonth`). Pendiente = sin pago guardado: nunca crear filas "pendiente". Guardar un pago: alta con `nuevoId()` (`crearPagoTPA`); la cuota repetida choca con el índice único parcial y se avisa.
 - **TPA:** quién está en cada horario de una semana lo calcula **solo** `armarSemanaTPA()` (fijos de esa fecha + asistencias registradas). No volver a filtrar `horarios_tpa` a mano en un componente. Los saldos de recuperación salen **solo** de `calcularRecuperaciones()`. Una clase se guarda **siempre** con `guardarClasesTPA()` (función `guardar_clase_tpa` de la base, una transacción, notas de la clase incluidas), nunca fila por fila. La alerta de faltas sale **solo** de `alertasDeFaltas()`.
 - Nada de `alert()` / `confirm()` nativos: `useToast()` (`toast.exito / error / aviso`) y `ConfirmDialog`. Los errores que se muestran salen de `mensajeError(error)`.
 - Todo lo visual sigue **DESIGN.md**.

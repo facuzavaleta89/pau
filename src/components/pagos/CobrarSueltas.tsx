@@ -101,7 +101,7 @@ export function CobrarSueltas({ sueltas, mes, precios, medioSugerido, onCerrar, 
       <div className="p-4 md:p-6 space-y-5">
         {sueltas.pagos.length > 0 && (
           <section className="space-y-2">
-            <h3 className="text-xs font-semibold text-stone-400 uppercase tracking-wider">Pagos de este mes</h3>
+            <h3 className="text-sm font-semibold text-stone-900">Pagos de este mes</h3>
             <ul className="space-y-2">
               {sueltas.pagos.map((p) => (
                 <li key={p.id} className="flex items-center justify-between gap-2 pl-3 rounded-lg border border-emerald-200 bg-emerald-50 text-sm text-emerald-800">
@@ -117,7 +117,7 @@ export function CobrarSueltas({ sueltas, mes, precios, medioSugerido, onCerrar, 
         )}
 
         <section className="space-y-4">
-          <h3 className="text-xs font-semibold text-stone-400 uppercase tracking-wider">
+          <h3 className="text-sm font-semibold text-stone-900">
             {sueltas.pendientes > 0 ? `Cobrar (le ${sueltas.pendientes === 1 ? 'falta pagar 1 clase' : `faltan pagar ${sueltas.pendientes} clases`})` : 'Cobrar otro pago'}
           </h3>
           <label className={ETIQUETA_PAGO}>

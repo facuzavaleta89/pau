@@ -9,6 +9,15 @@ describe('mensajeError con mensajes de la base', () => {
       .toBe('No se pudo guardar la asistencia. Alguien ocupa el lugar de este fijo.');
   });
 
+  it('también los "Pacientes: " de dar_de_baja_paciente', () => {
+    expect(mensajeError({ code: 'P0001', message: 'Pacientes: falta la fecha de baja.' })).toBe('Falta la fecha de baja.');
+  });
+
+  it('FK RESTRICT (23503): explica que no se puede borrar, sin el detalle de Postgres', () => {
+    expect(mensajeError({ code: '23503', message: 'update or delete on table "pacientes" violates foreign key constraint', details: 'Key (id)=(…) is still referenced' }))
+      .toBe('Tiene datos guardados que dependen de esto, así que no se puede borrar.');
+  });
+
   it('cualquier otro mensaje de Postgres sigue siendo genérico (puede traer datos)', () => {
     expect(mensajeError({ code: '23514', message: 'new row for relation "asistencia_tpa" violates check constraint' }))
       .toBe('Ocurrió un error. Revisá la conexión y probá de nuevo.');

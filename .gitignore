@@ -42,3 +42,6 @@ next-env.d.ts
 
 # respuestas del agente (ver CLAUDE.md)
 respuesta.md
+
+# copias de seguridad de la app (datos de salud: nunca al repo)
+pau-kinesio-copia-*.json
