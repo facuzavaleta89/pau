@@ -1,6 +1,6 @@
 # PENDIENTES.md — Estado y plan de trabajo
 
-_Última revisión: 13/11/2026 — Fases 0 y 0.5 completas; Fase 1: **asistencia TPA en 4 entregas** (diseño en `docs/DISENO_ASISTENCIA_TPA.md`): las 4 mergeadas y con sus migraciones aplicadas (la 4 probada por Facu). **Fase 2 (pagos):** diseño en `docs/DISENO_PAGOS.md`; **pagos completo** (entregas 1 y 2 juntas) con código listo en `fase-2/pagos-completo`: falta aplicar la migración `20261113000001`, probar y mergear. **Pau usa la app sobre todo desde la compu** y lo que más le importa son las faltas y recuperaciones: CLAUDE.md y DESIGN.md pasaron a "compu primero". App en https://paukinesio.vercel.app. Base Supabase `pau` (`dmwtoozbctnwccaaitos`, Postgres 17, plan Free, región us-east-2)._
+_Última revisión: 13/11/2026 — Fases 0 y 0.5 completas; Fase 1: **asistencia TPA en 4 entregas** (diseño en `docs/DISENO_ASISTENCIA_TPA.md`): las 4 mergeadas y con sus migraciones aplicadas (la 4 probada por Facu). **Fase 2 (pagos):** diseño en `docs/DISENO_PAGOS.md`; **pagos completo** mergeado (migración `20261113000001` aplicada). **Datos reales** con código listo en `fase-2/datos-reales` (ajustes de pagos con las respuestas de Pau, baja lógica, borrar `pagos` y "Prueba 1", copia de seguridad): falta aplicar `20261114000001`, correr el script de "Prueba 1", probar, mergear y aplicar `20261114000002`. **Pau usa la app sobre todo desde la compu** y lo que más le importa son las faltas y recuperaciones: CLAUDE.md y DESIGN.md pasaron a "compu primero". App en https://paukinesio.vercel.app. Base Supabase `pau` (`dmwtoozbctnwccaaitos`, Postgres 17, plan Free, región us-east-2)._
 
 ## Estado actual (resumen)
 
@@ -9,15 +9,15 @@ _Última revisión: 13/11/2026 — Fases 0 y 0.5 completas; Fase 1: **asistencia
 - Agenda RPG: calendario mensual en la compu y lista semanal (martes y jueves) en el celular; crear y editar turnos, estado de pago y de sesión, nota.
 - Agenda TPA: semana armada con los fijos de esa fecha + las asistencias registradas, horarios reales de Pau y cupo 4; grilla en la compu y selector de día + lista en el celular; inscribir/desinscribir fijos (con "Fijo desde") y registrar asistencia con los estados de Pau (Presente, Avisó C.T., Avisó S.T., No avisó, Sin marcar), contador de lugares y "Libre" (entrega 2); ocupar lugares, recuperaciones, cambio de horario, cancelar clase/día y pestaña Recuperaciones (entrega 3). Entrega 4: "Marcar el resto como presente", notas de evolución por clase y alerta de 2 faltas seguidas sin avisar.
 - Historia clínica en modal: ficha (solo lectura) y, desde la entrega 4, **Evolución** (alerta de faltas, resumen del mes, notas de clase y libres, sesiones RPG y asistencias TPA en una línea de tiempo). Las alertas por palabra clave se sacaron.
-- Pacientes: listado, búsqueda local, alta y edición de ficha.
-- Pagos (rama `fase-2/pagos-completo`, falta aplicar y probar): pestaña **Calendario** en TPA (verde pagó / rosa no pagó / Libre con "+ Inscribir fijo"), **Cobrar** en 2 clics, precios por mes, `/pagos` con cifras, cuotas por plan, clases sueltas, RPG y "Copiar pendientes".
+- Pacientes: listado, búsqueda local, alta y edición de ficha. Rama `fase-2/datos-reales`: **Dar de baja / Reactivar** (baja lógica con fecha; cierra sus horarios fijos), pestaña **Dados de baja**, eliminar solo sin datos y **"Descargar copia"** (JSON con todas las tablas).
+- Pagos (mergeado el 13/11/2026): pestaña **Calendario** en TPA (verde pagó / rosa no pagó / Libre con "+ Inscribir fijo"), **Cobrar** en 2 clics, precios por mes, `/pagos` con cifras, cuotas por plan, clases sueltas, RPG y "Copiar pendientes".
 - Seguridad (Fase 0): login, `proxy.ts`, RLS solo para la usuaria autorizada, Salir, borrado de pacientes con confirmación. Deployada en Vercel.
 - Base técnica (Fase 0.5): horas normalizadas, `estados.ts`, Toast, `ConfirmDialog`, aviso de usuario no autorizado.
 - Celular: ninguna pantalla con desplazamiento lateral, modales en hoja o pantalla completa con pie fijo, área segura del iPhone, aviso de sin conexión.
 - Tests automáticos con **Vitest** (`npm test`) para las funciones puras de `src/lib/`.
-- `tsc`, `build`, `npm test` (200 tests) y `npm run lint` **sin errores ni warnings** (13/11/2026: se fueron con la pantalla vieja de Pagos y el arreglo de `TurnoModal`).
+- `tsc`, `build`, `npm test` (209 tests) y `npm run lint` **sin errores ni warnings** (13/11/2026).
 
-**Lo más importante que falta:** que Facu aplique la migración de pagos, pruebe y mergee `fase-2/pagos-completo`, para que Pau empiece a usar la app (cargando sus fijos desde el Calendario). Después: la tanda de **datos reales** (borrar `pagos` y las pruebas viejas, baja lógica, backup) y, al final del proyecto, **mantener activo** Supabase (bloqueante antes de la carga real).
+**Lo más importante que falta:** que Facu aplique la migración `20261114000001`, corra el script de "Prueba 1", pruebe y mergee `fase-2/datos-reales` (y después aplique `20261114000002`); los pasos manuales de Auth (contraseña larga de Pau, borrar el usuario de prueba). Con eso Pau puede cargar sus datos reales. Al final del proyecto, **mantener activo** Supabase (bloqueante antes de la carga real).
 
 **Cómo se prueba cada entrega (Facu, 13/11/2026; reemplaza la del 12/11):** no hay pruebas automáticas de navegador. En `respuesta.md` van un solo SQL de escenario (pacientes "Prueba …"), **hasta 6 cosas para mirar** (unos 5 minutos, en la compu salvo que algo sea propio del celular) y el SQL de borrado, que primero muestra qué borra (por nombre exacto). Las reglas de cálculo, con Vitest. Detalle en CLAUDE.md, flujo de trabajo, paso 4.
 
@@ -25,7 +25,7 @@ _Última revisión: 13/11/2026 — Fases 0 y 0.5 completas; Fase 1: **asistencia
 - ⚠️ En la base hay una **clase de prueba de Pau del vie 30/10/2026 10:30 con 3 asistencias "Recupera" de pacientes reales**. **No tocarla:** se borra cuando Pau confirme.
 - ⚠️ El **12/11/2026 el proyecto Supabase "pau" se pausó** por 7 días sin actividad. Facu lo reactivó, sin pérdida de datos. Por ahora Facu lo mantiene activo entrando a la app una vez por semana; la solución automática (función `ping` + Cron diario de Vercel) va **al final del proyecto** (Facu, 13/11) y es bloqueante antes de la carga real.
 - ⚠️ En Supabase, **no agregar una cuenta como Owner o Administrator en la organización de la otra**: el límite de 2 proyectos gratis es por persona y eso pausó el proyecto. Si hace falta dar acceso, rol **Developer**.
-- Quedan datos de prueba viejos: el paciente "Prueba 1" (3 horarios en el lunes 08:00, fuera de los horarios reales, y 1 turno RPG) y 2 filas en `pagos` con precios inventados. Las pruebas nuevas usan otros nombres y no los tocan; se borran en la **tanda de datos reales** (junto con la tabla `pagos`). Mientras tanto, "Prueba 1" aparece en el Calendario (lunes 08:00, fuera de horario) como fijo sin pagar.
+- Quedan datos de prueba viejos hasta que Facu corra lo de `fase-2/datos-reales`: el paciente "Prueba 1" (script `supabase/scripts/20261114_borrar_prueba_1.sql`) y la tabla `pagos` con 2 filas de prueba (migración `20261114000002`, después del merge).
 
 **Decisiones tomadas (Facu, 17/10/2026):** login con email y contraseña, una sola usuaria (Pau); los datos actuales son de prueba y se borran; plan Supabase Free; el deploy de Vercel se borró y se rehace al final de la Fase 0; el repo es público (pasarlo a privado queda fuera de esta fase); borrado de pacientes real con confirmación por ahora, baja lógica antes de la carga real.
 
@@ -54,10 +54,10 @@ Migraciones 000001 a 000004 aplicadas por Facu, usuaria de Pau autorizada, prueb
 
 ### Bloqueantes antes de la carga real de pacientes (antes de Fase 5)
 - [ ] 🔴 **Mantener activo el proyecto de Supabase** (decidido: Vercel Cron + `public.ping()`; va **al final del proyecto**, Facu 13/11/2026; `docs/DISENO_PAGOS.md`, sección 5). **Ya pasó el 12/11/2026** (reactivado sin pérdida de datos; mientras tanto Facu entra una vez por semana). El plan Free lo pausa tras 7 días sin actividad (por ejemplo, vacaciones de Pau). Plan: un **Vercel Cron Job** diario (el plan Hobby permite uno por día) que llame a una ruta `src/app/api/mantener-activo/route.ts`. La ruta (a) exige el header `Authorization: Bearer ${CRON_SECRET}` que manda Vercel; (b) queda excluida del redirect del proxy; (c) llama a una función mínima `public.ping()` (`select 1`, sin datos, `execute` solo para `anon`) creada en una migración nueva. Alternativa sin código: GitHub Actions con `schedule`, pero GitHub desactiva los workflows programados tras 60 días sin commits. ⚠️ Sin verificar: qué cuenta exactamente como "actividad" para Supabase. Confirmarlo en su documentación antes de implementar.
-- [ ] 🔴 **Usuario de prueba no autorizado** (creado a propósito por Facu el 18/10/2026 para probar el aviso): borrarlo o cambiarle la contraseña por una larga.
-- [ ] 🔴 **Cambiar la contraseña de prueba de Pau por una larga** (16+ caracteres, en un gestor de contraseñas) desde Authentication → Users.
-- [ ] 🔴 **Pasar a baja lógica** (archivar con `pacientes.activo`) y cambiar las FK a `ON DELETE RESTRICT`. Reemplazar el cuerpo de `eliminarPaciente` por "archivar", agregar "Dar de baja / Reactivar" en la ficha y una vista de archivados. Incluye N6 (editar fuerza `activo: true`; los inactivos no aparecen en el select de `TurnoModal`).
-- [ ] 🔴 **Backup antes de la carga real.** El plan Free no da acceso a backups: exportación propia (`supabase db dump` o CSV por tabla) antes de cargar y después, periódicamente. Definir dónde se guarda (con datos de salud: nunca en el repo).
+- [ ] 🔴 **Usuario de prueba no autorizado** (creado a propósito por Facu el 18/10/2026 para probar el aviso): **borrarlo** (Facu, paso manual; pasos en `respuesta.md` de `fase-2/datos-reales`).
+- [ ] 🔴 **Cambiar la contraseña de prueba de Pau por una larga** (16+ caracteres, en un gestor de contraseñas) desde Authentication → Users (Facu, paso manual).
+- [x] 🔴 **Baja lógica** (código en `fase-2/datos-reales`, 13/11/2026; falta aplicar `20261114000001`): FK a `pacientes` con `ON DELETE RESTRICT`, `pacientes.fecha_baja`, `dar_de_baja_paciente()` (cierra los horarios fijos en la fecha de baja), "Dar de baja / Reactivar" en la ficha, pestaña "Dados de baja", "Eliminar definitivamente" solo sin ningún dato (con historial ofrece dar de baja). N6 resuelto (editar no toca `activo`); los inactivos no aparecen en los selectores (ya usaban `getPacientesActivos`; un turno de alguien dado de baja lo muestra como "(dado de baja)").
+- [x] 🔴 **Backup antes de la carga real** (código en `fase-2/datos-reales`): "Descargar copia" en Pacientes → `pau-kinesio-copia-AAAA-MM-DD-HHMM.json` con todas las tablas, en la compu de Pau (en `.gitignore`, nunca al repo ni a la consola). Muestra la última copia de ese navegador y avisa pasada una semana. Restauración: `supabase/scripts/restaurar_copia.sql` (psql, probado en un Postgres local). Falta: que Pau la haga **antes y después** de la carga real, y guardarla fuera de la compu (pendrive o su nube).
 - [ ] 🔴 **Historial de migraciones:** `supabase_migrations.schema_migrations` está vacío porque se aplican a mano. Nunca correr `supabase db push` contra este proyecto sin antes marcar las migraciones aplicadas (`supabase migration repair`), o reejecutaría la línea base.
 
 ### Después de la Fase 0
@@ -203,8 +203,15 @@ Reemplaza a `/rpg` como entrada de la app (`/` y el destino después del login).
 
 **Diseño: [`docs/DISENO_PAGOS.md`](docs/DISENO_PAGOS.md)** (12/11/2026, actualizado el 13/11). Reglas de Pau (octubre 2026) en `REQUISITOS.md`, sección 4.
 
+**Respuestas de Pau (13/11/2026)** (mandan sobre la decisión 1 de abajo; detalle en el diseño):
+- A1. **Después del 10: el mismo precio del plan.** Se sacó el aviso "por clase serían…" del panel Cobrar (y sus tests).
+- A2. **Alta a mitad de mes: por clase** (suelta del mes × clases que le quedan desde su alta): es el importe sugerido (`por_clase`), con "Volver al plan" a un clic. Editable.
+- A3. Sueltas: se pagan cuando vienen o al comienzo del mes, nunca al final (no cambia el modelo).
+- A4. Precios de noviembre y diciembre: los carga Pau desde la app.
+- A5. Títulos de sección visibles en `/pagos` y en el Calendario (Facu no encontró "Clases sueltas": además, la sección no se mostraba si no había sueltas; ahora se muestra siempre).
+
 **Decisiones de Facu (13/11/2026)** (detalle en el diseño, al principio):
-1. Importe sugerido: **siempre el plan**. Después del 10, solo un aviso al lado: "Después del 10: por clase serían 4 × $18.000 = $72.000 · Usar" (un clic lo aplica; se recalcula al cambiar la fecha).
+1. ~~Importe sugerido: siempre el plan, con aviso después del 10.~~ Reemplazada por A1 y A2.
 2. `pagos_tpa`: una cuota por alumno y mes (índice único parcial solo para `concepto = 'cuota'`); cada pago de sueltas, su propia fila (`nuevoId()` + `insertarSinDuplicar()`).
 3. TPA abre en **Calendario** la primera vez; después, en la última pestaña usada.
 4. Cada "Libre" del Calendario tiene **"+ Inscribir fijo"**: Pau carga sus fijos desde ahí.
@@ -221,8 +228,15 @@ Reemplaza a `/rpg` como entrada de la app (`/` y el destino después del login).
   - [x] `/pagos` nueva (reemplaza la vieja): cifras del mes, precios, cuotas TPA por plan, clases sueltas (cada pago una fila), RPG con importe / medio / fecha, "Copiar pendientes"; tabla en la compu y cards en el celular; `useDatos` y `addMonths`. Se van #7, N4, N5, N18, N19 y los errores de lint de Pagos.
   - [x] Pendiente en rosa (`ESTADOS_PAGO`) y DESIGN.md actualizado. En el turno de RPG, al marcar Pagado se elige el medio. De paso, `TurnoModal` se monta al abrir (sin el `set-state-in-effect`): lint en cero.
   - [x] Migración `20261113000001_pagos.sql` (`precios_mes` con septiembre y octubre, `pagos_tpa`, columnas de pago en `sesiones_rpg` con trigger para que `main` siga andando), con RLS, revoke y rollback; probada en un Postgres local descartable.
-  - [ ] **Facu:** aplicar la migración → preview → pruebas cortas → merge. Después, Pau carga los precios de noviembre y sus fijos desde el Calendario.
-- [ ] **Tanda de datos reales:** borrar la tabla `pagos` (con guarda), "Prueba 1" y las 2 filas viejas de `pagos`, y lo de "Bloqueantes antes de la carga real".
+  - [x] **Facu:** migración aplicada y mergeado (13/11/2026). Pau carga los precios de noviembre y diciembre y sus fijos desde el Calendario.
+- [x] **Tanda de datos reales** (rama `fase-2/datos-reales`, código 13/11/2026):
+  - [x] Ajustes de pagos A1, A2 y A5 (`cuotaSugerida` / `textoPorClase` en lugar de `avisoPorClase`; 43 tests en `pagos.test.ts`; DESIGN.md).
+  - [x] Baja lógica, FK `RESTRICT`, eliminar solo sin datos (ver Bloqueantes).
+  - [x] Migración `20261114000002_borrar_tabla_pagos.sql` (con guarda: aborta si hay filas distintas de las 2 de prueba) y fuera de `queries.ts` lo que la leía (`contarDatosPaciente`).
+  - [x] Script `supabase/scripts/20261114_borrar_prueba_1.sql` (con guarda, por id y nombre exacto; no toca la clase del 30/10 10:30).
+  - [x] "Descargar copia" (ver Bloqueantes).
+  - [x] Migraciones y script probados en un Postgres local descartable (guardas, RLS, rollback).
+  - [ ] **Facu:** aplicar `20261114000001` → script de "Prueba 1" → preview → pruebas cortas → merge → aplicar `20261114000002`. Pasos manuales de Auth.
 - [ ] **Mantener activo** Supabase (`ping` + Vercel Cron): al final del proyecto.
 - [ ] Después: punto de pago en la grilla de la semana, pagos pendientes en "Inicio", tope de recuperaciones desde el plan pagado (si Pau lo pide).
 - [ ] Ideas que quedaron afuera: que una suelta "Presente" ofrezca cobrarla desde el modal de la clase; cambiar el importe de una sesión de RPG desde el turno (hoy solo desde Pagos).
@@ -256,7 +270,7 @@ Reemplaza a `/rpg` como entrada de la app (`/` y el destino después del login).
 - [ ] Verificar que los bloqueantes de carga real (baja lógica, backup) estén hechos.
 - [ ] Carga inicial: pacientes actuales y horarios fijos TPA (planilla CSV → script de importación).
 - [ ] Probar con Pau una semana real en paralelo al Word antes de abandonarlo.
-- [ ] Backup periódico (exportación programada) y prueba de restauración.
+- [ ] Backup periódico: "Descargar copia" existe (avisa pasada una semana); falta una **prueba de restauración** con una copia real en un proyecto descartable (`supabase/scripts/restaurar_copia.sql`) y, si se quiere, algo automático.
 - [ ] Pasar el repo a privado.
 
 ---
@@ -285,10 +299,10 @@ Para Fase 1 bloquean la 1, 2, 3, 6 y 9; para Fase 2, la 4 y la 5. La 1, la 6 y l
 
 Detalle, ejemplos y supuestos en `docs/DISENO_PAGOS.md`, sección 7. Ninguna frena el uso: el importe siempre se ve y se puede editar.
 
-27. Si alguien paga **después del 10**, ¿cuánto le cobrás? (Facu: se sugiere el plan, con el aviso "por clase serían 4 × $18.000 · Usar")
+27. ✅ Si alguien paga **después del 10**: el mismo precio del plan (Pau, 13/11).
 28. ✅ En un mes con **5 lunes**: la cuota cubre el mes entero (Facu, 13/11).
-29. Si alguien **empieza a mitad de mes**, ¿cómo le cobrás el primer mes? (supuesto: el plan, con aviso de las clases que le quedan si sale más barato)
-30. Las **clases sueltas**, ¿se pagan el mismo día o juntas a fin de mes? (supuesto: cada pago se anota aparte)
+29. ✅ Si alguien **empieza a mitad de mes**: por clase, las que le quedan × la suelta (Pau, 13/11).
+30. ✅ Las **clases sueltas**: cuando vienen o al comienzo del mes, nunca al final (Pau, 13/11).
 31. ¿Alguien paga la cuota **en partes**? (supuesto de Facu: no; si pasa, se anota en la nota)
 
 ### Recuperaciones (21/10/2026) — ✅ respondidas por Pau el 21/10/2026
@@ -319,10 +333,10 @@ Además: cada pendiente de recuperar muestra su **origen** ("cancelé el mié 7"
 
 | # | Fase | Dónde | Problema |
 |---|---|---|---|
-| N1 | 0 | base | Todas las FK son `ON DELETE CASCADE`: borrar un paciente borra toda su historia. ✅ Línea base corregida. Se mantiene por ahora (borrado con confirmación); 🔴 baja lógica + `RESTRICT` antes de la carga real. |
+| N1 | 0 ✅ / 2 | base | Todas las FK eran `ON DELETE CASCADE`: borrar un paciente borraba toda su historia. ✅ `RESTRICT` + baja lógica en `20261114000001` (`fase-2/datos-reales`). |
 | 9 | 0 | Supabase | Políticas RLS "permitir todo a público": la anon key da acceso total. Migración escrita, falta aplicarla. |
 | N7 | 0 ✅ / 1 | base (`horarios_tpa`) | Unique parcial aplicado en Fase 0. El cupo todavía no se controla al inscribir (solo aviso, Fase 1). |
-| N6 | 0 (bloqueante carga) | `pacientes/page.tsx:107` | No hay baja de pacientes; editar fuerza `activo: true`; inactivos no aparecen en `TurnoModal`. |
+| N6 | 2 ✅ | `PacienteFormModal` | Editar forzaba `activo: true` y no había baja. ✅ Editar no toca `activo`; "Dar de baja / Reactivar" en la ficha (`fase-2/datos-reales`). |
 | N13 | 0 | raíz | `.gitignore` no ignoraba `respuesta.md`. ✅ Corregido. |
 | N14 | 0 | `package.json` | `@supabase/ssr` ya instalado y sin usar: se usa para el login. |
 | 1 | 0.5 ✅ | `TpaWeeklyView` / `TpaClaseModal` | **Corregido en Fase 0.5** (`normalizarHora` + `conHora` en queries). Era: horas `"HH:mm:ss"` de la base vs `"HH:mm"` de la grilla → filas duplicadas (una `08:00` vacía y otra `08:00:00` con los alumnos); si inscribís desde la fila `08:00`, el alumno "salta" a la otra. **Riesgo futuro (hoy no reproducible):** asistencia que se guarda pero no se ve, y error de unique al re-guardar una clase, en cuanto se puedan agregar no fijos o se normalice a medias. |

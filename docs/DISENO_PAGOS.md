@@ -2,11 +2,19 @@
 
 _Escrito el 12/11/2026 sobre la rama `fase-2/pagos`. Sale de leer la pantalla de Pagos actual, sus queries, la tabla `pagos` en la base (MCP de solo lectura) y las reglas de Pau de octubre 2026 (`REQUISITOS.md`, sección 4). En los ejemplos se usan "Alumna A", "Alumno B": no son datos reales._
 
-**Estado:** entregas 1 y 2 unidas en una sola tanda (rama `fase-2/pagos-completo`, 13/11/2026): todo pagos salvo "mantener activo", que va al final del proyecto. Las decisiones de Facu del 13/11 (abajo) mandan sobre lo que diga el resto del documento; donde cambian algo, está corregido en su sección.
+**Estado:** entregas 1 y 2 unidas en una sola tanda (rama `fase-2/pagos-completo`, mergeada el 13/11/2026): todo pagos salvo "mantener activo", que va al final del proyecto. Ajustes con las respuestas de Pau en la tanda de **datos reales** (`fase-2/datos-reales`). Las respuestas de Pau y las decisiones de Facu del 13/11 (abajo) mandan sobre lo que diga el resto del documento; donde cambian algo, está corregido en su sección.
+
+### Respuestas de Pau (13/11/2026) — mandan sobre la decisión 1 de Facu
+
+1. **Pago después del 10:** Pau cobra **el mismo precio del plan**. Se sacó el aviso "Después del 10: por clase serían…" del panel Cobrar (y sus tests). Ya no se distingue "del 1 al 10".
+2. **Alta a mitad de mes:** se cobra **por clase**: clase suelta del mes × clases que le quedan desde su alta. En un alta en el mes, el importe sugerido pasa a ser por clase directamente (`modalidad = 'por_clase'`), con "Volver al plan" a un clic; editable. "Alta a mitad de mes" = empieza dentro del mes **y se pierde al menos una clase** de sus horarios (un alta el día del primer lunes tiene el mes entero: plan). Sumar un horario a mitad de mes (ya era fijo) sigue siendo plan.
+3. **Sueltas:** se pagan cuando vienen o al comienzo del mes, nunca al final. No cambia el modelo (cada pago, su fila).
+4. **Precios de noviembre y diciembre:** los carga Pau desde la app.
+5. En `/pagos` los títulos de sección pasan a ser visibles (`text-base font-semibold text-stone-900`, con el detalle al lado en gris), y "Clases sueltas" y "RPG" se muestran siempre (vacías, con un texto que dice cómo se cargan). Lo mismo en el Calendario (encabezados de día y horas).
 
 ### Decisiones de Facu (13/11/2026)
 
-1. **Importe sugerido: siempre el plan** según las veces por semana. Si la fecha de pago es posterior al 10, solo un aviso al lado: "Después del 10: por clase serían 4 × $18.000 = $72.000 · Usar" (un clic lo aplica). Al cambiar la fecha se recalcula el aviso. Reemplaza el supuesto 1 (sección 3.2).
+1. ~~**Importe sugerido: siempre el plan** según las veces por semana. Si la fecha de pago es posterior al 10, solo un aviso al lado: "Después del 10: por clase serían 4 × $18.000 = $72.000 · Usar".~~ **Reemplazada por las respuestas de Pau** (arriba): plan siempre, sin aviso; alta a mitad de mes, por clase.
 2. **`pagos_tpa`:** el unique `(paciente_id, mes)` vale **solo para `concepto = 'cuota'`** (índice único parcial). Cada pago de clases sueltas va en **su propia fila**, con `nuevoId()` + `insertarSinDuplicar()`. Reemplaza "una fila de sueltas por persona y mes" (2.3).
 3. TPA abre en la pestaña **Calendario** la primera vez; después, en la **última que se usó**.
 4. En el Calendario, cada "Libre" tiene **"+ Inscribir fijo"** (el mismo `TpaInscripcion`, con ese día y hora y "Fijo desde"): Pau va a cargar sus fijos desde ahí.
@@ -202,9 +210,9 @@ Fechas y "hoy" siempre en hora argentina (como `avisos.ts`). Meses como `'yyyy-M
 | Función | Qué devuelve |
 |---|---|
 | `preciosDelMes(precios, mes)` | Los precios del mes o, si no hay, los del último mes anterior, con `heredadoDe: '2026-10'`. `null` si no hay ninguno anterior. |
-| `fijosDelMes(horarios, mes)` | Por alumno: horarios fijos que tuvo en el mes (`eraFijoEn` en alguna fecha de clase del mes), `vecesPorSemana` (máximo de horarios vigentes a la vez, tope 3), `horariosDeMas`, `desde` / `baja` si entra o sale en el mes y `clases` (las que le tocan en el mes). |
-| `cuotasDelMes(horarios, pagos, mes, precios)` | Una fila por fijo del mes (con su pago o `null` = pendiente y el importe pendiente = precio del plan) + quien pagó la cuota sin ser fijo del mes. |
-| `avisoPorClase({ veces, precios, pagadoEl, mes, fijo })` | El importe sugerido es **siempre el plan**; esto es la alternativa por clase para el aviso "· Usar": alta en el mes (clases que le tocan × suelta, solo si es más barato) o, si no, pago después del 10 (4 × veces × suelta). `null` si no corresponde. |
+| `fijosDelMes(horarios, mes)` | Por alumno: horarios fijos que tuvo en el mes (`eraFijoEn` en alguna fecha de clase del mes), `vecesPorSemana` (máximo de horarios vigentes a la vez, tope 3), `horariosDeMas`, `desde` / `baja` si entra o sale en el mes, `altaEnElMes` (entra y se pierde al menos una clase) y `clases` (las que le tocan en el mes). |
+| `cuotasDelMes(horarios, pagos, mes, precios)` | Una fila por fijo del mes (con su pago o `null` = pendiente y el importe pendiente = lo sugerido por `cuotaSugerida`) + quien pagó la cuota sin ser fijo del mes. |
+| `cuotaSugerida(fijo, veces, precios)`, `textoPorClase(fijo, precios)` | Importe sugerido (respuestas de Pau del 13/11): el **plan** según las veces por semana, pague cuando pague; si es **alta a mitad de mes** (`fijo.altaEnElMes`), **por clase**: clases que le quedan × suelta. El texto: "Empieza el 15/11: por clase, 2 × $18.000 = $36.000". _Reemplaza a `avisoPorClase` (sacado)._ |
 | `sueltasDelMes(asistencias, pagos, mes, precios, hoy)` | Por persona: sueltas en clases no canceladas (Presente = para cobrar, sin marcar, por venir, no vino), sus pagos (una fila cada uno) y lo pendiente. |
 | `sesionesRPGDelMes(sesiones, mes, precios, hoy)` | Sesiones del mes no canceladas: pagada, importe (guardado o precio del mes), futura, a cobrar. |
 | `resumenDelMes(cuotas, sueltas, sesiones)` | Por plan (alumnos, pagaron, cobrado, pendiente), sueltas, RPG y totales: cobrado, falta cobrar, total, efectivo, transferencia y sin medio. |
@@ -214,13 +222,13 @@ Fechas y "hoy" siempre en hora argentina (como `avisos.ts`). Meses como `'yyyy-M
 
 ### 3.2 Supuestos que usan las funciones (Pau los puede corregir)
 
-1. **Pago después del 10:** se sugiere **el plan** (decisión 1 de Facu) y al lado el aviso "Después del 10: por clase serían 4 × $18.000 = $72.000 · Usar". _Antes decía sugerir por clase._
+1. ✅ **Pago después del 10:** el **mismo precio del plan** (respuesta de Pau, 13/11). Sin aviso.
 2. **Meses con 5 lunes:** la cuota cubre el mes entero; la 5.ª clase no se cobra aparte. ✅ **Respondida** (decisión 7).
-3. **Alta a mitad de mes:** se sugiere el plan, y si las clases que le quedan desde su alta salen más baratas, el aviso "Empieza el 15/11: por clase serían 2 × $18.000 = $36.000 · Usar". No se combina con el aviso de después del 10 (paga cuando empieza).
+3. ✅ **Alta a mitad de mes:** **por clase** (respuesta de Pau, 13/11): "Empieza el 15/11: por clase, 2 × $18.000 = $36.000 · Volver al plan", aunque salga más que el plan. Los feriados del resto del mes no se descuentan (se compensan con recuperaciones): _supuesto_.
 4. **Baja a mitad de mes:** debe la cuota completa del mes (lo normal es que ya la haya pagado del 1 al 10).
 5. **Feriados y clases que canceló Pau:** no cambian la cuota (se compensan con recuperaciones).
 6. **Clase suelta "No vino":** no se cobra. "Sin marcar" se muestra aparte para que Pau la marque.
-7. Pagar **antes** del mes (por ejemplo, el 30/10 la cuota de noviembre) cuenta como "del 1 al 10".
+7. ~~Pagar antes del mes cuenta como "del 1 al 10".~~ Ya no hace falta: el plan es el mismo pague cuando pague.
 8. **"+ Inscribir fijo" desde el Calendario:** "Fijo desde" arranca en el **1 del mes que se mira** (Pau está cargando a quienes ya vienen); se cambia a mano.
 9. Precios de **RPG de septiembre**: $46.000, igual que octubre (no estaba en su tabla).
 
@@ -236,11 +244,10 @@ Precios de octubre 2026: 1 vez $50.000 · 2 veces $80.000 · 3 veces $110.000 ·
 | Alumna A, fija lunes 10:30, todo octubre | 1 vez por semana; debe la cuota de octubre |
 | Alumno B, fijo lunes y miércoles | 2 veces; plan $80.000 |
 | Alumna C con 4 horarios (error de carga) | 3 veces (tope) y aviso |
-| Paga el 10/10 la cuota de octubre | Modalidad plan; $50.000 (1 vez) |
-| Paga el 11/10 | Plan $50.000, con aviso "Después del 10: por clase serían 4 × $18.000 = $72.000 · Usar" (decisión 1) |
-| Paga el 30/9 la cuota de octubre | Plan (supuesto 7) |
-| Alta el 15/10, fija los lunes (19 y 26) | Plan, con aviso "Empieza el 15/10: por clase serían 2 × $18.000 = $36.000 · Usar" (supuesto 3) |
-| Alta el 15/10, fija lunes, miércoles y viernes | Le quedan 2 + 2 + 3 = 7 clases → 7 × $18.000 = $126.000 > plan de 3 veces ($110.000) → sin aviso, queda el plan |
+| Paga el 10/10, el 11/10 o el 30/9 la cuota de octubre | Plan $50.000 (1 vez), sin aviso (respuesta de Pau) |
+| Alta el 15/10, fija los lunes (19 y 26) | Por clase: 2 × $18.000 = $36.000, "Volver al plan" (respuesta de Pau) |
+| Alta el 15/10, fija lunes, miércoles y viernes | Por clase: 2 + 2 + 3 = 7 × $18.000 = $126.000, aunque supere el plan de 3 veces |
+| Alta el 5/10, el primer lunes del mes | Tiene todas las clases: plan |
 | Baja el 20/10 | Debe la cuota completa de octubre (supuesto 4) |
 | Alumno con baja el 30/9 | No figura en octubre |
 | Alta el 1/11 (futura) | No figura en octubre; sí en noviembre |
@@ -265,14 +272,14 @@ Componente `CobrarCuota` (modal angosto en la compu, hoja desde abajo en el celu
 
 ```
 Alumna A · noviembre · 1 vez por semana (lun 10:30)
- Importe     [$ 50.000 ]   Plan (pagó del 1 al 10)   · cambiar a por clase
+ Importe     [$ 50.000 ]   Plan 1 vez por semana
  Medio       [Transferencia] [Efectivo]
  Fecha       [12/11/2026]
                                    [Cancelar] [Guardar]
 ```
 
 - Todo viene completo con lo sugerido: importe (sección 3), medio = el de su último pago (si no, transferencia: **supuesto**, en su Word marca el efectivo), fecha = hoy. En el caso normal es **abrir → Guardar**.
-- Si paga después del 10, el importe sigue siendo el plan y al lado aparece "Después del 10: por clase serían 4 × $18.000 = $72.000 · Usar" (decisión 1). "Usar" lo aplica (`modalidad = 'por_clase'`, `clases = 4`) y aparece "Volver al plan". Avisa, no bloquea.
+- Después del 10, el plan igual (respuesta de Pau). Un **alta a mitad de mes** arranca por clase: "Empieza el 15/11: por clase, 2 × $18.000 = $36.000 · **Volver al plan**"; en el plan, "… por clase serían … · **Usar**" para volver a por clase.
 - Ya pagado: muestra "Pagó el 5/11 · transferencia · $50.000", con "Editar" y "Deshacer el pago" (con `ConfirmDialog`).
 
 ### 4.2 Calendario general (TPA, pestaña nueva)
@@ -329,7 +336,7 @@ Al final de cada una: `tsc`, `lint`, `build`, `npm test` y las pruebas cortas de
 | Tanda | Rama | Qué | Base de datos |
 |---|---|---|---|
 | **Pagos completo** (entregas 1 y 2 juntas, decisión de Facu del 13/11) | `fase-2/pagos-completo` | `src/lib/pagos.ts` + tests. Pestaña **Calendario** en TPA (verde / rosa / Libre con "+ Inscribir fijo") con **Cobrar** en 2 clics. Precios del mes (ver, cargar, usar los del anterior con aviso). `/pagos` completa: cifras, cuotas por plan, clases sueltas, RPG con importe / medio / fecha, "Copiar pendientes" (reemplaza la pantalla vieja: se van #7, N4, N5, N18, N19 y los errores de lint de Pagos). Rosa para "pendiente" en toda la app. | Migración `20261113000001_pagos.sql`: `precios_mes` (septiembre y octubre 2026), `pagos_tpa`, columnas de pago en `sesiones_rpg` (con trigger). **No toca `pagos`.** |
-| **Datos reales** | — | Borrar la tabla `pagos` con guarda, los datos de prueba viejos y lo demás de "Bloqueantes antes de la carga real". | Migración con guarda. |
+| **Datos reales** | `fase-2/datos-reales` | Ajustes de pagos con las respuestas de Pau (sin aviso después del 10; alta a mitad de mes por clase; títulos visibles). Baja lógica de pacientes, borrar "Prueba 1" (script), copia de seguridad (JSON). | `20261114000001_baja_logica_pacientes.sql` (FK RESTRICT, `fecha_baja`, `dar_de_baja_paciente`) y `20261114000002_borrar_tabla_pagos.sql` (con guarda, después del merge). |
 | **Mantener activo** (al final del proyecto) | `fase-2/mantener-activo` | **Bloqueante antes de la carga real:** función `public.ping()` + ruta `/api/mantener-activo` + Vercel Cron diario (ver PENDIENTES). | Migración: `ping()` |
 | después | — | Punto de pago en la grilla de la semana; pagos pendientes en "Inicio" (Para atender); tope de recuperaciones desde el plan pagado, si Pau lo pide; "Exento este mes" (vacaciones, beca) si hace falta. | — |
 
@@ -338,7 +345,7 @@ Al final de cada una: `tsc`, `lint`, `build`, `npm test` y las pruebas cortas de
 1. 🟠 **Importe sugerido mal** (reglas después del 10, alta a mitad de mes, 5.ª clase sin confirmar). Mitigación: se sugiere siempre el plan, el importe está a la vista y es editable, y la alternativa por clase aparece como aviso con "Usar".
 2. 🟠 **Mes sin precios cargados.** Mitigación: se usan los del mes anterior con aviso visible y "Cargar precios de noviembre" a un clic; lo cobrado queda guardado con su importe.
 3. 🟠 **Dos tablas de pagos durante la transición** (`pagos` vieja y `pagos_tpa`). Mitigación: esta tanda reemplaza la pantalla vieja, nada escribe en `pagos` desde el merge, y la tanda de datos reales la borra con guarda.
-4. 🟠 **Borrar un paciente borra sus pagos** (`on delete cascade`): se pierde el historial de ingresos. Ya está como bloqueante (baja lógica + `restrict`) antes de la carga real.
+4. ✅ ~~Borrar un paciente borra sus pagos~~: desde `20261114000001`, FK `ON DELETE RESTRICT` y baja lógica (tanda de datos reales).
 5. 🟠 **Proyecto pausado** (pasó el 12/11): la app deja de andar. Mitigación hoy: Facu entra una vez por semana; entrega 3 lo automatiza.
 6. 🟡 **Plan pagado distinto de los horarios**: el tope de recuperaciones sigue los horarios. Mitigación: aviso al cobrar.
 7. 🟡 **Pago marcado por error.** Mitigación: "Deshacer el pago" con confirmación; el pago muestra fecha y medio.
@@ -350,20 +357,20 @@ Al final de cada una: `tsc`, `lint`, `build`, `npm test` y las pruebas cortas de
 
 ## 7. Preguntas para Pau
 
-En orden de importancia. **Estado al 13/11/2026 (Facu):** la 2 respondida (la cuota cubre el mes entero); la 5, supuesto "no pasa" (se anota en la nota); la 1, 3 y 4 siguen con el supuesto del diseño, con el importe siempre a la vista y editable. Ninguna frena el uso.
+En orden de importancia. **Estado al 13/11/2026:** respondidas por Pau la 1 (plan igual), la 3 (por clase) y la 4 (cuando vienen o a comienzo de mes); la 2 por Facu (mes entero); la 5, supuesto "no pasa" (se anota en la nota).
 
 1. **Si alguien paga después del 10, ¿cuánto le cobrás?**
    Ejemplo: Alumna A va 1 vez por semana y paga el 15 de noviembre. ¿Le cobrás 4 clases sueltas (4 × $18.000 = $72.000), solo las clases que le quedan en el mes, u otra cosa?
-   _Decidido por Facu (13/11): se sugiere el plan, con el aviso "por clase serían 4 × $18.000 · Usar"._ Ya no bloquea: la respuesta de Pau solo cambia el aviso.
+   ✅ _Respondida por Pau (13/11): el mismo precio del plan._
 2. **En un mes con 5 lunes, ¿la 5.ª clase se cobra aparte?**
    Ejemplo: noviembre 2026 tiene 5 lunes. Alumna A paga $50.000 por 1 vez por semana. ¿Esa cuota incluye los 5 lunes, o el 5.º se paga como suelta?
    ✅ _Respondida (Facu, 13/11): incluye el mes entero._
 3. **Si alguien empieza a mitad de mes, ¿cómo le cobrás ese primer mes?**
    Ejemplo: Alumno B empieza los lunes el 16 de noviembre (le quedan 3 lunes). ¿Paga 3 clases sueltas, la cuota entera, o una parte?
-   _Supuesto: se sugiere el plan, con el aviso de las clases que le quedan como sueltas si sale más barato._ No bloquea.
+   ✅ _Respondida por Pau (13/11): por clase, las que le quedan × la suelta del mes._
 4. **Las clases sueltas, ¿se pagan el mismo día o todas juntas a fin de mes?**
    Ejemplo: Alumna D vino 3 veces suelta en noviembre. ¿Te paga cada vez que viene, o te paga las 3 juntas?
-   _Supuesto: se ven por persona y por mes (persona × cantidad, como en tu Word) y cada pago se anota aparte (de a una o todas juntas)._ No bloquea.
+   ✅ _Respondida por Pau (13/11): cuando vienen o al comienzo del mes, nunca al final._ Cada pago se anota aparte.
 5. **¿Alguien te paga la cuota en partes?**
    Ejemplo: Alumno B (2 veces, $80.000) te da $40.000 el 5 y $40.000 el 20.
    _Supuesto (Facu, 13/11): no pasa; si pasa, se anota cuando completa y se escribe en la nota._ Si pasa seguido, cambia el modelo (pagos parciales).

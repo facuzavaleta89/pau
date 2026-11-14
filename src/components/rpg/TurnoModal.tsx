@@ -118,6 +118,10 @@ export function TurnoModal({ onClose, turno, selectedDate, onSave }: TurnoModalP
               {(pacientes ?? []).map(p => (
                 <option key={p.id} value={p.id}>{p.nombre}</option>
               ))}
+              {/* Turno de alguien dado de baja: no está en la lista de activos, pero el turno es suyo. */}
+              {pacientes && turno?.paciente_id && !pacientes.some((p) => p.id === turno.paciente_id) && (
+                <option value={turno.paciente_id}>{turno.pacientes?.nombre ?? 'Paciente'} (dado de baja)</option>
+              )}
             </select>
           </div>
 

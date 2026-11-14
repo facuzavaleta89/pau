@@ -39,7 +39,7 @@ export function PagosSecciones({
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {cuotas.length === 0 && (
         <p className="text-sm text-stone-500 bg-white rounded-xl border border-dashed border-stone-200 py-6 px-4 text-center">
           No hay alumnos fijos de TPA este mes. Se inscriben desde TPA → Calendario, en cada lugar libre.
@@ -48,7 +48,8 @@ export function PagosSecciones({
       {resumen.planes.map((plan) => (
         <TablaPagos
           key={plan.veces}
-          titulo={`TPA · ${textoVeces(plan.veces)} · pagaron ${plan.pagaron} de ${plan.alumnos}`}
+          titulo={`Cuotas TPA · ${textoVeces(plan.veces)}`}
+          detalle={`pagaron ${plan.pagaron} de ${plan.alumnos}`}
           items={cuotas.filter((c) => Math.min(3, c.veces) === plan.veces)}
           clave={(c) => c.pacienteId}
           columnas={[
@@ -66,7 +67,9 @@ export function PagosSecciones({
       ))}
 
       <TablaPagos
-        titulo={`Clases sueltas TPA · ${resumen.sueltas.clases} ${resumen.sueltas.clases === 1 ? 'clase' : 'clases'}`}
+        titulo="Clases sueltas TPA"
+        detalle={`${resumen.sueltas.clases} ${resumen.sueltas.clases === 1 ? 'clase' : 'clases'}`}
+        vacio="Nadie vino como clase suelta este mes. Se anotan desde TPA → Semana → Ocupar lugar → Clase suelta."
         items={sueltas}
         clave={(s) => s.pacienteId}
         columnas={[
@@ -88,7 +91,9 @@ export function PagosSecciones({
       />
 
       <TablaPagos
-        titulo={`RPG · ${resumen.rpg.sesiones} ${resumen.rpg.sesiones === 1 ? 'sesión' : 'sesiones'}`}
+        titulo="RPG"
+        detalle={`${resumen.rpg.sesiones} ${resumen.rpg.sesiones === 1 ? 'sesión' : 'sesiones'}`}
+        vacio="No hay sesiones de RPG este mes."
         items={sesiones}
         clave={(s) => s.sesion.id}
         columnas={[

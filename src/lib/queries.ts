@@ -6,6 +6,7 @@ import type { DatosRecuperaciones } from './recuperaciones';
 import type { ClaseAGuardar } from './clase-tpa';
 import { format } from 'date-fns';
 import type { FilaAlerta } from './alertas';
+import { TABLAS_COPIA, type TablaCopia } from './copia';
 import type { AsistenciaSuelta, DatosPagosMes, Mes } from './pagos';
 import { moverMes, primerDia, ultimoDia } from './pagos';
 import type {
@@ -71,6 +72,19 @@ function conHora<T extends { hora: string }>(fila: T): T {
 // PACIENTES
 // ==========================================
 
+// Todos los pacientes, también los dados de baja (pantalla Pacientes: activos y archivados).
+export async function getPacientes() {
+  const { data, error } = await supabase
+    .from('pacientes')
+    .select('*')
+    .order('nombre', { ascending: true });
+
+  if (error) throw error;
+  return data as Paciente[];
+}
+
+// Solo los activos: para todas las listas donde se elige un paciente (turno
+// RPG, inscribir fijo, ocupar lugar). Los dados de baja no aparecen.
 export async function getPacientesActivos() {
   const { data, error } = await supabase
     .from('pacientes')
@@ -529,11 +543,26 @@ export async function updatePaciente(id: string, updates: Partial<Paciente>) {
   return exigirUnaFila(data as Paciente[] | null, 'No se pudo guardar el paciente.');
 }
 
-// Único punto de borrado de pacientes.
-// Hoy: borrado REAL. Las FK son ON DELETE CASCADE, así que se borran también
-// sus turnos, horarios, asistencias, notas de evolución, pagos (viejos y de TPA) y lista de espera.
-// 🔴 Antes de la carga real se cambia a baja lógica (activo = false) + FK
-// ON DELETE RESTRICT, cambiando solo esta función (ver PENDIENTES.md).
+// Baja lógica (migración 20261114000001): en una transacción de la base, el
+// paciente queda inactivo con su fecha de baja y sus horarios fijos de TPA se
+// cierran en esa fecha (no debe la cuota de los meses siguientes). Su
+// historia y sus pagos quedan. Devuelve cuántos horarios cerró.
+export async function darDeBajaPaciente(id: string, fecha: string) {
+  const { data, error } = await supabase.rpc('dar_de_baja_paciente', { p_paciente: id, p_fecha: fecha });
+  if (error) throw error;
+  if (typeof data !== 'number') throw new ErrorApp('No se pudo dar de baja al paciente.');
+  return data;
+}
+
+// Vuelve a las listas. Sus horarios fijos no se reabren: se inscribe de nuevo
+// desde TPA → Calendario. La base limpia fecha_baja sola (trigger).
+export async function reactivarPaciente(id: string) {
+  return updatePaciente(id, { activo: true, fecha_baja: null });
+}
+
+// Borrado REAL, solo para un paciente sin ningún dato (cargado por error).
+// Desde la migración 20261114000001 las FK son ON DELETE RESTRICT: si tiene
+// historial, la base no lo deja borrar (23503) y se ofrece dar de baja.
 export async function eliminarPaciente(id: string) {
   const { data, error } = await supabase
     .from('pacientes')
@@ -541,6 +570,9 @@ export async function eliminarPaciente(id: string) {
     .eq('id', id)
     .select('id');
 
+  if (error?.code === '23503') {
+    throw new ErrorApp('Tiene historial guardado, así que no se puede eliminar. Podés darlo de baja.');
+  }
   if (error) throw error;
   exigirUnaFila(data, 'No se pudo eliminar el paciente.');
 }
@@ -551,9 +583,11 @@ export interface DatosPaciente {
   notas: number;
   pagos: number;
   horarios: number;
+  listaEspera: number;
 }
 
-// Cuántos registros se borrarían junto con el paciente (para el diálogo de confirmación).
+// Cuántos datos tiene guardados (diálogo "Eliminar"): con alguno, no se puede
+// borrar (FK RESTRICT) y se ofrece dar de baja.
 export async function contarDatosPaciente(id: string): Promise<DatosPaciente> {
   const contar = async (tabla: string) => {
     const { count, error } = await supabase
@@ -565,14 +599,29 @@ export async function contarDatosPaciente(id: string): Promise<DatosPaciente> {
     return count ?? 0;
   };
 
-  const [turnos, asistencias, notas, pagosViejos, pagosTPA, horarios] = await Promise.all([
+  const [turnos, asistencias, notas, pagos, horarios, listaEspera] = await Promise.all([
     contar('sesiones_rpg'),
     contar('asistencia_tpa'),
     contar('notas_evolucion'),
-    contar('pagos'),
     contar('pagos_tpa'),
     contar('horarios_tpa'),
+    contar('lista_espera'),
   ]);
 
-  return { turnos, asistencias, notas, pagos: pagosViejos + pagosTPA, horarios };
+  return { turnos, asistencias, notas, pagos, horarios, listaEspera };
+}
+
+// ==========================================
+// COPIA DE SEGURIDAD (datos de salud: el archivo va solo a la compu de Pau,
+// nunca a la consola ni al repo). Formato en src/lib/copia.ts.
+// ==========================================
+
+// Todas las filas de todas las tablas, de a páginas (PostgREST corta en 1000).
+export async function leerTablasParaCopia(): Promise<Record<TablaCopia, unknown[]>> {
+  const leidas = await Promise.all(TABLAS_COPIA.map(async ({ tabla, orden }) => {
+    const filas = await leerTodo<unknown>((desde, hasta) =>
+      supabase.from(tabla).select('*').order(orden).range(desde, hasta));
+    return [tabla, filas] as const;
+  }));
+  return Object.fromEntries(leidas) as Record<TablaCopia, unknown[]>;
 }

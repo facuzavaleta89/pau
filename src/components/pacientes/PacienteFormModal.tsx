@@ -103,13 +103,13 @@ export function PacienteFormModal({ paciente, onCerrar, onGuardado, onEliminar }
       evaluacion_inicial: texto(form.evaluacion_inicial),
       objetivo_tratamiento: texto(form.objetivo_tratamiento),
       tipo_clase: form.tipo_clase,
-      activo: true,
     };
 
     setGuardando(true);
     try {
+      // Editar no toca `activo` (N6): un dado de baja sigue de baja. Se reactiva desde su ficha.
       if (paciente) await updatePaciente(paciente.id, payload);
-      else await createPaciente({ ...payload, id: idNuevo });
+      else await createPaciente({ ...payload, id: idNuevo, activo: true });
       toast.exito(paciente ? 'Ficha guardada' : 'Paciente creado');
       onGuardado();
     } catch (error: unknown) {

@@ -81,6 +81,7 @@ export function AgendaRPG() {
         isOpen={pacienteHistoria !== null}
         onClose={() => setPacienteHistoria(null)}
         pacienteId={pacienteHistoria}
+        onCambioPaciente={recargar}
       />
     </>
   );

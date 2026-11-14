@@ -44,15 +44,17 @@ function tiempoAgotado(error: unknown): TipoPeticion | null {
   return null;
 }
 
-// Las funciones y el trigger de TPA (migración 20261023000001) escriben sus
-// mensajes para Pau con este prefijo; no traen datos de pacientes.
-const PREFIJO_MENSAJE_BASE = 'TPA: ';
+// Las funciones y triggers de la base escriben sus mensajes para Pau con
+// estos prefijos (TPA: migración 20261023000001; Pacientes: 20261114000001);
+// no traen datos de pacientes.
+const PREFIJOS_MENSAJE_BASE = ['TPA: ', 'Pacientes: '];
 
 function mensajeDeLaBase(error: unknown): string | null {
   if (typeof error !== 'object' || error === null || !('message' in error)) return null;
   const { message } = error as { message: unknown };
-  if (typeof message !== 'string' || !message.startsWith(PREFIJO_MENSAJE_BASE)) return null;
-  return message.slice(PREFIJO_MENSAJE_BASE.length);
+  if (typeof message !== 'string') return null;
+  const prefijo = PREFIJOS_MENSAJE_BASE.find((p) => message.startsWith(p));
+  return prefijo ? message.slice(prefijo.length) : null;
 }
 
 function codigoDeError(error: unknown): string | null {
@@ -102,6 +104,9 @@ export function mensajeError(error: unknown): string {
       return 'No tenés permiso para hacer esto. Probá cerrar sesión y volver a entrar.';
     case '23505':
       return 'Ya existe un registro igual.';
+    case '23503':
+      // FK ON DELETE RESTRICT (migración 20261114000001): por ejemplo, borrar un paciente con historial.
+      return 'Tiene datos guardados que dependen de esto, así que no se puede borrar.';
     default:
       return 'Ocurrió un error. Revisá la conexión y probá de nuevo.';
   }

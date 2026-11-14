@@ -10,6 +10,10 @@ export interface ColumnaPagos<T> {
 
 interface TablaPagosProps<T> {
   titulo: string;
+  /** Al lado del título, en gris ("pagaron 2 de 3"). */
+  detalle?: string;
+  /** Sin filas: se muestra la sección con este texto. Sin `vacio`, la sección no se muestra. */
+  vacio?: string;
   items: T[];
   clave: (item: T) => string;
   /** La primera es el nombre: encabeza la card en el celular. */
@@ -26,13 +30,28 @@ export const BOTON_COBRAR_SECUNDARIO = cn(BOTON_COBRAR, 'text-stone-700 bg-white
 
 // Una sección de /pagos: tabla en la compu, cards en el celular (mismos datos,
 // nada se desplaza de costado en 390px).
-export function TablaPagos<T>({ titulo, items, clave, columnas, accion, pie }: TablaPagosProps<T>) {
-  if (items.length === 0) return null;
+export function TablaPagos<T>({ titulo, detalle, vacio, items, clave, columnas, accion, pie }: TablaPagosProps<T>) {
+  if (items.length === 0 && !vacio) return null;
   const [principal, ...resto] = columnas;
+  const encabezado = (
+    <h2 className="flex flex-wrap items-baseline gap-x-2 text-base font-semibold text-stone-900">
+      {titulo}
+      {detalle && <span className="text-sm font-normal text-stone-500">{detalle}</span>}
+    </h2>
+  );
+
+  if (items.length === 0) {
+    return (
+      <section className="space-y-2">
+        {encabezado}
+        <p className="text-sm text-stone-500 bg-white rounded-xl border border-dashed border-stone-200 py-4 px-4">{vacio}</p>
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-2">
-      <h3 className="text-xs font-semibold text-stone-400 uppercase tracking-wider">{titulo}</h3>
+      {encabezado}
 
       <div className="hidden md:block bg-white border border-stone-200 rounded-xl overflow-hidden">
         <table className="w-full text-sm">

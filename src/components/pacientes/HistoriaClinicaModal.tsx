@@ -5,6 +5,7 @@ import { NotebookPen, User, X } from 'lucide-react';
 import { cargarHistoriaClinica } from '@/lib/queries';
 import { alertasDeFaltas, textoAlertaFaltas } from '@/lib/alertas';
 import { ALERTA_FALTAS } from '@/lib/estados';
+import { textoBaja } from '@/lib/pacientes';
 import { cn } from '@/lib/utils';
 import { useDatos } from '@/hooks/useDatos';
 import { EstadoCarga } from '@/components/ui/EstadoCarga';
@@ -15,6 +16,8 @@ interface HistoriaClinicaModalProps {
   isOpen: boolean;
   onClose: () => void;
   pacienteId?: string | null;
+  /** Se dio de baja o se reactivó (para recargar la pantalla de atrás). */
+  onCambioPaciente?: () => void;
 }
 
 type Pestania = 'ficha' | 'evolucion';
@@ -28,12 +31,14 @@ const PESTANIAS: { id: Pestania; label: string; icono: typeof User }[] = [
 // RPG en una línea de tiempo, con la alerta de faltas y el resumen del mes).
 // Se monta cada vez que se abre (y por paciente): siempre carga datos frescos
 // y arranca en "Ficha".
-export function HistoriaClinicaModal({ isOpen, onClose, pacienteId }: HistoriaClinicaModalProps) {
+export function HistoriaClinicaModal({ isOpen, onClose, pacienteId, onCambioPaciente }: HistoriaClinicaModalProps) {
   if (!isOpen || !pacienteId) return null;
-  return <HistoriaClinicaAbierta key={pacienteId} pacienteId={pacienteId} onClose={onClose} />;
+  return <HistoriaClinicaAbierta key={pacienteId} pacienteId={pacienteId} onClose={onClose} onCambioPaciente={onCambioPaciente} />;
 }
 
-function HistoriaClinicaAbierta({ pacienteId, onClose }: { pacienteId: string; onClose: () => void }) {
+function HistoriaClinicaAbierta({ pacienteId, onClose, onCambioPaciente }: {
+  pacienteId: string; onClose: () => void; onCambioPaciente?: () => void;
+}) {
   const [activa, setActiva] = useState<Pestania>('ficha');
   const [ahora] = useState(() => new Date());
 
@@ -55,6 +60,11 @@ function HistoriaClinicaAbierta({ pacienteId, onClose }: { pacienteId: string; o
               <h2 className="text-lg md:text-xl font-bold text-stone-900 tracking-tight">
                 {historia ? historia.paciente.nombre : 'Historia clínica'}
               </h2>
+              {historia && !historia.paciente.activo && (
+                <span className="px-2.5 py-0.5 rounded-full border text-xs font-semibold bg-stone-100 text-stone-600 border-stone-200">
+                  {textoBaja(historia.paciente)}
+                </span>
+              )}
               {alerta && (
                 <button
                   type="button"
@@ -111,7 +121,7 @@ function HistoriaClinicaAbierta({ pacienteId, onClose }: { pacienteId: string; o
 
             <div className="flex-1 overflow-y-auto overscroll-contain p-4 md:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] bg-stone-50">
               {activa === 'ficha'
-                ? <HistoriaFicha paciente={historia.paciente} />
+                ? <HistoriaFicha paciente={historia.paciente} onCambio={() => { recargar(); onCambioPaciente?.(); }} />
                 : <HistoriaEvolucion historia={historia} alerta={alerta} onCambio={recargar} />}
             </div>
           </div>

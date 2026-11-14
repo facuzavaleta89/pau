@@ -32,7 +32,10 @@ export interface Paciente {
   evaluacion_inicial: string | null;
   objetivo_tratamiento: string | null;
   tipo_clase: TipoClase | null;
+  /** false = dado de baja (archivado): no aparece en las listas para elegir; su historia queda. */
   activo: boolean;
+  /** Desde qué día está dado de baja (migración 20261114000001); null si está activo. */
+  fecha_baja?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -115,8 +118,6 @@ export interface NotaEvolucion {
   pacientes?: Pick<Paciente, 'nombre'>;
   clases_tpa?: Pick<ClaseTPA, 'fecha' | 'hora'> | null;
 }
-
-// La tabla vieja `pagos` ya no se usa (Fase 2): se borra en la tanda de datos reales.
 
 export type MedioPago = 'efectivo' | 'transferencia';
 export type ConceptoPagoTPA = 'cuota' | 'sueltas';
