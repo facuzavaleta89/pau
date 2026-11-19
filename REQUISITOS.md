@@ -125,4 +125,4 @@ Diseño en `docs/DISENO_PAGOS.md`.
 
 Aclaración de Pau: los domicilios se ven en la agenda en otro color, y en la ficha del paciente "Actividad" tiene que tener también Domicilio.
 
-Los pedidos 4 y 5 se hicieron en `fase-3/agenda-pacientes`. El diseño de los pedidos 1, 2 y 3 está en `docs/DISENO_AGENDA.md`. Pendiente: que Pau pase el precio de la clase a domicilio.
+Los pedidos 4 y 5 se hicieron en `fase-3/agenda-pacientes`. El pedido 2 (agenda Día / Semana / Mes) se hizo en `fase-3/agenda-unificada` (19/11/2026): pantalla **Agenda**, con turnos y clases de TPA juntos. El diseño de los pedidos 1 y 3 está en `docs/DISENO_AGENDA.md`. Pendiente: que Pau pase el precio de la clase a domicilio.

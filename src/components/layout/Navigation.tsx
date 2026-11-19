@@ -7,8 +7,8 @@ import { cn } from '@/lib/utils';
 
 const navItems = [
   { name: 'Hoy', corto: 'Hoy', href: '/hoy', icon: Sun },
-  { name: 'Turnos individuales', corto: 'Turnos', href: '/rpg', icon: Calendar },
-  { name: 'Agenda TPA', corto: 'TPA', href: '/tpa', icon: LayoutGrid },
+  { name: 'Agenda', corto: 'Agenda', href: '/agenda', icon: Calendar },
+  { name: 'TPA', corto: 'TPA', href: '/tpa', icon: LayoutGrid },
   { name: 'Pacientes', corto: 'Pacientes', href: '/pacientes', icon: Users },
   { name: 'Pagos', corto: 'Pagos', href: '/pagos', icon: CreditCard },
 ];

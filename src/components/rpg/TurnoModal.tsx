@@ -1,40 +1,41 @@
 "use client";
 
 import { useCallback, useState } from 'react';
-import { Calendar as CalendarIcon, Clock, Save, User, CheckCircle2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Save, User } from 'lucide-react';
+import { format } from 'date-fns';
 import { Modal, BOTON_PIE_PRIMARIO, BOTON_PIE_SECUNDARIO } from '@/components/ui/Modal';
 import type { SesionRPG, EstadoPago, EstadoSesionRPG, MedioPago } from '@/types';
 import { getPacientesActivos, createSesionRPG, updateSesionRPG } from '@/lib/queries';
 import { mensajeErrorAlGuardar, registrarError } from '@/lib/errores';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useDatos } from '@/hooks/useDatos';
-import { format } from 'date-fns';
-import { cn, nuevoId } from '@/lib/utils';
+import { nuevoId } from '@/lib/utils';
 import { normalizarHora } from '@/lib/horas';
-import { hoyArgentina, MEDIOS_PAGO, ORDEN_MEDIOS_PAGO } from '@/lib/pagos';
-import {
-  ESTADOS_PAGO, ESTADOS_SESION_RPG, ORDEN_ESTADOS_PAGO, ORDEN_ESTADOS_SESION_RPG, ORDEN_TIPOS_TURNO, esDomicilio, tipoTurno,
-} from '@/lib/estados';
+import { hoyArgentina } from '@/lib/pagos';
+import { CAMPO_TURNO } from './campo';
+import { TurnoEstadoPago } from './TurnoEstadoPago';
+import { TurnoTipoSelector } from './TurnoTipoSelector';
 
 interface TurnoModalProps {
   onClose: () => void;
   turno?: SesionRPG | null;
   selectedDate?: Date;
+  /** Hora con la que arranca un turno nuevo ('HH:mm', desde el "+" de una hora). */
+  horaInicial?: string;
   onSave?: () => void;
 }
 
-// Se monta al abrir (AgendaRPG lo renderiza solo si hay un turno abierto):
+// Se monta al abrir (la pantalla lo renderiza solo si hay un turno abierto):
 // el formulario arranca con los datos del turno sin copiarlos en un efecto.
-export function TurnoModal({ onClose, turno, selectedDate, onSave }: TurnoModalProps) {
+export function TurnoModal({ onClose, turno, selectedDate, horaInicial, onSave }: TurnoModalProps) {
   const [saving, setSaving] = useState(false);
   const toast = useToast();
   const cargarPacientes = useCallback(() => getPacientesActivos(), []);
   const { datos: pacientes, cargando: loading } = useDatos('pacientes-activos', cargarPacientes, 'No se pudo cargar la lista de pacientes.');
 
-  // Form State
   const [pacienteId, setPacienteId] = useState(turno?.paciente_id ?? '');
   const [fecha, setFecha] = useState(() => turno?.fecha ?? format(selectedDate ?? new Date(), 'yyyy-MM-dd'));
-  const [hora, setHora] = useState(turno ? normalizarHora(turno.hora) : '09:00');
+  const [hora, setHora] = useState(turno ? normalizarHora(turno.hora) : horaInicial ?? '09:00');
   const [tipoSesion, setTipoSesion] = useState<string>(turno?.tipo_sesion || 'RPG');
   const [estadoPago, setEstadoPago] = useState<EstadoPago>(turno?.estado_pago ?? 'pendiente');
   const [estadoSesion, setEstadoSesion] = useState<EstadoSesionRPG>(turno?.estado_sesion ?? 'pendiente');
@@ -74,7 +75,7 @@ export function TurnoModal({ onClose, turno, selectedDate, onSave }: TurnoModalP
       } else {
         await createSesionRPG({ ...payload, id: idNuevo });
       }
-      
+
       toast.exito(turno?.id ? 'Turno guardado' : 'Turno creado');
       if (onSave) onSave();
       onClose();
@@ -85,9 +86,6 @@ export function TurnoModal({ onClose, turno, selectedDate, onSave }: TurnoModalP
       setSaving(false);
     }
   };
-
-  // Un tipo viejo que no está en la lista se conserva como opción: no se pierde al editar.
-  const tipos: string[] = ORDEN_TIPOS_TURNO.some((t) => t === tipoSesion) ? ORDEN_TIPOS_TURNO : [...ORDEN_TIPOS_TURNO, tipoSesion];
 
   const pie = (
     <>
@@ -107,136 +105,63 @@ export function TurnoModal({ onClose, turno, selectedDate, onSave }: TurnoModalP
 
   return (
     <Modal titulo={turno ? 'Editar turno' : 'Nuevo turno'} onCerrar={onClose} pie={pie} ancho="md">
-        <form id="turno-form" onSubmit={handleSubmit} className="p-4 md:p-6 space-y-5 text-base md:text-sm">
-          
+      <form id="turno-form" onSubmit={handleSubmit} className="p-4 md:p-6 space-y-5 text-base md:text-sm">
+        <div className="space-y-1.5">
+          <label htmlFor="turno-paciente" className="text-sm font-semibold text-stone-600 flex items-center gap-1.5">
+            <User className="w-4 h-4 text-stone-400" /> Paciente
+          </label>
+          <select id="turno-paciente" required value={pacienteId} onChange={(e) => setPacienteId(e.target.value)} className={CAMPO_TURNO}>
+            <option value="">Seleccionar paciente...</option>
+            {(pacientes ?? []).map(p => (
+              <option key={p.id} value={p.id}>{p.nombre}</option>
+            ))}
+            {/* Turno de alguien dado de baja: no está en la lista de activos, pero el turno es suyo. */}
+            {pacientes && turno?.paciente_id && !pacientes.some((p) => p.id === turno.paciente_id) && (
+              <option value={turno.paciente_id}>{turno.pacientes?.nombre ?? 'Paciente'} (dado de baja)</option>
+            )}
+          </select>
+        </div>
+
+        <TurnoTipoSelector valor={tipoSesion} onCambiar={setTipoSesion} />
+
+        <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-stone-600 flex items-center gap-1.5">
-              <User className="w-4 h-4 text-stone-400" /> Paciente
+            <label htmlFor="turno-fecha" className="text-sm font-semibold text-stone-600 flex items-center gap-1.5">
+              <CalendarIcon className="w-4 h-4 text-stone-400" /> Fecha
             </label>
-            <select 
-              required
-              value={pacienteId}
-              onChange={(e) => setPacienteId(e.target.value)}
-              className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-stone-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-colors"
-            >
-              <option value="">Seleccionar paciente...</option>
-              {(pacientes ?? []).map(p => (
-                <option key={p.id} value={p.id}>{p.nombre}</option>
-              ))}
-              {/* Turno de alguien dado de baja: no está en la lista de activos, pero el turno es suyo. */}
-              {pacientes && turno?.paciente_id && !pacientes.some((p) => p.id === turno.paciente_id) && (
-                <option value={turno.paciente_id}>{turno.pacientes?.nombre ?? 'Paciente'} (dado de baja)</option>
-              )}
-            </select>
+            <input id="turno-fecha" type="date" required value={fecha} onChange={(e) => setFecha(e.target.value)} className={CAMPO_TURNO} />
           </div>
-
           <div className="space-y-1.5">
-            <span className="text-sm font-semibold text-stone-600">Tipo de turno</span>
-            <div role="radiogroup" aria-label="Tipo de turno" className="grid grid-cols-2 gap-2">
-              {tipos.map((valor) => {
-                const { label, clases, icono: Icono } = tipoTurno(valor);
-                const activo = tipoSesion === valor;
-                return (
-                  <button key={valor} type="button" role="radio" aria-checked={activo} onClick={() => setTipoSesion(valor)}
-                    className={cn('min-h-11 px-3 flex items-center gap-2 rounded-lg border text-sm font-medium text-left transition-colors duration-150',
-                      !activo && 'bg-white border-stone-200 text-stone-700 hover:border-stone-300',
-                      activo && 'ring-1 ring-current',
-                      activo && (esDomicilio(valor) ? clases : 'bg-teal-50 border-teal-500 text-teal-800'))}>
-                    <Icono size={16} className="shrink-0" aria-hidden="true" /> {label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-stone-600 flex items-center gap-1.5">
-                <CalendarIcon className="w-4 h-4 text-stone-400" /> Fecha
-              </label>
-              <input 
-                type="date"
-                required
-                value={fecha}
-                onChange={(e) => setFecha(e.target.value)}
-                className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-stone-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-colors"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-stone-600 flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-stone-400" /> Hora
-              </label>
-              <input 
-                type="time"
-                required
-                value={hora}
-                onChange={(e) => setHora(e.target.value)}
-                className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-stone-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-colors"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-stone-600 flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-stone-400" /> Estado Sesión
-              </label>
-              <select 
-                value={estadoSesion}
-                onChange={(e) => setEstadoSesion(e.target.value as EstadoSesionRPG)}
-                className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-stone-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-colors"
-              >
-                {ORDEN_ESTADOS_SESION_RPG.map(valor => (
-                  <option key={valor} value={valor}>{ESTADOS_SESION_RPG[valor].label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-stone-600 flex items-center gap-1.5">
-                Pago
-              </label>
-              <select 
-                value={estadoPago}
-                onChange={(e) => setEstadoPago(e.target.value as EstadoPago)}
-                className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-stone-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-colors"
-              >
-                {ORDEN_ESTADOS_PAGO.map(valor => (
-                  <option key={valor} value={valor}>{ESTADOS_PAGO[valor].label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {estadoPago === 'pagado' && (
-            <div className="space-y-1.5">
-              <span className="text-sm font-semibold text-stone-600">Medio de pago</span>
-              <div role="radiogroup" aria-label="Medio de pago" className="grid grid-cols-2 gap-2">
-                {ORDEN_MEDIOS_PAGO.map((medio) => (
-                  <button key={medio} type="button" role="radio" aria-checked={medioPago === medio} onClick={() => setMedioPago(medio)}
-                    className={cn('h-11 rounded-lg border text-sm font-medium transition-colors duration-150',
-                      medioPago === medio ? 'bg-teal-600 border-teal-600 text-white' : 'bg-white border-stone-200 text-stone-700 hover:border-stone-300')}>
-                    {MEDIOS_PAGO[medio]}
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-stone-500">El importe y la fecha se ven y se corrigen en Pagos.</p>
-            </div>
-          )}
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-stone-600 flex items-center gap-1.5">
-              Nota (Opcional)
+            <label htmlFor="turno-hora" className="text-sm font-semibold text-stone-600 flex items-center gap-1.5">
+              <Clock className="w-4 h-4 text-stone-400" /> Hora
             </label>
-            <textarea 
-              rows={3}
-              value={nota}
-              onChange={(e) => setNota(e.target.value)}
-              placeholder="Alguna observación sobre el turno..."
-              className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-stone-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-colors resize-none placeholder:text-stone-400"
-            />
+            <input id="turno-hora" type="time" required value={hora} onChange={(e) => setHora(e.target.value)} className={CAMPO_TURNO} />
           </div>
+        </div>
 
-        </form>
+        <TurnoEstadoPago
+          estadoSesion={estadoSesion}
+          onEstadoSesion={setEstadoSesion}
+          estadoPago={estadoPago}
+          onEstadoPago={setEstadoPago}
+          medioPago={medioPago}
+          onMedioPago={setMedioPago}
+        />
+
+        <div className="space-y-1.5">
+          <label htmlFor="turno-nota" className="text-sm font-semibold text-stone-600 flex items-center gap-1.5">
+            Nota (Opcional)
+          </label>
+          <textarea
+            id="turno-nota"
+            rows={3}
+            value={nota}
+            onChange={(e) => setNota(e.target.value)}
+            placeholder="Alguna observación sobre el turno..."
+            className={`${CAMPO_TURNO} resize-none placeholder:text-stone-400`}
+          />
+        </div>
+      </form>
     </Modal>
   );
 }

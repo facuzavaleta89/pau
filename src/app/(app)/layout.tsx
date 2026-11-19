@@ -5,7 +5,7 @@ import { SesionWatcher } from "@/components/auth/SesionWatcher";
 import { VerificadorAutorizacion } from "@/components/auth/VerificadorAutorizacion";
 import { ToastProvider } from "@/components/ui/ToastProvider";
 
-// Layout de las pantallas que requieren sesión (/hoy, /rpg, /tpa, /pacientes, /pagos).
+// Layout de las pantallas que requieren sesión (/hoy, /agenda, /tpa, /pacientes, /pagos; /rpg redirige a /agenda).
 // El grupo (app) no cambia las URLs.
 export default function AppLayout({
   children,

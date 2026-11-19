@@ -106,13 +106,18 @@ export function etiquetaAsistencia(estado: string, tipo: TipoAsistenciaTPA): str
 const COLOR_DOMICILIO = 'bg-violet-50 text-violet-700 border-violet-200';
 const COLOR_TIPO_NEUTRO = 'bg-stone-50 text-stone-600 border-stone-200';
 
+export interface ConfigTipoTurno extends ConfigEstado {
+  /** Punto del calendario del mes en el celular. */
+  punto: string;
+}
+
 // La clave es el texto que se guarda en sesiones_rpg.tipo_sesion: los turnos
 // existentes dicen "RPG" y la app de main muestra ese texto tal cual.
-export const TIPOS_TURNO: Record<TipoTurno, ConfigEstado> = {
-  RPG:                  { label: 'RPG',                clases: COLOR_TIPO_NEUTRO, icono: PersonStanding },
-  Masajes:              { label: 'Masajes',            clases: COLOR_TIPO_NEUTRO, icono: HandHeart },
-  'Evaluación inicial': { label: 'Evaluación inicial', clases: COLOR_TIPO_NEUTRO, icono: ClipboardList },
-  'Clase domicilio':    { label: 'Clase domicilio',    clases: COLOR_DOMICILIO,   icono: House },
+export const TIPOS_TURNO: Record<TipoTurno, ConfigTipoTurno> = {
+  RPG:                  { label: 'RPG',                clases: COLOR_TIPO_NEUTRO, icono: PersonStanding, punto: 'bg-stone-500' },
+  Masajes:              { label: 'Masajes',            clases: COLOR_TIPO_NEUTRO, icono: HandHeart,      punto: 'bg-stone-500' },
+  'Evaluación inicial': { label: 'Evaluación inicial', clases: COLOR_TIPO_NEUTRO, icono: ClipboardList,  punto: 'bg-stone-500' },
+  'Clase domicilio':    { label: 'Clase domicilio',    clases: COLOR_DOMICILIO,   icono: House,          punto: 'bg-violet-500' },
 };
 
 export const ORDEN_TIPOS_TURNO: TipoTurno[] = ['RPG', 'Masajes', 'Evaluación inicial', 'Clase domicilio'];
@@ -122,11 +127,29 @@ export function esDomicilio(tipo: string | null | undefined): boolean {
 }
 
 /** Configuración de un tipo leído de la base. Sin tipo = RPG; uno desconocido se muestra con su texto. */
-export function tipoTurno(tipo: string | null | undefined): ConfigEstado {
+export function tipoTurno(tipo: string | null | undefined): ConfigTipoTurno {
   const valor = tipo || 'RPG';
   if (Object.prototype.hasOwnProperty.call(TIPOS_TURNO, valor)) return TIPOS_TURNO[valor as TipoTurno];
-  return { label: valor, clases: COLOR_TIPO_NEUTRO, icono: Tag };
+  return { label: valor, clases: COLOR_TIPO_NEUTRO, icono: Tag, punto: 'bg-stone-500' };
 }
+
+// ---------------------------------------------------------------------
+// Agenda (/agenda): una línea por turno o por clase de TPA
+// ---------------------------------------------------------------------
+
+/**
+ * Clase de TPA en una línea de la agenda: con lugares en el teal de "Libre",
+ * completa en gris, sin alumnos atenuada (punteada). Cancelada: CLASES_CANCELADA.
+ */
+export const CLASE_AGENDA = {
+  label: 'TPA',
+  icono: Users,
+  conLugares: 'bg-teal-50 text-teal-800 border-teal-200',
+  completa: 'bg-stone-50 text-stone-700 border-stone-200',
+  sinAlumnos: 'bg-white text-stone-400 border-dashed border-stone-200',
+  /** Punto del calendario del mes en el celular. */
+  punto: 'bg-teal-500',
+} as const;
 
 // ---------------------------------------------------------------------
 // Actividad del paciente

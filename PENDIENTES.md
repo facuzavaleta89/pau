@@ -1,12 +1,12 @@
 # PENDIENTES.md — Estado y plan de trabajo
 
-_Última revisión: 18/11/2026 — **Pau usa la app con datos reales desde el 16/11.** Rama `fase-3/agenda-pacientes`: tipos de turno, clase a domicilio, actividades, fecha de nacimiento y pantalla Hoy (ver "Fase 3 — Pedidos de Pau del 18/11"); falta aplicar `20261118000001`, probar y mergear. Revisión anterior, 13/11/2026: Fases 0 y 0.5 completas; Fase 1: **asistencia TPA en 4 entregas** (diseño en `docs/DISENO_ASISTENCIA_TPA.md`): las 4 mergeadas y con sus migraciones aplicadas (la 4 probada por Facu). **Fase 2 (pagos):** diseño en `docs/DISENO_PAGOS.md`; **pagos completo** mergeado (migración `20261113000001` aplicada). **Datos reales** con código listo en `fase-2/datos-reales` (ajustes de pagos con las respuestas de Pau, baja lógica, borrar `pagos` y "Prueba 1", copia de seguridad): falta aplicar `20261114000001`, correr el script de "Prueba 1", probar, mergear y aplicar `20261114000002`. **Pau usa la app sobre todo desde la compu** y lo que más le importa son las faltas y recuperaciones: CLAUDE.md y DESIGN.md pasaron a "compu primero". App en https://paukinesio.vercel.app. Base Supabase `pau` (`dmwtoozbctnwccaaitos`, Postgres 17, plan Free, región us-east-2)._
+_Última revisión: 19/11/2026 — **Pau usa la app con datos reales desde el 16/11.** Rama `fase-3/agenda-unificada`: **Agenda Día / Semana / Mes** (entrega 1 de `docs/DISENO_AGENDA.md`, sin migración), arreglo de la vista Mes que se estiraba y `next` 16.4.6; falta probar y mergear. Antes, 18/11: `fase-3/agenda-pacientes` (tipos de turno, domicilio, actividades, fecha de nacimiento y Hoy) mergeada. Revisión anterior, 13/11/2026: Fases 0 y 0.5 completas; Fase 1: **asistencia TPA en 4 entregas** (diseño en `docs/DISENO_ASISTENCIA_TPA.md`): las 4 mergeadas y con sus migraciones aplicadas (la 4 probada por Facu). **Fase 2 (pagos):** diseño en `docs/DISENO_PAGOS.md`; **pagos completo** mergeado (migración `20261113000001` aplicada). **Datos reales** con código listo en `fase-2/datos-reales` (ajustes de pagos con las respuestas de Pau, baja lógica, borrar `pagos` y "Prueba 1", copia de seguridad): falta aplicar `20261114000001`, correr el script de "Prueba 1", probar, mergear y aplicar `20261114000002`. **Pau usa la app sobre todo desde la compu** y lo que más le importa son las faltas y recuperaciones: CLAUDE.md y DESIGN.md pasaron a "compu primero". App en https://paukinesio.vercel.app. Base Supabase `pau` (`dmwtoozbctnwccaaitos`, Postgres 17, plan Free, región us-east-2)._
 
 ## Estado actual (resumen)
 
 **Hecho y funcionando en lo básico:**
 - Navegación (sidebar en desktop, barra inferior en celular), estética teal/stone.
-- Agenda RPG: calendario mensual en la compu y lista semanal (martes y jueves) en el celular; crear y editar turnos, estado de pago y de sesión, nota.
+- Agenda (`/agenda`, rama `fase-3/agenda-unificada`): turnos individuales y clases de TPA en Día | Semana | Mes; crear y editar turnos, estado de pago y de sesión, nota. `/rpg` redirige.
 - Agenda TPA: semana armada con los fijos de esa fecha + las asistencias registradas, horarios reales de Pau y cupo 4; grilla en la compu y selector de día + lista en el celular; inscribir/desinscribir fijos (con "Fijo desde") y registrar asistencia con los estados de Pau (Presente, Avisó C.T., Avisó S.T., No avisó, Sin marcar), contador de lugares y "Libre" (entrega 2); ocupar lugares, recuperaciones, cambio de horario, cancelar clase/día y pestaña Recuperaciones (entrega 3). Entrega 4: "Marcar el resto como presente", notas de evolución por clase y alerta de 2 faltas seguidas sin avisar.
 - Historia clínica en modal: ficha (solo lectura) y, desde la entrega 4, **Evolución** (alerta de faltas, resumen del mes, notas de clase y libres, sesiones RPG y asistencias TPA en una línea de tiempo). Las alertas por palabra clave se sacaron.
 - Pacientes: listado, búsqueda local, alta y edición de ficha. Rama `fase-2/datos-reales`: **Dar de baja / Reactivar** (baja lógica con fecha; cierra sus horarios fijos), pestaña **Dados de baja**, eliminar solo sin datos y **"Descargar copia"** (JSON con todas las tablas).
@@ -247,7 +247,7 @@ Textuales en `REQUISITOS.md`, sección 6. Diseño de lo que falta: `docs/DISENO_
 
 **Parte A (rama `fase-3/agenda-pacientes`), código listo:**
 - [x] Tipo de turno en el modal (RPG, Masajes, Evaluación inicial, Clase domicilio), definidos una vez en `estados.ts`. Domicilio en violeta con `House` en agendas, cards, pagos e historia clínica.
-- [x] Turnos cualquier día: "+" en todo el calendario y los 7 días en el celular. La sección pasa a llamarse **Turnos individuales** (la URL sigue siendo `/rpg`).
+- [x] Turnos cualquier día: "+" en todo el calendario y los 7 días en el celular. La sección pasó a llamarse **Turnos individuales** (y el 19/11, **Agenda**).
 - [x] Actividad con casillas RPG · TPA · Domicilio (`pacientes.actividades`, con trigger que la mantiene igual a `tipo_clase`).
 - [x] Precio de domicilio (`precios_mes.domicilio_sesion`): si está vacío, el de RPG con aviso. Pagos y Cobrar usan el precio según el tipo.
 - [x] Fecha de nacimiento y edad calculada (`edad` sigue para quien no tiene fecha).
@@ -259,14 +259,26 @@ Textuales en `REQUISITOS.md`, sección 6. Diseño de lo que falta: `docs/DISENO_
 - [ ] Cuando `main` ya use `actividades`: migración aparte para borrar `tipo_clase` y su trigger.
 
 **Parte B, solo diseño (`docs/DISENO_AGENDA.md`):**
-- [ ] Agenda Día / Semana / Mes (entrega 1, sin migración).
+- [x] Agenda Día / Semana / Mes (entrega 1, sin migración): rama `fase-3/agenda-unificada`, ver abajo.
 - [ ] Horarios de TPA editables con vigencia: `franjas_tpa`, pantalla Horarios y mover fijos (entregas 2 a 4).
 - [ ] Horario de atención y duración de turnos, si Pau lo pide (entrega 5).
 - [ ] Estudios complementarios en Storage (bucket privado, tabla, pestaña) y "Descargar estudios" (ZIP, necesita aprobar `fflate`).
 
 **Descubierto el 18/11/2026:**
-- [ ] `next` 16.4.2 tiene avisos de seguridad moderados (`npm audit`; arreglado en 16.4.6). Son sobre `use cache`, que la app no usa, pero `next build` se corta una vez con `SecurityFatalError` y pasa al repetirlo: hay que actualizar y revisar si afecta al build de Vercel.
+- [x] `next` 16.4.2 tenía avisos de seguridad moderados y `next build` se cortaba a veces con `SecurityFatalError`: actualizado a 16.4.6 (con `eslint-config-next`) el 19/11; 3 builds seguidos sin cortes y `npm audit --omit=dev` sin avisos.
 - [ ] `/pagos` y otras pantallas se generan al compilar con la fecha de ese momento (el HTML de `/pagos` trae "Noviembre 2026"): si no hay deploy en un mes nuevo, puede verse un instante el mes viejo. Pasarlas a `useAhora()`.
+
+**Agenda unificada, entrega 1 (rama `fase-3/agenda-unificada`, 19/11/2026), código listo:**
+- [x] `/agenda` con pestañas Día | Semana | Mes (arranca en Semana). Turnos con el color e ícono de su tipo (domicilio violeta con la casita) y clases de TPA. Reemplaza a "Turnos individuales" en el menú; `/rpg` redirige.
+- [x] Un clic abre `TurnoModal`, `TpaClaseModal` o la historia clínica. "+" en un día (Semana, Mes) o en una hora (Día, y al pasar el mouse en la grilla de Semana) abre `TurnoModal` con esa fecha y hora.
+- [x] Clases sin alumnos: atenuadas en Semana (compu), ocultas en la lista de Semana del celular y fuera del resumen del Mes. En Día, una línea en vez de la card.
+- [x] Mes: una línea por turno, hasta 3 y "+N más" (abre el Día), "TPA: 5 clases · 3 libres" y cada semana con su propia altura (bug de `auto-rows-fr` en `CalendarMonthView`, que se borró).
+- [x] Celular: Día y Semana en lista; Mes con puntos (violeta = domicilio, teal = TPA); tocar un día abre el Día.
+- [x] Lógica pura en `src/lib/agenda.ts` (`eventosEntre`, `armarSemanaAgenda`, `armarMesAgenda`, `resumenTPA`) con 17 tests.
+- [x] `TurnoModal` y `PacienteFormModal` partidos en piezas; `useDatosClaseTPA` compartido por Hoy y Agenda.
+- [ ] **Facu:** preview → pruebas cortas (escenario "Prueba Agenda …") → merge.
+- [ ] Filtro Todo · Turnos · TPA (en el diseño, 1.6): no se hizo; agregarlo si Pau lo pide después de usarla.
+- [ ] Semana compu: los turnos se ubican en la fila de su hora ("09:15" va en la de las 9), sin duración (entrega 5).
 
 ## Fase 3 — Extras sugeridos (después del núcleo)
 
@@ -274,7 +286,7 @@ Textuales en `REQUISITOS.md`, sección 6. Diseño de lo que falta: `docs/DISENO_
 - [ ] Alertas reales del día en el Header (si se quiere la campana).
 - [ ] Alertas clínicas basadas en flags explícitos y en notas **recientes**; poder descartarlas.
 - [ ] Lista de espera con UI y "Liberar cupo" (la tabla existe; ya tiene política RLS desde Fase 0).
-- [ ] Vista mensual TPA (ocupación, huecos, cancelaciones): entra en la agenda unificada (`docs/DISENO_AGENDA.md`).
+- [x] Vista mensual TPA (ocupación, huecos, cancelaciones): la vista Mes de la agenda muestra el resumen por día (19/11).
 - [ ] Estadísticas simples: activos, faltas del mes, ocupación, ingresos.
 
 ## Fase 4 — Calidad de código
@@ -386,5 +398,6 @@ Además: cada pendiente de recuperar muestra su **origen** ("cancelé el mié 7"
 | 8 | 4 | Global | Clases `animate-in` sin plugin instalado → no animan. |
 | N8 | 4 ✅ | `HistoriaClinicaModal` | Datos del paciente anterior si falla la carga; estados en crudo; pestaña no se resetea. Resuelto en la entrega 4 (se monta al abrir, `useDatos` con "Reintentar"). |
 | N9 | 1 ✅ | `CalendarMonthView` | Refresco sin `catch`, esqueleto en una celda, días de relleno sin turnos: corregidos al pasar la carga a `AgendaRPG` + `useDatos`. |
+| N20 | 3 ✅ | `CalendarMonthView` | Con `auto-rows-fr`, todas las semanas del mes medían como la más cargada y había que bajar mucho para llegar a los turnos (Facu, 18/11). Reemplazado por la vista Mes de `/agenda` (19/11): una línea por turno, máximo 3 y "+N más", y cada semana con su altura. |
 | N12 | 4 | `TpaClaseModal.tsx:129-131` | Día derivado del texto "Miércoles"; frágil. |
 | 3 | — | `TpaClaseModal` | ~~Clases duplicadas~~ **Descartado:** existe `unique (fecha, hora)`. |

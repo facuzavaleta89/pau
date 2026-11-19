@@ -1,6 +1,6 @@
 # Diseño: agenda unificada, horarios editables y estudios complementarios
 
-_18/11/2026. Solo diagnóstico y diseño: nada de esto está implementado. Pedidos de Pau del 18/11/2026 (`REQUISITOS.md`, sección 6). Los pedidos 4 y 5 ya se hicieron en la rama `fase-3/agenda-pacientes`._
+_18/11/2026. Diagnóstico y diseño. **19/11/2026: la entrega 1 (agenda Día / Semana / Mes, 1.6) está hecha** en `fase-3/agenda-unificada`: `src/lib/agenda.ts` y `src/components/agenda/`. Se dejó para después el filtro Todo · Turnos · TPA. El resto no está implementado. Pedidos de Pau del 18/11/2026 (`REQUISITOS.md`, sección 6). Los pedidos 4 y 5 ya se hicieron en la rama `fase-3/agenda-pacientes`._
 
 Datos reales mirados con el MCP de solo lectura (solo cantidades): 37 pacientes, 37 horarios fijos, 16 turnos individuales (15 en martes o jueves y 1 en viernes), 8 clases guardadas (7 canceladas), 1 asistencia, base de 12 MB, Storage sin buckets ni archivos.
 
@@ -116,7 +116,7 @@ Una sola función pura, `eventosEntre(desde, hasta, datos)` en `src/lib/agenda.t
 
 | # | Qué | Migración | Riesgo |
 |---|---|---|---|
-| 1 | Agenda Día / Semana / Mes con las constantes actuales | No | Bajo. **Resuelve el pedido 2 solo** |
+| 1 ✅ | Agenda Día / Semana / Mes con las constantes actuales (19/11) | No | Bajo. **Resuelve el pedido 2 solo** |
 | 2 | `franjas_tpa` y pasar `armarSemanaTPA`, calendario y recuperaciones a leerla, **sin cambiar lo que se ve** | Sí | Medio: los tests existentes tienen que seguir igual |
 | 3 | TPA → Horarios: agregar, quitar sin fijos, cambiar cupo. Días nuevos en la grilla | No | Medio |
 | 4 | Cambiar día u hora con fijos (`mover_horario_tpa`) | Sí | Alto: toca recuperaciones y cuotas. Va sola |
