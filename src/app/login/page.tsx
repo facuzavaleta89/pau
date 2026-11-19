@@ -7,7 +7,7 @@ interface LoginPageProps {
 // Solo acepta rutas internas ("/tpa"), nunca URLs externas ("//sitio.com" o
 // "/\sitio.com", que algunos navegadores interpretan igual).
 function destinoSeguro(next: string | string[] | undefined): string {
-  if (typeof next !== 'string' || !next.startsWith('/') || next.startsWith('//') || next.includes('\\')) return '/rpg';
+  if (typeof next !== 'string' || !next.startsWith('/') || next.startsWith('//') || next.includes('\\')) return '/hoy';
   return next;
 }
 

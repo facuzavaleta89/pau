@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ESTADOS_ASISTENCIA, ESTADOS_PAGO, ORDEN_ESTADOS_FIJO, ORDEN_ESTADOS_OCUPANTE, estadoAsistencia, etiquetaAsistencia,
+  ESTADOS_ASISTENCIA, ESTADOS_PAGO, ORDEN_ESTADOS_FIJO, ORDEN_ESTADOS_OCUPANTE, ORDEN_TIPOS_TURNO, TIPOS_TURNO, esDomicilio,
+  estadoAsistencia, etiquetaAsistencia, tipoTurno,
 } from './estados';
 
 describe('estadoAsistencia', () => {
@@ -51,5 +52,29 @@ describe('pagos (colores del calendario de Pau)', () => {
     expect(ESTADOS_PAGO.pagado.clases).toContain('emerald');
     expect(ESTADOS_PAGO.pendiente.clases).toContain('pink');
     expect(ESTADOS_PAGO.pendiente.punto).toContain('pink');
+  });
+});
+
+describe('tipoTurno', () => {
+  it('sin tipo es RPG', () => {
+    expect(tipoTurno(null).label).toBe('RPG');
+    expect(tipoTurno('').label).toBe('RPG');
+  });
+
+  it('todos los tipos del selector tienen su configuración', () => {
+    for (const tipo of ORDEN_TIPOS_TURNO) expect(tipoTurno(tipo)).toBe(TIPOS_TURNO[tipo]);
+  });
+
+  it('un tipo que no conoce se muestra con su texto, en gris', () => {
+    expect(tipoTurno('Drenaje')).toMatchObject({ label: 'Drenaje', clases: expect.stringContaining('stone') });
+    expect(tipoTurno('constructor').label).toBe('constructor');
+  });
+
+  it('la clase a domicilio tiene color propio', () => {
+    expect(esDomicilio('Clase domicilio')).toBe(true);
+    expect(esDomicilio('RPG')).toBe(false);
+    expect(esDomicilio(null)).toBe(false);
+    const otros = ORDEN_TIPOS_TURNO.filter((t) => t !== 'Clase domicilio').map((t) => TIPOS_TURNO[t].clases);
+    expect(otros).not.toContain(TIPOS_TURNO['Clase domicilio'].clases);
   });
 });

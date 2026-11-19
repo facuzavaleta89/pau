@@ -6,6 +6,7 @@ import { Plus, Trash2, User } from "lucide-react";
 import { createHorarioTPA, deactivateHorarioTPA } from "@/lib/queries";
 import { mensajeErrorAlGuardar, registrarError } from "@/lib/errores";
 import { DIAS_TPA } from "@/lib/tpa";
+import { textoActividades } from "@/lib/pacientes";
 import type { CeldaTPA, HorarioTPA, Paciente } from "@/types";
 import { useToast } from "@/components/ui/ToastProvider";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -115,7 +116,7 @@ export function TpaInscripcion({ celda, todosPacientes, onCambio, fechaAltaInici
           >
             <option value="">Elegir paciente…</option>
             {disponibles.map(p => (
-              <option key={p.id} value={p.id}>{p.nombre}{p.tipo_clase ? ` (${p.tipo_clase})` : ''}</option>
+              <option key={p.id} value={p.id}>{p.nombre}{textoActividades(p) ? ` (${textoActividades(p)})` : ''}</option>
             ))}
           </select>
           <label className="flex flex-col gap-1 text-xs text-stone-500 sm:w-40">

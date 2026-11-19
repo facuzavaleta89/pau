@@ -5,7 +5,8 @@ import { NotebookPen, User, X } from 'lucide-react';
 import { cargarHistoriaClinica } from '@/lib/queries';
 import { alertasDeFaltas, textoAlertaFaltas } from '@/lib/alertas';
 import { ALERTA_FALTAS } from '@/lib/estados';
-import { textoBaja } from '@/lib/pacientes';
+import { textoActividades, textoBaja, textoEdad } from '@/lib/pacientes';
+import { hoyArgentina } from '@/lib/pagos';
 import { cn } from '@/lib/utils';
 import { useDatos } from '@/hooks/useDatos';
 import { EstadoCarga } from '@/components/ui/EstadoCarga';
@@ -78,7 +79,7 @@ function HistoriaClinicaAbierta({ pacienteId, onClose, onCambioPaciente }: {
             </div>
             {historia && (
               <p className="text-xs text-stone-600 mt-1">
-                Clase: <span className="font-semibold text-teal-600 uppercase">{historia.paciente.tipo_clase || 'No asignada'}</span> • Edad: {historia.paciente.edad || 'No registrada'} años
+                Actividad: <span className="font-semibold text-teal-600 uppercase">{textoActividades(historia.paciente) || 'No asignada'}</span> • {textoEdad(historia.paciente, hoyArgentina(ahora))}
               </p>
             )}
           </div>

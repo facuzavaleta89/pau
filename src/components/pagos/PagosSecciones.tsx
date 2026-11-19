@@ -6,6 +6,7 @@ import {
   formatoPesos, textoHorarios, textoSueltas, textoVeces, type CuotaDelMes, type ResumenMes, type SesionDelMes,
   type SueltasDelMes,
 } from '@/lib/pagos';
+import { TipoTurnoChip } from '@/components/rpg/TipoTurnoChip';
 import { EstadoPagoChip } from './EstadoPagoChip';
 import { BOTON_COBRAR_PRIMARIO, BOTON_COBRAR_SECUNDARIO, TablaPagos } from './TablaPagos';
 
@@ -23,7 +24,7 @@ interface PagosSeccionesProps {
 const totales = (cobrado: number, pendiente: number) =>
   `Cobrado ${formatoPesos(cobrado)} · Falta cobrar ${formatoPesos(pendiente)}`;
 
-// Cuotas TPA por plan, clases sueltas y sesiones de RPG del mes (diseño 4.3).
+// Cuotas TPA por plan, clases sueltas y turnos individuales del mes (diseño 4.3).
 export function PagosSecciones({
   cuotas, sueltas, sesiones, resumen, onCobrarCuota, onCobrarSueltas, onCobrarSesion, onAbrirPaciente,
 }: PagosSeccionesProps) {
@@ -91,15 +92,15 @@ export function PagosSecciones({
       />
 
       <TablaPagos
-        titulo="RPG"
-        detalle={`${resumen.rpg.sesiones} ${resumen.rpg.sesiones === 1 ? 'sesión' : 'sesiones'}`}
-        vacio="No hay sesiones de RPG este mes."
+        titulo="Turnos individuales"
+        detalle={`${resumen.rpg.sesiones} ${resumen.rpg.sesiones === 1 ? 'turno' : 'turnos'}`}
+        vacio="No hay turnos individuales este mes."
         items={sesiones}
         clave={(s) => s.sesion.id}
         columnas={[
           { titulo: 'Paciente', celda: (s) => nombre(s.sesion.paciente_id, s.nombre) },
           { titulo: 'Fecha', celda: (s) => <span className="capitalize">{format(parseISO(s.sesion.fecha), 'EEE d/M', { locale: es })} · {s.sesion.hora}</span> },
-          { titulo: 'Tipo', celda: (s) => s.sesion.tipo_sesion ?? 'RPG' },
+          { titulo: 'Tipo', celda: (s) => <TipoTurnoChip tipo={s.sesion.tipo_sesion} /> },
           {
             titulo: 'Estado',
             celda: (s) => (

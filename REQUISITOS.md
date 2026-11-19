@@ -114,3 +114,15 @@ Diseño en `docs/DISENO_PAGOS.md`.
 
 - ✅ Confirmado (22/10/2026): la usa **sobre todo desde la compu**; el celular tiene que seguir andando bien (entre clases o al terminar cada una). _Antes decía "sobre todo desde el celular" (inferido)._
 - Es la única usuaria. No hay recepcionista ni pacientes que entren a la app.
+
+## 6. Pedidos de Pau del 18/11/2026 (textuales)
+
+1. "permitir que el usuario modifique los días y horarios de su agenda"
+2. "incorporar la visualización de la agenda en formato diario, semanal y mensual"
+3. "permitir adjuntar imágenes y estudios a las historias clínicas, considerando crear una pestaña de 'estudios complementarios'"
+4. "agregar la categoría 'clase domicilio' y permitir asignar turnos de todas las categorías en un mismo día"
+5. "fecha de nacimiento en los pacientes para calcular automáticamente la edad y, en la pantalla principal, quién cumple años ese día"
+
+Aclaración de Pau: los domicilios se ven en la agenda en otro color, y en la ficha del paciente "Actividad" tiene que tener también Domicilio.
+
+Los pedidos 4 y 5 se hicieron en `fase-3/agenda-pacientes`. El diseño de los pedidos 1, 2 y 3 está en `docs/DISENO_AGENDA.md`. Pendiente: que Pau pase el precio de la clase a domicilio.

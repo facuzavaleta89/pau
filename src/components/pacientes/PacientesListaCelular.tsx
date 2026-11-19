@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronRight, Edit2, Phone } from 'lucide-react';
-import { textoBaja } from '@/lib/pacientes';
+import { textoActividades, textoBaja } from '@/lib/pacientes';
 import type { Paciente } from '@/types';
 
 interface PacientesListaCelularProps {
@@ -29,7 +29,7 @@ export function PacientesListaCelular({ pacientes, onAbrirHistoria, onEditar }: 
               <span className="block font-semibold text-stone-900 truncate">{p.nombre}</span>
               <span className="flex items-center gap-2 text-xs text-stone-500 mt-0.5">
                 {!p.activo && <span className="font-medium text-stone-600">{textoBaja(p)}</span>}
-                {p.activo && p.tipo_clase && <span className="font-semibold text-teal-700 uppercase">{p.tipo_clase}</span>}
+                {p.activo && textoActividades(p) && <span className="shrink-0 font-semibold text-teal-700 uppercase">{textoActividades(p)}</span>}
                 {p.telefono && (
                   <span className="flex items-center gap-1 truncate"><Phone size={12} />{p.telefono}</span>
                 )}

@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Copy } from 'lucide-react';
 import { cargarPagosMes } from '@/lib/queries';
 import {
-  calcularPagosDelMes, conMayuscula, hoyArgentina, medioSugerido, moverMes, nombreMes, textoPendientes,
+  calcularPagosDelMes, conMayuscula, domiciliosSinPrecio, hoyArgentina, medioSugerido, moverMes, nombreMes, textoPendientes,
   type CuotaDelMes, type SesionDelMes, type SueltasDelMes,
 } from '@/lib/pagos';
 import { useDatos } from '@/hooks/useDatos';
@@ -26,7 +26,7 @@ type Cobrando =
   | { tipo: 'rpg'; item: SesionDelMes };
 
 // Pagos del mes (diseño 4.3): cifras, precios, cuotas TPA por plan, clases
-// sueltas, RPG y "Copiar pendientes". Reemplaza la pantalla vieja.
+// sueltas, turnos individuales y "Copiar pendientes". Reemplaza la pantalla vieja.
 export function PagosDelMes() {
   const toast = useToast();
   const [hoy] = useState(() => hoyArgentina(new Date()));
@@ -84,7 +84,13 @@ export function PagosDelMes() {
       ) : (
         <>
           <PagosCifras resumen={calculo.resumen} />
-          <AvisoPrecios mes={mes} vigentes={calculo.vigentes} onGuardado={recargar} conLinea />
+          <AvisoPrecios
+            mes={mes}
+            vigentes={calculo.vigentes}
+            onGuardado={recargar}
+            conLinea
+            domiciliosSinPrecio={domiciliosSinPrecio(calculo.sesiones)}
+          />
           <PagosSecciones
             cuotas={calculo.cuotas}
             sueltas={calculo.sueltas}

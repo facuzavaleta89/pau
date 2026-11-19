@@ -2,8 +2,7 @@
 
 import { useMemo } from 'react';
 import {
-  format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isTuesday, isThursday,
-  startOfWeek, endOfWeek,
+  format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isWeekend, startOfWeek, endOfWeek,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Plus } from 'lucide-react';
@@ -24,7 +23,7 @@ interface CalendarMonthViewProps {
   onAbrirPaciente: (pacienteId: string) => void;
 }
 
-// Vista de compu: calendario mensual (lunes a domingo, martes y jueves resaltados).
+// Vista de compu: calendario mensual, lunes a domingo. Se puede agregar un turno cualquier día.
 export function CalendarMonthView({
   mes, sesiones, cargando, onAnterior, onHoy, onSiguiente, onNuevoTurno, onEditarTurno, onAbrirPaciente,
 }: CalendarMonthViewProps) {
@@ -67,7 +66,6 @@ export function CalendarMonthView({
         <div className="grid grid-cols-7 auto-rows-fr bg-stone-200 gap-px">
           {days.map((day) => {
             const isCurrentMonth = isSameMonth(day, mes);
-            const isActiveDay = isTuesday(day) || isThursday(day);
             const daySesiones = sesiones.filter(s => s.fecha === format(day, 'yyyy-MM-dd'));
 
             return (
@@ -76,8 +74,8 @@ export function CalendarMonthView({
                 className={cn(
                   "min-h-[120px] min-w-0 p-2 flex flex-col gap-2",
                   !isCurrentMonth && "bg-stone-50/40 text-stone-400",
-                  isCurrentMonth && isActiveDay && "bg-white",
-                  isCurrentMonth && !isActiveDay && "bg-stone-50/60"
+                  isCurrentMonth && !isWeekend(day) && "bg-white",
+                  isCurrentMonth && isWeekend(day) && "bg-stone-50/60"
                 )}
               >
                 <div className="flex justify-between items-center">
@@ -87,16 +85,14 @@ export function CalendarMonthView({
                   )}>
                     {format(day, 'd')}
                   </span>
-                  {isActiveDay && (
-                    <button
-                      type="button"
-                      onClick={() => onNuevoTurno(day)}
-                      aria-label={`Nuevo turno el ${format(day, "d 'de' MMMM", { locale: es })}`}
-                      className="h-8 w-8 flex items-center justify-center text-stone-400 hover:text-teal-600 hover:bg-stone-100 rounded-full transition-colors duration-150"
-                    >
-                      <Plus size={16} />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => onNuevoTurno(day)}
+                    aria-label={`Nuevo turno el ${format(day, "d 'de' MMMM", { locale: es })}`}
+                    className="h-8 w-8 flex items-center justify-center text-stone-400 hover:text-teal-600 hover:bg-stone-100 rounded-full transition-colors duration-150"
+                  >
+                    <Plus size={16} />
+                  </button>
                 </div>
                 {daySesiones.map(turno => (
                   <TurnoCard

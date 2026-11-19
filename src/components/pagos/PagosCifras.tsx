@@ -31,7 +31,7 @@ export function PagosCifras({ resumen }: PagosCifrasProps) {
         <p className={TITULO}>Efectivo / Transf.</p>
         <p className="text-sm text-stone-700 tabular-nums">Efectivo <span className="font-semibold">{formatoPesos(resumen.efectivo)}</span></p>
         <p className="text-sm text-stone-700 tabular-nums">Transferencia <span className="font-semibold">{formatoPesos(resumen.transferencia)}</span></p>
-        {resumen.sinMedio > 0 && <p className="text-xs text-stone-500 tabular-nums">Sin medio (RPG) {formatoPesos(resumen.sinMedio)}</p>}
+        {resumen.sinMedio > 0 && <p className="text-xs text-stone-500 tabular-nums">Sin medio (turnos) {formatoPesos(resumen.sinMedio)}</p>}
       </div>
     </div>
   );

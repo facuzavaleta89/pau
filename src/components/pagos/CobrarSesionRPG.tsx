@@ -3,10 +3,11 @@
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Pencil, Save, Undo2 } from 'lucide-react';
+import { AlertTriangle, Pencil, Save, Undo2 } from 'lucide-react';
 import { cambiarPagoSesionRPG } from '@/lib/queries';
 import { mensajeErrorAlGuardar, registrarError } from '@/lib/errores';
 import { formatoPesos, hoyArgentina, type SesionDelMes } from '@/lib/pagos';
+import { tipoTurno } from '@/lib/estados';
 import type { MedioPago } from '@/types';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -22,7 +23,8 @@ interface CobrarSesionRPGProps {
   onGuardado: () => void;
 }
 
-// Pago de una sesión de RPG (importe, fecha y medio). Pendiente ↔ pagada.
+// Pago de un turno individual (importe, fecha y medio). Pendiente ↔ pagado.
+// El importe sugerido sale del precio de su tipo (precioTurno en src/lib/pagos.ts).
 export function CobrarSesionRPG({ item, medioSugerido, onCerrar, onGuardado }: CobrarSesionRPGProps) {
   const toast = useToast();
   const { sesion } = item;
@@ -74,7 +76,7 @@ export function CobrarSesionRPG({ item, medioSugerido, onCerrar, onGuardado }: C
   return (
     <Modal
       titulo={item.nombre}
-      subtitulo={<span className="capitalize">{format(parseISO(sesion.fecha), "EEEE d 'de' MMMM", { locale: es })} · {sesion.hora} · {sesion.tipo_sesion ?? 'RPG'}</span>}
+      subtitulo={<span className="capitalize">{format(parseISO(sesion.fecha), "EEEE d 'de' MMMM", { locale: es })} · {sesion.hora} · {tipoTurno(sesion.tipo_sesion).label}</span>}
       onCerrar={onCerrar}
       ancho="md"
       pie={pie}
@@ -88,6 +90,12 @@ export function CobrarSesionRPG({ item, medioSugerido, onCerrar, onGuardado }: C
         ) : (
           <>
             {item.futura && <p className="text-sm text-stone-600">La sesión todavía no se hizo: se puede cobrar por adelantado.</p>}
+            {item.sinPrecioDomicilio && (
+              <p role="status" className="flex items-start gap-2 px-3 py-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertTriangle size={16} className="shrink-0 mt-0.5 text-amber-600" />
+                Este mes no tiene precio de domicilio: se sugiere el de RPG. Podés cambiar el importe.
+              </p>
+            )}
             <CamposPago valores={valores} onCambiar={(c) => setValores((v) => ({ ...v, ...c }))} conNota={false} />
           </>
         )}

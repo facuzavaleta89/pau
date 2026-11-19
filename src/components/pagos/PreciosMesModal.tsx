@@ -10,7 +10,7 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { Modal, BOTON_PIE_PRIMARIO, BOTON_PIE_SECUNDARIO } from '@/components/ui/Modal';
 import { ETIQUETA_PAGO, INPUT_PAGO } from './CamposPago';
 
-type CampoPrecio = Exclude<keyof PreciosMes, 'mes'>;
+type CampoPrecio = Exclude<keyof PreciosMes, 'mes' | 'domicilio_sesion'>;
 
 const CAMPOS: { campo: CampoPrecio; label: string }[] = [
   { campo: 'tpa_1_vez', label: 'TPA 1 vez por semana' },
@@ -39,14 +39,21 @@ export function PreciosMesModal({ mes, base, onCerrar, onGuardado }: PreciosMesM
     tpa_suelta: base?.tpa_suelta ?? '',
     rpg_sesion: base?.rpg_sesion ?? '',
   }));
+  // Opcional: vacío = la clase a domicilio se cobra al precio de RPG.
+  const [domicilio, setDomicilio] = useState<number | ''>(base?.domicilio_sesion ?? '');
   const [guardando, setGuardando] = useState(false);
-  const completos = CAMPOS.every(({ campo }) => typeof valores[campo] === 'number' && valores[campo] > 0);
+  const completos = CAMPOS.every(({ campo }) => typeof valores[campo] === 'number' && valores[campo] > 0)
+    && domicilio !== 0;
 
   const guardar = async () => {
     if (!completos) return;
     setGuardando(true);
     try {
-      await guardarPreciosMes({ mes: primerDia(mes), ...(valores as Record<CampoPrecio, number>) });
+      await guardarPreciosMes({
+        mes: primerDia(mes),
+        ...(valores as Record<CampoPrecio, number>),
+        domicilio_sesion: domicilio === '' ? null : domicilio,
+      });
       toast.exito(`Precios de ${nombreMes(mes, false)} guardados`);
       onGuardado();
       onCerrar();
@@ -57,6 +64,8 @@ export function PreciosMesModal({ mes, base, onCerrar, onGuardado }: PreciosMesM
       setGuardando(false);
     }
   };
+
+  const aEntero = (texto: string) => (texto === '' ? '' : Math.max(0, Math.round(Number(texto))));
 
   return (
     <Modal
@@ -83,11 +92,24 @@ export function PreciosMesModal({ mes, base, onCerrar, onGuardado }: PreciosMesM
               min={1}
               step={1}
               value={valores[campo]}
-              onChange={(e) => setValores((v) => ({ ...v, [campo]: e.target.value === '' ? '' : Math.max(0, Math.round(Number(e.target.value))) }))}
+              onChange={(e) => setValores((v) => ({ ...v, [campo]: aEntero(e.target.value) }))}
               className={INPUT_PAGO}
             />
           </label>
         ))}
+        <label className={ETIQUETA_PAGO}>
+          Clase a domicilio
+          <input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            step={1}
+            value={domicilio}
+            placeholder="Igual que RPG"
+            onChange={(e) => setDomicilio(aEntero(e.target.value))}
+            className={INPUT_PAGO}
+          />
+        </label>
         {!base && <p className="sm:col-span-2 text-xs text-stone-500">{conMayuscula(nombreMes(mes))}: no hay precios de meses anteriores para copiar.</p>}
       </div>
     </Modal>

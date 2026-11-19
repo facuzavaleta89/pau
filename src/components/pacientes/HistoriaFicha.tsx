@@ -1,6 +1,7 @@
 "use client";
 
 import { FileText, Phone } from 'lucide-react';
+import { textoActividades, textoFechaNacimiento } from '@/lib/pacientes';
 import type { Paciente } from '@/types';
 import { EstadoPacienteCard } from './EstadoPacienteCard';
 
@@ -36,6 +37,14 @@ export function HistoriaFicha({ paciente, onCambio }: HistoriaFichaProps) {
           <div>
             <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Profesión</span>
             <span className="text-stone-700 font-semibold">{paciente.profesion || 'No registrada'}</span>
+          </div>
+          <div>
+            <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Fecha de Nacimiento</span>
+            <span className="text-stone-700 font-semibold">{paciente.fecha_nacimiento ? textoFechaNacimiento(paciente.fecha_nacimiento) : 'No registrada'}</span>
+          </div>
+          <div>
+            <span className="text-xs text-stone-500 font-semibold uppercase tracking-wider block">Actividad</span>
+            <span className="text-stone-700 font-semibold">{textoActividades(paciente) || 'No asignada'}</span>
           </div>
         </div>
       </div>

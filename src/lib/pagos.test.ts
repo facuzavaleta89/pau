@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { AsistenciaConClase, DiaSemana, HorarioTPA, PagoTPA, PreciosMes, SesionRPG } from '@/types';
 import {
-  calendarioDelMes, cuotaSugerida, medioSugerido, cuotasDelMes, fijosDelMes, formatoPesos, hoyArgentina, moverMes,
-  preciosDelMes, resumenDelMes, sesionesRPGDelMes, sueltasDelMes, textoHorarios, textoPendientes, textoPorClase, textoSueltas,
+  calendarioDelMes, cuotaSugerida, domiciliosSinPrecio, medioSugerido, cuotasDelMes, fijosDelMes, formatoPesos, hoyArgentina,
+  moverMes, precioTurno, preciosDelMes, resumenDelMes, sesionesRPGDelMes, sueltasDelMes, textoHorarios, textoPendientes, textoPorClase, textoSueltas,
   type AsistenciaSuelta,
 } from './pagos';
 
@@ -236,7 +236,53 @@ describe('sueltasDelMes', () => {
   });
 });
 
+describe('precioTurno', () => {
+  const CON_DOMICILIO: PreciosMes = { ...OCTUBRE, domicilio_sesion: 60000 };
+
+  it('RPG, masajes, evaluación y turnos sin tipo: el precio de RPG', () => {
+    for (const tipo of ['RPG', 'Masajes', 'Evaluación inicial', null]) {
+      expect(precioTurno(CON_DOMICILIO, tipo)).toEqual({ importe: 46000, sinPrecioPropio: false });
+    }
+  });
+
+  it('clase a domicilio con precio cargado', () => {
+    expect(precioTurno(CON_DOMICILIO, 'Clase domicilio')).toEqual({ importe: 60000, sinPrecioPropio: false });
+  });
+
+  it('clase a domicilio sin precio: el de RPG, con aviso', () => {
+    expect(precioTurno(OCTUBRE, 'Clase domicilio')).toEqual({ importe: 46000, sinPrecioPropio: true });
+    expect(precioTurno({ ...OCTUBRE, domicilio_sesion: null }, 'Clase domicilio').sinPrecioPropio).toBe(true);
+  });
+
+  it('sin precios del mes: $0, sin aviso de domicilio (ya se avisa que faltan los precios)', () => {
+    expect(precioTurno(null, 'Clase domicilio')).toEqual({ importe: 0, sinPrecioPropio: false });
+  });
+});
+
 describe('sesionesRPGDelMes', () => {
+  it('cada turno vale según su tipo', () => {
+    const lista = sesionesRPGDelMes([
+      sesion('Ana', '2026-10-06', { tipo_sesion: 'Clase domicilio' }),
+      sesion('Beto', '2026-10-07', { tipo_sesion: 'Masajes' }),
+    ], '2026-10', { ...OCTUBRE, domicilio_sesion: 60000 }, '2026-10-20');
+    expect(lista.map((s) => s.importe)).toEqual([60000, 46000]);
+    expect(domiciliosSinPrecio(lista)).toBe(0);
+  });
+
+  it('domicilio sin precio del mes: se cuenta con el de RPG y se avisa', () => {
+    const lista = sesionesRPGDelMes([sesion('Ana', '2026-10-06', { tipo_sesion: 'Clase domicilio' })], '2026-10', OCTUBRE, '2026-10-20');
+    expect(lista[0]).toMatchObject({ importe: 46000, sinPrecioDomicilio: true });
+    expect(domiciliosSinPrecio(lista)).toBe(1);
+  });
+
+  it('lo ya cobrado no cambia ni genera aviso', () => {
+    const [s] = sesionesRPGDelMes(
+      [sesion('Ana', '2026-10-06', { tipo_sesion: 'Clase domicilio', estado_pago: 'pagado', importe: 55000 })],
+      '2026-10', OCTUBRE, '2026-10-20',
+    );
+    expect(s).toMatchObject({ importe: 55000, importeEstimado: false, sinPrecioDomicilio: false });
+  });
+
   it('cancelada sin pagar: no figura', () => {
     expect(sesionesRPGDelMes([sesion('X', '2026-10-06', { estado_sesion: 'cancelada' })], '2026-10', OCTUBRE, '2026-10-20')).toEqual([]);
   });
@@ -311,7 +357,7 @@ describe('textoPendientes', () => {
       'Clases sueltas TPA:',
       '• Dora: 1 clase ($18.000)',
       '',
-      'RPG:',
+      'Turnos individuales:',
       '• Xime: 2 sesiones (6/10, 8/10): $92.000',
       '',
       'Total: $160.000',

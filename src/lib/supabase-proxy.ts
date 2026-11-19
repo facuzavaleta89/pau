@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 const RUTA_LOGIN = '/login'
-const RUTA_INICIO = '/rpg'
+const RUTA_INICIO = '/hoy'
 
 // Refresca la sesión de Supabase (cookies) y redirige según haya o no sesión.
 // Es un chequeo "optimista": la protección real de los datos es RLS en la base.

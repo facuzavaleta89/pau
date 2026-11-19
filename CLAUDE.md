@@ -7,6 +7,7 @@ Antes de trabajar, leé en este orden:
 2. **REQUISITOS.md** — qué pidió Pau, con sus palabras.
 3. **DESIGN.md** — sistema de diseño (obligatorio para cualquier cambio visual).
 4. **docs/DISENO_ASISTENCIA_TPA.md** — diseño y decisiones de asistencia TPA (faltas, lugares, recuperaciones, notas), si la tarea toca TPA.
+5. **docs/DISENO_AGENDA.md** — agenda día/semana/mes, horarios editables y estudios complementarios, si la tarea toca eso.
 
 ---
 
@@ -20,7 +21,9 @@ Antes de trabajar, leé en este orden:
 
 | Término | Significado |
 |---|---|
-| **RPG** | Reeducación Postural Global. Sesiones **individuales**, martes y jueves. Se paga **por sesión**. Tipos: RPG, masajes, evaluación inicial. |
+| **Turno individual** | Sesión de una persona, **cualquier día y hora** (tabla `sesiones_rpg`, ruta `/rpg`, menú "Turnos"). Se paga **por sesión**. Tipos (`TIPOS_TURNO`): RPG, Masajes, Evaluación inicial y **Clase domicilio** (violeta). |
+| **RPG** | Reeducación Postural Global: el tipo de turno individual más común. |
+| **Actividad del paciente** | RPG, TPA y/o Domicilio (`pacientes.actividades`, se lee con `actividadesDe()`). Reemplaza a `tipo_clase`, que sigue existiendo: un trigger mantiene las dos iguales. |
 | **TPA** | Terapia Postural Activa. Clases **grupales**, lunes, miércoles y viernes, horarios fijos con cupo (hoy 4). Se paga **plan mensual** según veces por semana. |
 | **Horario fijo** | Alumno inscripto todas las semanas en un día/hora de TPA (`horarios_tpa`). |
 | **Clase** | Una ocurrencia concreta de TPA en una fecha (`clases_tpa`). Se crea al registrar asistencia, al ocupar un lugar o al cancelarla. |
@@ -33,6 +36,7 @@ Antes de trabajar, leé en este orden:
 | **Cuota** | Pago mensual de TPA según las veces por semana (plan 1, 2 o 3 veces). Cubre el mes entero. El mismo precio pague cuando pague (Pau, 13/11/2026). **Alta a mitad de mes:** por clase (suelta del mes × clases que le quedan), con "Volver al plan". Pendiente = sin fila en `pagos_tpa` (se calcula, no se guarda). |
 | **Precios del mes** | `precios_mes`: cuotas, clase suelta y sesión de RPG de cada mes. Un mes sin precios usa los del anterior, con aviso. Lo cobrado guarda su importe y no cambia. |
 | **Baja de un paciente** | Baja lógica: `pacientes.activo = false` + `fecha_baja`, con `dar_de_baja_paciente()` (cierra sus horarios fijos en esa fecha). No aparece en las listas para elegir (`getPacientesActivos`); su historia y pagos quedan. Se reactiva desde la ficha. Borrar de verdad solo si no tiene ningún dato (FK `ON DELETE RESTRICT`). |
+| **Edad y cumpleaños** | Con `fecha_nacimiento`, la edad se calcula (`edadDe`); sin fecha, vale `edad`. Quien nació un 29/02 cumple el 28/02 en años comunes. `cumpleaniosProximos()` en `src/lib/pacientes.ts`. |
 | **Alerta de faltas** | 2 o más faltas seguidas sin avisar como fijo, en cualquiera de sus horarios (las sin marcar no cortan la racha): `alertasDeFaltas()` (`src/lib/alertas.ts`). Solo avisa: no libera el lugar. |
 
 ## Stack
@@ -66,21 +70,22 @@ src/
 ├── proxy.ts                  # sesión: refresca token y redirige a /login (Next 16)
 ├── app/
 │   ├── layout.tsx            # raíz: solo html/body
-│   ├── page.tsx              # / redirige a /rpg
+│   ├── page.tsx              # / redirige a /hoy
 │   ├── login/                # pantalla de login (pública)
 │   └── (app)/                # grupo de rutas con sesión (no cambia las URLs)
 │       ├── layout.tsx        # Navigation + Header + AvisoSinConexion + SesionWatcher + VerificadorAutorizacion
-│       └── rpg/ tpa/ pacientes/ pagos/ (pagos/ = PagosDelMes)
+│       └── hoy/ rpg/ tpa/ pacientes/ pagos/ (hoy/ = PantallaHoy; rpg/ = turnos individuales; pagos/ = PagosDelMes)
 ├── components/
 │   ├── auth/                 # LoginForm, SesionWatcher, VerificadorAutorizacion
 │   ├── layout/               # Header (con Salir), Navigation, AvisoSinConexion
+│   ├── hoy/                  # PantallaHoy, HoyCumpleanios, HoyTurnos, HoyClases
 │   ├── pacientes/            # HistoriaClinicaModal (Ficha | Evolución), HistoriaFicha (+ EstadoPacienteCard), HistoriaEvolucion,
-│   │                         # EvolucionItem, NotaEvolucionForm, PacienteFormModal, PacientesTabla (compu),
+│   │                         # EvolucionItem, NotaEvolucionForm, PacienteFormModal (+ CampoActividades), PacientesTabla (compu),
 │   │                         # PacientesListaCelular, EliminarPacienteDialog, DarDeBajaDialog, CopiaDeSeguridad
 │   ├── pagos/                # PagosDelMes, PagosCifras, PagosSecciones, TablaPagos, AvisoPrecios, PreciosMesModal,
 │   │                         # CobrarCuota, CobrarSueltas, CobrarSesionRPG, CamposPago, EstadoPagoChip, ResumenPagoGuardado
 │   ├── rpg/                  # AgendaRPG (carga + modales), CalendarMonthView (compu),
-│   │                         # RpgSemanaLista (celular), TurnoCard, TurnoModal
+│   │                         # RpgSemanaLista (celular), TurnoCard, TipoTurnoChip, TurnoModal
 │   ├── tpa/                  # TpaAgenda (carga + modales + pestañas), TpaCalendario (+ TpaCalendarioCelda, TpaInscribirFijo), TpaGrillaSemana (compu), TpaListaDia (celular),
 │   │                         # TpaHorarioCard (ambas), TpaAccionesDia, TpaClaseModal (+ useBorradorClase),
 │   │                         # TpaAsistenciaLista, TpaAsistenciaFila, TpaNotaClase, TpaOcuparSelector, TpaCancelarDialog,
@@ -91,6 +96,7 @@ src/
 │   ├── useDatos.ts           # carga con clave + Toast y estado de error SIEMPRE que falla
 │   ├── useEsCelular.ts       # true / false / null (< 768px), sin cargar las dos vistas
 │   ├── useValorGuardado.ts   # valor chico recordado en el navegador (última pestaña de TPA, última copia)
+│   ├── useAhora.ts           # hora actual al minuto (null en el primer render: las páginas se generan al compilar)
 │   └── useConexion.ts        # navigator.onLine
 ├── lib/
 │   ├── supabase.ts           # cliente de navegador (createBrowserClient)
@@ -110,7 +116,7 @@ src/
 │   ├── evolucion.ts          # línea de tiempo de la pestaña Evolución (lineaDeTiempo)
 │   ├── pagos.ts              # precios del mes, fijos y cuotas, cuota sugerida, sueltas, RPG, resumen, calendario
 │   ├── copia.ts              # copia de seguridad: tablas, nombre del archivo, aviso de la última copia
-│   ├── pacientes.ts          # textos de la ficha (baja)
+│   ├── pacientes.ts          # ficha: baja, actividades, edad, cumpleaños
 │   └── utils.ts              # cn(), nuevoId()
 └── types/index.ts            # tipos mapeados a las tablas
 ```
@@ -119,13 +125,13 @@ src/
 
 | Tabla | Uso |
 |---|---|
-| `pacientes` | Ficha / historia clínica. `activo` (obligatorio) y `fecha_baja` (migración `20261114000001`; un trigger la limpia al reactivar) |
-| `sesiones_rpg` | Turnos individuales (estado_pago, estado_sesion, nota; desde `20261113000001`, `importe`, `pagado_el`, `medio_pago`: solo si está pagada, un trigger los limpia al pasar a pendiente) |
+| `pacientes` | Ficha / historia clínica. `activo` (obligatorio) y `fecha_baja` (migración `20261114000001`; un trigger la limpia al reactivar). `fecha_nacimiento` y `actividades` (migración `20261118000001`; un trigger mantiene `actividades` y `tipo_clase` iguales) |
+| `sesiones_rpg` | Turnos individuales (`tipo_sesion` = clave de `TIPOS_TURNO`, texto libre en la base; estado_pago, estado_sesion, nota; desde `20261113000001`, `importe`, `pagado_el`, `medio_pago`: solo si está pagada, un trigger los limpia al pasar a pendiente) |
 | `horarios_tpa` | Horario fijo semanal por alumno (dia_semana, hora, activo) |
 | `clases_tpa` | Clase concreta (fecha, hora) |
 | `asistencia_tpa` | Estado por alumno por clase. Unique `(clase_id, paciente_id)`. Sin columna `nota` desde la migración `20261024000001` |
 | `notas_evolucion` | Nota de evolución: una por alumno por clase (`clase_tpa_id`) o libre (`clase_tpa_id` null). Migración `20261024000001` |
-| `precios_mes` | Precios de cada mes (`mes` = día 1; cuotas 1/2/3 veces, suelta, RPG). Migración `20261113000001` |
+| `precios_mes` | Precios de cada mes (`mes` = día 1; cuotas 1/2/3 veces, suelta, RPG). Migración `20261113000001`. `domicilio_sesion` (`20261118000001`, nullable: vacío = precio de RPG con aviso) |
 | `pagos_tpa` | Pagos hechos de TPA: `concepto` `cuota` (una por alumno y mes: índice único parcial) o `sueltas` (una fila por pago). Importe, fecha, medio, nota. Migración `20261113000001` |
 | ~~`pagos`~~ | **Borrada** en `20261114000002` (vieja, sin uso desde la Fase 2; tenía 2 filas de prueba) |
 | `lista_espera` | Cola de espera (tabla creada, sin UI todavía) |
@@ -156,6 +162,7 @@ Estados válidos (migración `20261022000001_tpa_faltas_y_lugares.sql`):
 - `sesiones_rpg.estado_pago`: `pagado | pendiente`; `medio_pago` y `pagos_tpa.medio`: `efectivo | transferencia`
 - `pagos_tpa.concepto`: `cuota` (con `veces_por_semana` 1–3 y `modalidad` `plan | por_clase`; `clases` solo en por clase) `| sueltas` (con `clases`, sin plan). `mes` y `precios_mes.mes` siempre el día 1
 - `sesiones_rpg.estado_sesion`: `realizada | cancelada | pendiente`
+- `pacientes.actividades`: `RPG | TPA | Domicilio` (array, nullable). Solo Domicilio → `tipo_clase = 'RPG'`, para que la app de `main` no lo cambie al guardar
 
 ## Convenciones de código
 
@@ -170,7 +177,9 @@ Estados válidos (migración `20261022000001_tpa_faltas_y_lugares.sql`):
 - Componentes funcionales, props con `interface`, un componente por archivo, idealmente < 150 líneas.
 - **Compu primero.** Cada pantalla se diseña primero para la compu (modales anchos, tablas, grilla). El celular tiene que seguir andando bien: ninguna pantalla puede desplazarse de costado en 390px. Si una vista de compu no entra (grilla, calendario, tabla), se hace una vista de celular aparte y se elige con `useEsCelular()` (si cada vista carga datos distintos) o con `md:hidden` / `hidden md:block` (si usan los mismos datos). Modales con el componente `Modal` (centrado en la compu; hoja desde abajo o pantalla completa en celular, pie fijo).
 - **Cargas de datos** con `useDatos()`: si falla, avisa con Toast y la pantalla muestra `EstadoCarga` con el mismo mensaje (`error` de `useDatos`) y "Reintentar". Nunca una pantalla vacía que parezca "no hay datos".
-- **Pacientes:** para elegir un paciente (turno, inscribir, ocupar lugar), siempre `getPacientesActivos()`; `getPacientes()` (con los dados de baja) solo en la pantalla Pacientes. Editar la ficha no toca `activo` (N6).
+- **Turnos individuales:** tipos solo desde `TIPOS_TURNO` / `tipoTurno()`; el precio según el tipo sale de `precioTurno()` (`src/lib/pagos.ts`).
+- **Fechas en pantallas generadas al compilar:** una fecha calculada en el primer render es la del deploy. Las pantallas nuevas usan `useAhora()`.
+- **Pacientes:** para elegir un paciente (turno, inscribir, ocupar lugar), siempre `getPacientesActivos()`; `getPacientes()` (con los dados de baja) solo en la pantalla Pacientes. Editar la ficha no toca `activo` (N6). Actividad con `actividadesDe()` / `textoActividades()` y edad con `edadDe()` / `textoEdad()`: nunca leer `tipo_clase` o `edad` directo.
 - **Pagos:** todo lo que se calcula (fijos del mes, cuota pendiente, cuota sugerida, sueltas, RPG, totales, calendario) sale **solo** de `src/lib/pagos.ts`; importes con `formatoPesos()`, meses como `'yyyy-MM'` con `moverMes()` (nunca `setMonth`). Pendiente = sin pago guardado: nunca crear filas "pendiente". Guardar un pago: alta con `nuevoId()` (`crearPagoTPA`); la cuota repetida choca con el índice único parcial y se avisa.
 - **TPA:** quién está en cada horario de una semana lo calcula **solo** `armarSemanaTPA()` (fijos de esa fecha + asistencias registradas). No volver a filtrar `horarios_tpa` a mano en un componente. Los saldos de recuperación salen **solo** de `calcularRecuperaciones()`. Una clase se guarda **siempre** con `guardarClasesTPA()` (función `guardar_clase_tpa` de la base, una transacción, notas de la clase incluidas), nunca fila por fila. La alerta de faltas sale **solo** de `alertasDeFaltas()`.
 - Nada de `alert()` / `confirm()` nativos: `useToast()` (`toast.exito / error / aviso`) y `ConfirmDialog`. Los errores que se muestran salen de `mensajeError(error)`.
