@@ -5,12 +5,17 @@ import { FileText, Save, Trash2, User } from 'lucide-react';
 import { createPaciente, updatePaciente } from '@/lib/queries';
 import { mensajeErrorAlGuardar, registrarError } from '@/lib/errores';
 import { nuevoId } from '@/lib/utils';
-import { actividadesDe, edadEn, fechaNacimientoValida } from '@/lib/pacientes';
+import { edadEn, fechaNacimientoValida } from '@/lib/pacientes';
 import { hoyArgentina } from '@/lib/pagos';
 import { useToast } from '@/components/ui/ToastProvider';
 import { Modal, BOTON_PIE_PRIMARIO, BOTON_PIE_SECUNDARIO } from '@/components/ui/Modal';
-import type { Actividad, Paciente } from '@/types';
+import type { Paciente } from '@/types';
 import { CampoActividades } from './CampoActividades';
+import { CampoTextoPaciente } from './CampoTextoPaciente';
+import {
+  CLASE_CAMPO, CLASE_LABEL, DATOS_CLINICOS, DATOS_PERSONALES, datosAGuardar, formularioInicial,
+  type CampoTexto, type DefCampo, type Formulario,
+} from './formularioPaciente';
 
 interface PacienteFormModalProps {
   /** null = paciente nuevo. */
@@ -20,59 +25,7 @@ interface PacienteFormModalProps {
   onEliminar: (paciente: Paciente) => void;
 }
 
-type CampoTexto =
-  | 'nombre' | 'telefono' | 'telefono_emergencia' | 'direccion' | 'profesion' | 'actividad_fisica'
-  | 'motivo_consulta' | 'antecedentes_clinicos' | 'estudios_imagenologicos' | 'evaluacion_inicial' | 'objetivo_tratamiento';
-
-type Formulario = Record<CampoTexto, string> & { edad: string; fecha_nacimiento: string; actividades: Actividad[] };
-
-interface DefCampo {
-  campo: CampoTexto;
-  label: string;
-  placeholder: string;
-  filas?: number; // textarea
-  tipo?: 'tel';
-}
-
-const DATOS_PERSONALES: DefCampo[] = [
-  { campo: 'telefono', label: 'Teléfono', placeholder: 'Ej: 11223344', tipo: 'tel' },
-  { campo: 'telefono_emergencia', label: 'Contacto de emergencia', placeholder: 'Nombre y teléfono' },
-  { campo: 'direccion', label: 'Dirección', placeholder: 'Ej: Av. Rivadavia 1234' },
-  { campo: 'profesion', label: 'Profesión', placeholder: 'Ej: Administrativo' },
-  { campo: 'actividad_fisica', label: 'Actividad física', placeholder: 'Ej: Gimnasio 2 veces/sem' },
-];
-
-const DATOS_CLINICOS: DefCampo[] = [
-  { campo: 'motivo_consulta', label: 'Motivo de consulta', placeholder: 'Dolor lumbar, cervicalgia, etc.', filas: 2 },
-  { campo: 'antecedentes_clinicos', label: 'Antecedentes clínicos', placeholder: 'Cirugías, fracturas, diabetes, hipertensión…', filas: 3 },
-  { campo: 'estudios_imagenologicos', label: 'Estudios imagenológicos', placeholder: 'RX cervical (hernia C5-C6), RMN, etc.', filas: 3 },
-  { campo: 'evaluacion_inicial', label: 'Evaluación inicial', placeholder: 'Limitación de rotación, dolor a la flexión…', filas: 3 },
-  { campo: 'objetivo_tratamiento', label: 'Objetivo del tratamiento', placeholder: 'Reducir dolor, mejorar postura…', filas: 2 },
-];
-
-const CLASE_CAMPO =
-  'w-full bg-white border border-stone-200 text-stone-900 text-base md:text-sm px-3 py-2.5 rounded-lg placeholder:text-stone-400 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20';
-const CLASE_LABEL = 'text-xs font-medium text-stone-600';
 const CLASE_SECCION = 'text-xs font-semibold text-stone-400 uppercase tracking-wider border-b border-stone-100 pb-2 flex items-center gap-2';
-
-function formularioInicial(p: Paciente | null): Formulario {
-  return {
-    nombre: p?.nombre ?? '',
-    edad: p?.edad != null ? String(p.edad) : '',
-    fecha_nacimiento: p?.fecha_nacimiento ?? '',
-    telefono: p?.telefono ?? '',
-    telefono_emergencia: p?.telefono_emergencia ?? '',
-    direccion: p?.direccion ?? '',
-    profesion: p?.profesion ?? '',
-    actividad_fisica: p?.actividad_fisica ?? '',
-    motivo_consulta: p?.motivo_consulta ?? '',
-    antecedentes_clinicos: p?.antecedentes_clinicos ?? '',
-    estudios_imagenologicos: p?.estudios_imagenologicos ?? '',
-    evaluacion_inicial: p?.evaluacion_inicial ?? '',
-    objetivo_tratamiento: p?.objetivo_tratamiento ?? '',
-    actividades: p ? actividadesDe(p) : ['RPG'],
-  };
-}
 
 // Alta y edición de la ficha. En celular, pantalla completa con Guardar fijo abajo.
 // Se monta al abrir, así que el formulario arranca con los datos del paciente.
@@ -107,25 +60,7 @@ export function PacienteFormModal({ paciente, onCerrar, onGuardado, onEliminar }
       return;
     }
 
-    const texto = (v: string) => v.trim() || null;
-    const payload: Partial<Paciente> = {
-      nombre: form.nombre.trim(),
-      // Con fecha se guarda también la edad de hoy: la sigue leyendo la app de main.
-      edad: edadCalculada ?? (form.edad === '' ? null : Number(form.edad)),
-      fecha_nacimiento: form.fecha_nacimiento || null,
-      telefono: texto(form.telefono),
-      telefono_emergencia: texto(form.telefono_emergencia),
-      direccion: texto(form.direccion),
-      profesion: texto(form.profesion),
-      actividad_fisica: texto(form.actividad_fisica),
-      motivo_consulta: texto(form.motivo_consulta),
-      antecedentes_clinicos: texto(form.antecedentes_clinicos),
-      estudios_imagenologicos: texto(form.estudios_imagenologicos),
-      evaluacion_inicial: texto(form.evaluacion_inicial),
-      objetivo_tratamiento: texto(form.objetivo_tratamiento),
-      // tipo_clase lo mantiene la base (trigger de la migración 20261118000001).
-      actividades: form.actividades,
-    };
+    const payload = datosAGuardar(form, edadCalculada);
 
     setGuardando(true);
     try {
@@ -141,17 +76,8 @@ export function PacienteFormModal({ paciente, onCerrar, onGuardado, onEliminar }
     }
   };
 
-  const renderCampo = ({ campo, label, placeholder, filas, tipo }: DefCampo) => (
-    <div key={campo} className="space-y-1.5">
-      <label htmlFor={`paciente-${campo}`} className={CLASE_LABEL}>{label}</label>
-      {filas ? (
-        <textarea id={`paciente-${campo}`} rows={filas} value={form[campo]} placeholder={placeholder}
-          onChange={(e) => cambiar(campo, e.target.value)} className={`${CLASE_CAMPO} resize-none`} />
-      ) : (
-        <input id={`paciente-${campo}`} type={tipo ?? 'text'} inputMode={tipo === 'tel' ? 'tel' : undefined}
-          value={form[campo]} placeholder={placeholder} onChange={(e) => cambiar(campo, e.target.value)} className={CLASE_CAMPO} />
-      )}
-    </div>
+  const renderCampo = (def: DefCampo) => (
+    <CampoTextoPaciente key={def.campo} def={def} valor={form[def.campo]} onCambiar={(v) => cambiar(def.campo, v)} />
   );
 
   const pie = (

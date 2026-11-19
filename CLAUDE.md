@@ -21,7 +21,7 @@ Antes de trabajar, leé en este orden:
 
 | Término | Significado |
 |---|---|
-| **Turno individual** | Sesión de una persona, **cualquier día y hora** (tabla `sesiones_rpg`, ruta `/rpg`, menú "Turnos"). Se paga **por sesión**. Tipos (`TIPOS_TURNO`): RPG, Masajes, Evaluación inicial y **Clase domicilio** (violeta). |
+| **Turno individual** | Sesión de una persona, **cualquier día y hora** (tabla `sesiones_rpg`; se ven en la **Agenda**, `/agenda`; `/rpg` redirige). Se paga **por sesión**. Tipos (`TIPOS_TURNO`): RPG, Masajes, Evaluación inicial y **Clase domicilio** (violeta). |
 | **RPG** | Reeducación Postural Global: el tipo de turno individual más común. |
 | **Actividad del paciente** | RPG, TPA y/o Domicilio (`pacientes.actividades`, se lee con `actividadesDe()`). Reemplaza a `tipo_clase`, que sigue existiendo: un trigger mantiene las dos iguales. |
 | **TPA** | Terapia Postural Activa. Clases **grupales**, lunes, miércoles y viernes, horarios fijos con cupo (hoy 4). Se paga **plan mensual** según veces por semana. |
@@ -74,18 +74,21 @@ src/
 │   ├── login/                # pantalla de login (pública)
 │   └── (app)/                # grupo de rutas con sesión (no cambia las URLs)
 │       ├── layout.tsx        # Navigation + Header + AvisoSinConexion + SesionWatcher + VerificadorAutorizacion
-│       └── hoy/ rpg/ tpa/ pacientes/ pagos/ (hoy/ = PantallaHoy; rpg/ = turnos individuales; pagos/ = PagosDelMes)
+│       └── hoy/ agenda/ rpg/ tpa/ pacientes/ pagos/ (hoy/ = PantallaHoy; agenda/ = PantallaAgenda; rpg/ redirige a /agenda; pagos/ = PagosDelMes)
 ├── components/
 │   ├── auth/                 # LoginForm, SesionWatcher, VerificadorAutorizacion
 │   ├── layout/               # Header (con Salir), Navigation, AvisoSinConexion
 │   ├── hoy/                  # PantallaHoy, HoyCumpleanios, HoyTurnos, HoyClases
 │   ├── pacientes/            # HistoriaClinicaModal (Ficha | Evolución), HistoriaFicha (+ EstadoPacienteCard), HistoriaEvolucion,
-│   │                         # EvolucionItem, NotaEvolucionForm, PacienteFormModal (+ CampoActividades), PacientesTabla (compu),
+│   │                         # EvolucionItem, NotaEvolucionForm, PacienteFormModal (+ CampoActividades, CampoTextoPaciente,
+│   │                         # formularioPaciente.ts), PacientesTabla (compu),
 │   │                         # PacientesListaCelular, EliminarPacienteDialog, DarDeBajaDialog, CopiaDeSeguridad
 │   ├── pagos/                # PagosDelMes, PagosCifras, PagosSecciones, TablaPagos, AvisoPrecios, PreciosMesModal,
 │   │                         # CobrarCuota, CobrarSueltas, CobrarSesionRPG, CamposPago, EstadoPagoChip, ResumenPagoGuardado
-│   ├── rpg/                  # AgendaRPG (carga + modales), CalendarMonthView (compu),
-│   │                         # RpgSemanaLista (celular), TurnoCard, TipoTurnoChip, TurnoModal
+│   ├── agenda/               # PantallaAgenda (carga + pestañas Día | Semana | Mes), AgendaModales, AgendaDia,
+│   │                         # AgendaSemana (+ AgendaSemanaLista, celular), AgendaMes (+ AgendaMesCelular),
+│   │                         # LineaEvento / LineaTurno / LineaClase (una línea), acciones.ts (AccionesAgenda)
+│   ├── rpg/                  # TurnoCard, TipoTurnoChip, TurnoModal (+ TurnoTipoSelector, TurnoEstadoPago, campo.ts)
 │   ├── tpa/                  # TpaAgenda (carga + modales + pestañas), TpaCalendario (+ TpaCalendarioCelda, TpaInscribirFijo), TpaGrillaSemana (compu), TpaListaDia (celular),
 │   │                         # TpaHorarioCard (ambas), TpaAccionesDia, TpaClaseModal (+ useBorradorClase),
 │   │                         # TpaAsistenciaLista, TpaAsistenciaFila, TpaNotaClase, TpaOcuparSelector, TpaCancelarDialog,
@@ -97,6 +100,7 @@ src/
 │   ├── useEsCelular.ts       # true / false / null (< 768px), sin cargar las dos vistas
 │   ├── useValorGuardado.ts   # valor chico recordado en el navegador (última pestaña de TPA, última copia)
 │   ├── useAhora.ts           # hora actual al minuto (null en el primer render: las páginas se generan al compilar)
+│   ├── useDatosClaseTPA.ts   # recuperaciones + alerta de faltas para TpaClaseModal fuera de TPA (Hoy, Agenda)
 │   └── useConexion.ts        # navigator.onLine
 ├── lib/
 │   ├── supabase.ts           # cliente de navegador (createBrowserClient)
@@ -117,6 +121,7 @@ src/
 │   ├── pagos.ts              # precios del mes, fijos y cuotas, cuota sugerida, sueltas, RPG, resumen, calendario
 │   ├── copia.ts              # copia de seguridad: tablas, nombre del archivo, aviso de la última copia
 │   ├── pacientes.ts          # ficha: baja, actividades, edad, cumpleaños
+│   ├── agenda.ts             # agenda: eventosEntre, armarSemanaAgenda, armarMesAgenda, resumenTPA
 │   └── utils.ts              # cn(), nuevoId()
 └── types/index.ts            # tipos mapeados a las tablas
 ```
@@ -178,6 +183,7 @@ Estados válidos (migración `20261022000001_tpa_faltas_y_lugares.sql`):
 - **Compu primero.** Cada pantalla se diseña primero para la compu (modales anchos, tablas, grilla). El celular tiene que seguir andando bien: ninguna pantalla puede desplazarse de costado en 390px. Si una vista de compu no entra (grilla, calendario, tabla), se hace una vista de celular aparte y se elige con `useEsCelular()` (si cada vista carga datos distintos) o con `md:hidden` / `hidden md:block` (si usan los mismos datos). Modales con el componente `Modal` (centrado en la compu; hoja desde abajo o pantalla completa en celular, pie fijo).
 - **Cargas de datos** con `useDatos()`: si falla, avisa con Toast y la pantalla muestra `EstadoCarga` con el mismo mensaje (`error` de `useDatos`) y "Reintentar". Nunca una pantalla vacía que parezca "no hay datos".
 - **Turnos individuales:** tipos solo desde `TIPOS_TURNO` / `tipoTurno()`; el precio según el tipo sale de `precioTurno()` (`src/lib/pagos.ts`).
+- **Agenda:** qué se ve en cada día sale **solo** de `src/lib/agenda.ts` (`eventosEntre`, que arma las clases con `celdasEntre`; `armarSemanaAgenda`, `armarMesAgenda`). Una clase sin alumnos (`claseVacia`) se atenúa o se oculta: nunca tapa los turnos.
 - **Fechas en pantallas generadas al compilar:** una fecha calculada en el primer render es la del deploy. Las pantallas nuevas usan `useAhora()`.
 - **Pacientes:** para elegir un paciente (turno, inscribir, ocupar lugar), siempre `getPacientesActivos()`; `getPacientes()` (con los dados de baja) solo en la pantalla Pacientes. Editar la ficha no toca `activo` (N6). Actividad con `actividadesDe()` / `textoActividades()` y edad con `edadDe()` / `textoEdad()`: nunca leer `tipo_clase` o `edad` directo.
 - **Pagos:** todo lo que se calcula (fijos del mes, cuota pendiente, cuota sugerida, sueltas, RPG, totales, calendario) sale **solo** de `src/lib/pagos.ts`; importes con `formatoPesos()`, meses como `'yyyy-MM'` con `moverMes()` (nunca `setMonth`). Pendiente = sin pago guardado: nunca crear filas "pendiente". Guardar un pago: alta con `nuevoId()` (`crearPagoTPA`); la cuota repetida choca con el índice único parcial y se avisa.

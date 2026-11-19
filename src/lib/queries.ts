@@ -3,6 +3,7 @@ import { ErrorApp } from './errores';
 import { normalizarHora } from './horas';
 import { inicioDeSemana, type DatosSemanaTPA } from './tpa';
 import type { DatosRecuperaciones } from './recuperaciones';
+import type { DatosAgenda } from './agenda';
 import type { ClaseAGuardar } from './clase-tpa';
 import { addDays, format, parseISO } from 'date-fns';
 import type { FilaAlerta } from './alertas';
@@ -293,6 +294,13 @@ export async function cargarHoy(hoy: string): Promise<DatosHoy> {
     cargarSemanaTPA(format(lunes, 'yyyy-MM-dd'), format(addDays(lunes, 6), 'yyyy-MM-dd')),
   ]);
   return { pacientes, sesiones, semana };
+}
+
+// Agenda (/agenda): turnos individuales y TPA del rango visible ('yyyy-MM-dd', inclusive).
+// Los eventos salen de eventosEntre (src/lib/agenda.ts).
+export async function cargarAgenda(desde: string, hasta: string): Promise<DatosAgenda> {
+  const [sesiones, tpa] = await Promise.all([getSesionesRPGPorRango(desde, hasta), cargarSemanaTPA(desde, hasta)]);
+  return { sesiones, tpa };
 }
 
 // Todo lo necesario para armar una semana de TPA (armarSemanaTPA).
