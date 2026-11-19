@@ -9,6 +9,7 @@ import {
 } from '@/lib/estados';
 import type { NotaEvolucion } from '@/types';
 import { cn } from '@/lib/utils';
+import { TipoTurnoChip } from '@/components/rpg/TipoTurnoChip';
 import { NotaEvolucionForm } from './NotaEvolucionForm';
 
 interface EvolucionItemProps {
@@ -39,9 +40,11 @@ export function EvolucionItem({ item, editando, guardando, onEditar, onGuardar, 
       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
         <span className="text-sm font-bold text-stone-900 capitalize">{fechaLarga(item.fecha)}</span>
         {item.hora && <span className="text-xs text-stone-600 bg-stone-50 border border-stone-200 px-2 py-0.5 rounded">{item.hora} hs</span>}
-        <span className="text-xs font-semibold text-stone-400 uppercase tracking-wider">
-          {item.tipo === 'tpa' ? 'TPA' : item.tipo === 'rpg' ? (item.sesion.tipo_sesion || 'RPG') : 'Nota'}
-        </span>
+        {item.tipo === 'rpg' ? <TipoTurnoChip tipo={item.sesion.tipo_sesion} /> : (
+          <span className="text-xs font-semibold text-stone-400 uppercase tracking-wider">
+            {item.tipo === 'tpa' ? 'TPA' : 'Nota'}
+          </span>
+        )}
         <span className="flex-1" />
         {item.tipo === 'tpa' && <EstadoTPA item={item} />}
         {item.tipo === 'rpg' && (

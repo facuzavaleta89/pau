@@ -62,12 +62,16 @@ Definidos **una sola vez** en `src/lib/estados.ts` (label, clases de color, íco
 | `realizada` | Realizada | `bg-emerald-50 text-emerald-700 border-emerald-200` | `CircleCheck` |
 | `cancelada` | Cancelada | `bg-stone-100 text-stone-500 border-stone-300` | `CircleX` |
 
+### Tipos de turno y actividad del paciente
+- **Tipo de turno** (`TIPOS_TURNO`, `ORDEN_TIPOS_TURNO`, `tipoTurno()`): RPG (`PersonStanding`), Masajes (`HandHeart`), Evaluación inicial (`ClipboardList`), en gris `bg-stone-50 text-stone-600 border-stone-200`, y **Clase domicilio** (`House`) en **violeta** `bg-violet-50 text-violet-700 border-violet-200`. El violeta es solo para domicilio. Un tipo desconocido se muestra en gris con su texto. Chip: `TipoTurnoChip`.
+- **Actividad** (`ACTIVIDADES`): RPG teal, TPA azul (`bg-blue-50 text-blue-700 border-blue-200`), Domicilio violeta.
+
 ### Pago (`ESTADOS_PAGO`)
 Los colores del calendario de Pau: **verde = pagó, rosa = todavía no pagó**, en toda la app (TPA, Pagos y RPG). El ámbar queda solo para "avisó" y para avisos.
 - pagado → badge `bg-emerald-50 text-emerald-700 border-emerald-200`, punto `bg-emerald-500`, ícono `CircleCheck`. Con fecha y medio: "Pagó el 5/11 · Efectivo" (`EstadoPagoChip`).
 - pendiente → badge `bg-pink-50 text-pink-700 border-pink-200`, punto `bg-pink-500`, ícono `Clock`. Pendiente que todavía no es deuda (sesión de RPG que no se hizo, sueltas sin nada para cobrar): gris `bg-stone-50 text-stone-500 border-stone-200`.
 - Importes siempre con `formatoPesos()` (`src/lib/pagos.ts`): "$50.000", igual en cualquier navegador. Cifras con `tabular-nums`.
-- En RPG el pago es **por sesión**: el texto es "Sesión: pagado / pendiente", nunca "Mes".
+- En los turnos individuales el pago es **por sesión**: el texto es "Sesión: pagado / pendiente", nunca "Mes".
 
 ### Alertas clínicas
 `bg-amber-50 text-amber-800 border-amber-200`, ícono `ShieldAlert`. **Sin `animate-pulse`**: una alerta que titila todo el tiempo cansa y pierde valor.
@@ -147,7 +151,7 @@ En pantallas < 768px los modales se muestran como **hoja desde abajo** (ancho co
 ### Layout general
 - Contenido con `px-4 py-6` en celular y `px-6 py-8` en compu, centrado con `max-w-7xl mx-auto`.
 - La columna de contenido lleva `min-w-0`: sin eso, cualquier hijo ancho estira la página y aparece el desplazamiento lateral.
-- Barra inferior del celular con `pb-[env(safe-area-inset-bottom)]` y textos cortos (`RPG`, `TPA`, `Pacientes`, `Pagos`) en `text-xs`.
+- Barra inferior del celular con `pb-[env(safe-area-inset-bottom)]` y textos cortos (`Hoy`, `Turnos`, `TPA`, `Pacientes`, `Pagos`) en `text-xs`.
 - **Sin conexión:** franja `bg-amber-50 text-amber-800 border-amber-200` con ícono `WifiOff` debajo del Header: "Sin conexión. Lo que ves puede no estar actualizado y no se puede guardar."
 - **Carga y error** (`EstadoCarga`): spinner teal mientras carga; si falla, card con borde rojo, **el mismo mensaje del Toast** (lo guarda `useDatos`: "No se pudo cargar la agenda TPA. Falta aplicar un cambio en la base de datos. Avisale a Facu.") y botón "Reintentar". Nunca una lista vacía que parezca "no hay datos".
 - Navegación de semana/mes (`SemanaNav`): ‹ · etiqueta · Hoy · ›, botones de 44px, sobre `bg-stone-100 rounded-xl`.
@@ -170,10 +174,17 @@ En pantallas < 768px los modales se muestran como **hoja desde abajo** (ancho co
 ### Salir
 - Botón de ícono `LogOut` (44 × 44 px) en el Header, en celular y desktop, con `aria-label="Salir"`. Sin confirmación: salir no pierde datos y volver a entrar es rápido.
 
-### Agenda RPG
-- **Desktop:** calendario mensual (lunes a domingo, martes y jueves resaltados).
-- **Celular** (`RpgSemanaLista`): la semana como **lista por día**: martes y jueves siempre (otro día solo si tiene turnos), con "+ Turno" por día y navegación por semana. El calendario mensual no se muestra en celular.
-- Turno (`TurnoCard`): hora, nombre (tocable → historia clínica), tipo de sesión, punto de pago (verde / rosa), color e ícono del estado.
+### Hoy (`/hoy`, `PantallaHoy`)
+- Entrada de la app (`/` y después del login). Título "Hoy" y la fecha. Se actualiza sola si queda abierta de un día para el otro (`useAhora`, hora argentina).
+- **Cumpleaños:** los de hoy en cards `bg-teal-50 border-teal-200` con `Cake` ("Hoy cumple 40 años", tocar → historia clínica). Debajo, en `text-sm`, "Próximos 7 días: Ana (mañana, 30) · …". Nacido un 29/02: en años comunes, el 28/02.
+- **Turnos individuales:** `TurnoCard` en grilla (4 columnas en la compu) y "+ Turno".
+- **Clases de TPA:** `TpaHorarioCard` (3 columnas en la compu) con el mismo modal. Si ya terminó y no tiene ninguna asistencia, arriba de la card: "Ya terminó: falta registrar la asistencia" en `text-amber-700`.
+
+### Turnos individuales (`/rpg`, menú "Turnos")
+- **Desktop:** calendario mensual, lunes a domingo, con "+" en **todos** los días (fin de semana con fondo apenas gris).
+- **Celular** (`RpgSemanaLista`): los **7 días** de la semana, cada uno con "+ Turno". Un día sin turnos ocupa una sola línea. El calendario mensual no se muestra en celular.
+- Turno (`TurnoCard`): hora, nombre (tocable → historia clínica), tipo con su ícono, punto de pago (verde / rosa), color e ícono del estado. **Clase domicilio: card violeta** (cancelada: gris, como cualquier cancelada); realizada, con el ícono en verde.
+- En el modal, **Tipo de turno** son 4 botones de 44px con ícono (2 × 2).
 - En el modal del turno, con Pago = Pagado aparece **Medio de pago** (Transferencia / Efectivo); el importe y la fecha se ven y se corrigen en Pagos.
 
 ### Pestañas de una pantalla (`Pestanias`, `src/components/ui/`)
@@ -211,8 +222,8 @@ En pantallas < 768px los modales se muestran como **hoja desde abajo** (ancho co
 ### Pagos del mes (`/pagos`, `PagosDelMes`)
 - Arriba: navegación de mes y **"Copiar pendientes"** (botón secundario con `Copy`; texto para WhatsApp; sin portapapeles, modal con el texto para copiar a mano, como en Recuperaciones).
 - **Cuatro cifras** (`PagosCifras`), cards blancas en 2 columnas en el celular y 4 en la compu: Cobrado (`text-emerald-700`) · Falta cobrar (`text-pink-700`) · Total del mes · Efectivo / Transferencia (y "Sin medio (RPG)" en gris si hay).
-- **Precios** en una línea ("1 vez $50.000 · 2 veces $80.000 · … · RPG $46.000") con "Editar"; si son heredados, la franja ámbar de arriba con "Cargar precios de noviembre".
-- Secciones (`TablaPagos`), con **título de sección visible** (`text-base font-semibold text-stone-900`) y el detalle al lado en gris: **Cuotas TPA por plan** ("Cuotas TPA · 1 vez por semana" · "pagaron 2 de 3"; solo los planes con alumnos): Alumno · Horarios · Estado · Importe · Cobrar/Ver), **Clases sueltas TPA** (Persona · Clases "× 3 (vino 3 · 1 no vino)" · Estado · Importe · Cobrar/Ver) y **RPG** (Paciente · Fecha · Tipo · Estado · Importe · Cobrar/Ver). Al pie de cada una, "Cobrado $X · Falta cobrar $Y". **Clases sueltas** y **RPG** se muestran siempre: sin filas, caja punteada con cómo se cargan ("Se anotan desde TPA → Semana → Ocupar lugar → Clase suelta"). Compu: tabla `bg-white border-stone-200 rounded-xl`; celular: una card por fila con los datos en dos columnas y el botón de ancho completo (44px). Botón "Cobrar" primario teal; "Ver" (ya pagado) secundario.
+- **Precios** en una línea ("1 vez $50.000 · 2 veces $80.000 · … · RPG $46.000 · domicilio igual que RPG") con "Editar". Si hay clases a domicilio sin precio del mes, franja ámbar "1 clase a domicilio se cuenta con el precio de RPG" con **"Cargar precio de domicilio"**, y el mismo aviso al cobrarla; si son heredados, la franja ámbar de arriba con "Cargar precios de noviembre".
+- Secciones (`TablaPagos`), con **título de sección visible** (`text-base font-semibold text-stone-900`) y el detalle al lado en gris: **Cuotas TPA por plan** ("Cuotas TPA · 1 vez por semana" · "pagaron 2 de 3"; solo los planes con alumnos): Alumno · Horarios · Estado · Importe · Cobrar/Ver), **Clases sueltas TPA** (Persona · Clases "× 3 (vino 3 · 1 no vino)" · Estado · Importe · Cobrar/Ver) y **Turnos individuales** (Paciente · Fecha · Tipo con su chip · Estado · Importe · Cobrar/Ver; cada turno vale según su tipo). Al pie de cada una, "Cobrado $X · Falta cobrar $Y". **Clases sueltas** y **Turnos individuales** se muestran siempre: sin filas, caja punteada con cómo se cargan ("Se anotan desde TPA → Semana → Ocupar lugar → Clase suelta"). Compu: tabla `bg-white border-stone-200 rounded-xl`; celular: una card por fila con los datos en dos columnas y el botón de ancho completo (44px). Botón "Cobrar" primario teal; "Ver" (ya pagado) secundario.
 - Nombre tocable → historia clínica.
 
 ### Registro rápido de asistencia (modal)
@@ -245,13 +256,14 @@ En pantallas < 768px los modales se muestran como **hoja desde abajo** (ancho co
 - **Adelantos** y **Sin derecho a recuperar**: listas informativas en una card. "Adelantó y no faltó en octubre: decidís vos" en `text-amber-700`.
 
 ### Pacientes (`/pacientes`)
+- En la ficha, **Fecha de nacimiento** junto a la edad: con fecha, la edad se calcula sola y su campo queda deshabilitado ("Se calcula con la fecha"); sin fecha, se escribe a mano. **Actividad:** casillas RPG · TPA · Domicilio (`CampoActividades`, una o más, 44px, la marcada con su color).
 - Encabezado: título, y a la derecha **"Descargar copia"** (botón secundario con `Download`; mientras arma el archivo, `Loader2` y "Preparando la copia…") con una línea debajo: "Última copia en esta compu: 13/11/2026 (hoy)" en `text-xs text-stone-500`; si nunca se hizo o pasó más de una semana, en `text-amber-700 font-medium` con `AlertTriangle`. Al lado, **"Nuevo paciente"** (primario).
 - Pestañas (`Pestanias`) **Activos (N) · Dados de baja (M)** y al lado el buscador. En "Dados de baja", debajo del nombre "Dado de baja el 13/11/2026" en lugar de la edad.
 - **Dar de baja** (`DarDeBajaDialog`, `ConfirmDialog` no peligroso): qué pasa (deja las listas, la historia y los pagos quedan, los horarios fijos se cierran en esa fecha) y el campo **Fecha de baja** (hoy por defecto).
 - **Eliminar** (desde "Editar ficha", botón danger): si tiene **cualquier dato**, no se elimina: "X tiene historial" con lo que tiene ("3 turnos RPG, 12 asistencias TPA…") y el botón **"Dar de baja"**. Solo sin ningún dato: `ConfirmDialog` danger "Eliminar definitivamente".
 
 ### Historia clínica
-- Encabezado con nombre, edad, tipo (RPG/TPA), alertas activas y teléfono tocable (`tel:` / WhatsApp). La alerta de faltas es un chip `ALERTA_FALTAS.clases` ("2 faltas seguidas sin avisar") que lleva a Evolución.
+- Encabezado con nombre, edad, actividad (RPG · TPA · Domicilio), alertas activas y teléfono tocable (`tel:` / WhatsApp). La alerta de faltas es un chip `ALERTA_FALTAS.clases` ("2 faltas seguidas sin avisar") que lleva a Evolución.
 - Pestañas: **Ficha** · **Evolución** (desde la entrega 4; la de Alertas por palabra clave se sacó). En la compu, columna a la izquierda; en el celular, dos pestañas de ancho igual arriba. La activa `bg-teal-600 text-white`.
 - **Evolución:** arriba la alerta (franja `ALERTA_FALTAS.clases` con `OctagonAlert`), el resumen del mes en una card blanca con `CalendarCheck` teal ("Octubre: 3 faltas avisadas, 1 recuperada, le queda 1") y el botón primario **"+ Nota"** (nota libre: fecha + `textarea` de 4 líneas, "Cancelar" / "Guardar nota"). Debajo, la línea de tiempo (lo más nuevo arriba): una card por clase de TPA (fecha, hora, "TPA", chip del estado; la nota de esa clase adentro), por nota libre ("Nota") y por sesión de RPG (tipo, chips de sesión y pago, su nota en gris). Las notas de evolución en una caja `bg-teal-50/40 border-teal-100` con `NotebookPen`, lápiz para editar y tacho (`Trash2`, hover rojo) para borrar con `ConfirmDialog` danger.
 - La ficha se **edita en el mismo lugar** (no hay que ir a otra pantalla).

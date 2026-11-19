@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from 'react';
 import { Edit2, FileText, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { textoBaja } from '@/lib/pacientes';
+import { ACTIVIDADES } from '@/lib/estados';
+import { actividadesDe, textoBaja, textoEdad } from '@/lib/pacientes';
+import { hoyArgentina } from '@/lib/pagos';
 import type { Paciente } from '@/types';
 
 interface PacientesTablaProps {
@@ -13,6 +16,8 @@ interface PacientesTablaProps {
 
 // Listado de pacientes para la compu (en el celular se usa PacientesListaCelular).
 export function PacientesTabla({ pacientes, onAbrirHistoria, onEditar }: PacientesTablaProps) {
+  const [hoy] = useState(() => hoyArgentina(new Date()));
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left border-collapse">
@@ -40,7 +45,7 @@ export function PacientesTabla({ pacientes, onAbrirHistoria, onEditar }: Pacient
                   <div>
                     <div className="text-sm font-semibold text-stone-900 group-hover:text-teal-600 transition-colors">{paciente.nombre}</div>
                     <div className="text-xs text-stone-500 mt-0.5">
-                      {paciente.activo ? (paciente.edad ? `${paciente.edad} años` : 'Edad no registrada') : textoBaja(paciente)}
+                      {paciente.activo ? textoEdad(paciente, hoy) : textoBaja(paciente)}
                     </div>
                   </div>
                 </div>
@@ -61,17 +66,17 @@ export function PacientesTabla({ pacientes, onAbrirHistoria, onEditar }: Pacient
                 </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
-                {paciente.tipo_clase ? (
-                  <span className={cn(
-                    "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border uppercase tracking-wider shadow-sm",
-                    paciente.tipo_clase === 'RPG' 
-                      ? "bg-teal-50 text-teal-700 border-teal-200" 
-                      : paciente.tipo_clase === 'TPA' 
-                        ? "bg-blue-50 text-blue-700 border-blue-200"
-                        : "bg-purple-50 text-purple-700 border-purple-200"
-                  )}>
-                    {paciente.tipo_clase}
-                  </span>
+                {actividadesDe(paciente).length > 0 ? (
+                  <div className="flex items-center gap-1">
+                    {actividadesDe(paciente).map((actividad) => (
+                      <span key={actividad} className={cn(
+                        "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border uppercase tracking-wider shadow-sm",
+                        ACTIVIDADES[actividad].clases
+                      )}>
+                        {ACTIVIDADES[actividad].label}
+                      </span>
+                    ))}
+                  </div>
                 ) : (
                   <span className="text-xs text-stone-400">--</span>
                 )}

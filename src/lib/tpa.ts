@@ -1,9 +1,9 @@
-import { addDays, format, isWeekend, nextMonday, parseISO, startOfWeek } from 'date-fns';
+import { addDays, addMinutes, format, isWeekend, nextMonday, parseISO, startOfWeek } from 'date-fns';
 import type {
   AlumnoCeldaTPA, AsistenciaTPA, CeldaTPA, ClaseTPA, DiaSemana, HorarioTPA, LugaresTPA, NotaEvolucion, SemanaTPA,
   TipoAsistenciaTPA,
 } from '@/types';
-import { esAviso } from './avisos';
+import { esAviso, inicioClaseTPA } from './avisos';
 import { normalizarHora } from './horas';
 
 // ---------------------------------------------------------------------
@@ -186,6 +186,22 @@ export function armarSemanaTPA(inicioSemana: Date, datos: DatosSemanaTPA): Seman
     semana[dia] = [...horas].sort().map((hora) => armarCelda(dia, fecha, hora, datos));
   }
   return semana;
+}
+
+/** Clases de TPA de una fecha ('yyyy-MM-dd'); ninguna si ese día no hay TPA. */
+export function clasesDelDia(fecha: string, datos: DatosSemanaTPA): CeldaTPA[] {
+  const dia = diaSemanaDeFecha(fecha);
+  return dia ? armarSemanaTPA(inicioDeSemana(parseISO(fecha)), datos)[dia] : [];
+}
+
+/** Las clases de Pau duran una hora: empiezan cada hora (REQUISITOS.md). */
+const DURACION_CLASE_MINUTOS = 60;
+
+/** Clase que ya terminó, con alumnos y sin ninguna asistencia cargada (no cuenta si se canceló). */
+export function claseSinRegistrar(celda: CeldaTPA, ahora: Date): boolean {
+  if (celda.clase?.motivo_cancelacion || celda.alumnos.length === 0) return false;
+  if (addMinutes(inicioClaseTPA(celda.fecha, celda.hora), DURACION_CLASE_MINUTOS) > ahora) return false;
+  return celda.alumnos.every((a) => a.asistencia === null);
 }
 
 /**

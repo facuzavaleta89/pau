@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Calendar, Users, CreditCard, LayoutGrid } from 'lucide-react';
+import { Calendar, Users, CreditCard, LayoutGrid, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
-  { name: 'Agenda RPG', corto: 'RPG', href: '/rpg', icon: Calendar },
+  { name: 'Hoy', corto: 'Hoy', href: '/hoy', icon: Sun },
+  { name: 'Turnos individuales', corto: 'Turnos', href: '/rpg', icon: Calendar },
   { name: 'Agenda TPA', corto: 'TPA', href: '/tpa', icon: LayoutGrid },
   { name: 'Pacientes', corto: 'Pacientes', href: '/pacientes', icon: Users },
   { name: 'Pagos', corto: 'Pagos', href: '/pagos', icon: CreditCard },

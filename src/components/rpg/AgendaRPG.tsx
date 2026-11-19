@@ -16,7 +16,7 @@ import { TurnoModal } from './TurnoModal';
 
 const SEMANA = { weekStartsOn: 1 } as const;
 
-// Agenda RPG: calendario mensual en la compu, lista de la semana en el celular.
+// Turnos individuales: calendario mensual en la compu, lista de la semana en el celular.
 // Carga los turnos del rango visible y maneja los modales de turno e historia.
 export function AgendaRPG() {
   const esCelular = useEsCelular();
@@ -34,7 +34,7 @@ export function AgendaRPG() {
   const { datos, cargando, error, recargar } = useDatos(
     esCelular === null ? null : `${desdeStr}_${hastaStr}`,
     cargar,
-    'No se pudo cargar la agenda RPG.'
+    'No se pudieron cargar los turnos.'
   );
 
   const acciones = {

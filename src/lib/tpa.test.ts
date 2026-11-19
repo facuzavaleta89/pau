@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { parseISO } from 'date-fns';
 import type { AsistenciaTPA, ClaseTPA, DiaSemana, HorarioTPA, MotivoCancelacionTPA } from '@/types';
 import {
-  armarSemanaTPA, celdasEntre, contarLugares, diaSemanaDeFecha, diaTPAInicial, eraFijoEn, HORARIOS_TPA, textoLugares,
-  type DatosSemanaTPA,
+  armarSemanaTPA, celdasEntre, claseSinRegistrar, clasesDelDia, contarLugares, diaSemanaDeFecha, diaTPAInicial, eraFijoEn,
+  HORARIOS_TPA, textoLugares, type DatosSemanaTPA,
 } from './tpa';
 
 // Semana del lunes 19/10/2026 (miércoles 21, viernes 23).
@@ -342,5 +342,48 @@ describe('diaSemanaDeFecha y celdasEntre', () => {
     const celdas = celdasEntre('2026-10-30', '2026-11-02', { horarios: [], clases: [], asistencias: [] });
     expect([...new Set(celdas.map((c) => c.fecha))]).toEqual(['2026-10-30', '2026-11-02']);
     expect(celdas.filter((c) => c.fecha === '2026-10-30')).toHaveLength(HORARIOS_TPA.viernes.length);
+  });
+});
+
+describe('clasesDelDia', () => {
+  const datos = { horarios: [horario('Ana', 'miercoles', '10:30')], clases: [], asistencias: [] };
+
+  it('un día de TPA: sus horarios, con los fijos de esa fecha', () => {
+    const clases = clasesDelDia('2026-10-21', datos);
+    expect(clases.map((c) => c.hora)).toEqual(HORARIOS_TPA.miercoles);
+    expect(clases[0].alumnos.map((a) => a.nombre)).toEqual(['Ana']);
+    expect(clases.every((c) => c.fecha === '2026-10-21')).toBe(true);
+  });
+
+  it('martes, jueves y fin de semana: ninguna', () => {
+    expect(clasesDelDia('2026-10-20', datos)).toEqual([]);
+    expect(clasesDelDia('2026-10-22', datos)).toEqual([]);
+    expect(clasesDelDia('2026-10-25', datos)).toEqual([]);
+  });
+});
+
+describe('claseSinRegistrar', () => {
+  // Miércoles 21/10 a las 10:30 de Argentina (13:30 UTC).
+  const celdaCon = (extra: Partial<DatosSemanaTPA>) => clasesDelDia('2026-10-21', {
+    horarios: [horario('Ana', 'miercoles', '10:30')], clases: [], asistencias: [], ...extra,
+  })[0];
+
+  it('terminó y nadie está marcado: sí', () => {
+    expect(claseSinRegistrar(celdaCon({}), new Date('2026-10-21T14:30:00Z'))).toBe(true);
+  });
+
+  it('todavía no empezó o está en curso: no', () => {
+    expect(claseSinRegistrar(celdaCon({}), new Date('2026-10-21T13:00:00Z'))).toBe(false);
+    expect(claseSinRegistrar(celdaCon({}), new Date('2026-10-21T14:29:00Z'))).toBe(false);
+  });
+
+  it('con alguna asistencia cargada: no', () => {
+    const c = clase('2026-10-21', '10:30');
+    expect(claseSinRegistrar(celdaCon({ clases: [c], asistencias: [asistencia(c, 'Ana', 'presente')] }), new Date('2026-10-21T15:00:00Z'))).toBe(false);
+  });
+
+  it('cancelada o sin alumnos: no', () => {
+    expect(claseSinRegistrar(celdaCon({ clases: [clase('2026-10-21', '10:30', 'feriado')] }), new Date('2026-10-21T15:00:00Z'))).toBe(false);
+    expect(claseSinRegistrar(celdaCon({ horarios: [] }), new Date('2026-10-21T15:00:00Z'))).toBe(false);
   });
 });

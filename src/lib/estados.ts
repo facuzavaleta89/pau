@@ -1,10 +1,10 @@
 import {
-  ArrowLeftRight, Ban, Check, CircleCheck, CircleDashed, CircleHelp, CircleX, Clock, MessageSquare,
-  MessageSquareWarning, NotebookPen, OctagonAlert, RotateCcw, SquareDashed, Ticket, X,
+  ArrowLeftRight, Ban, Check, CircleCheck, CircleDashed, CircleHelp, CircleX, ClipboardList, Clock, HandHeart, House,
+  MessageSquare, MessageSquareWarning, NotebookPen, OctagonAlert, PersonStanding, RotateCcw, SquareDashed, Tag, Ticket, Users, X,
   type LucideIcon,
 } from 'lucide-react';
 import type {
-  EstadoAsistenciaTPA, EstadoPago, EstadoSesionRPG, MotivoCancelacionTPA, TipoAsistenciaTPA,
+  Actividad, EstadoAsistenciaTPA, EstadoPago, EstadoSesionRPG, MotivoCancelacionTPA, TipoAsistenciaTPA, TipoTurno,
 } from '@/types';
 
 // Única fuente de etiquetas, colores e íconos de estados (ver DESIGN.md).
@@ -99,7 +99,49 @@ export function etiquetaAsistencia(estado: string, tipo: TipoAsistenciaTPA): str
 }
 
 // ---------------------------------------------------------------------
-// RPG
+// Turnos individuales (RPG, masajes, evaluación inicial, clase a domicilio)
+// ---------------------------------------------------------------------
+
+/** Violeta = domicilio, en toda la app (ningún estado usa este color). */
+const COLOR_DOMICILIO = 'bg-violet-50 text-violet-700 border-violet-200';
+const COLOR_TIPO_NEUTRO = 'bg-stone-50 text-stone-600 border-stone-200';
+
+// La clave es el texto que se guarda en sesiones_rpg.tipo_sesion: los turnos
+// existentes dicen "RPG" y la app de main muestra ese texto tal cual.
+export const TIPOS_TURNO: Record<TipoTurno, ConfigEstado> = {
+  RPG:                  { label: 'RPG',                clases: COLOR_TIPO_NEUTRO, icono: PersonStanding },
+  Masajes:              { label: 'Masajes',            clases: COLOR_TIPO_NEUTRO, icono: HandHeart },
+  'Evaluación inicial': { label: 'Evaluación inicial', clases: COLOR_TIPO_NEUTRO, icono: ClipboardList },
+  'Clase domicilio':    { label: 'Clase domicilio',    clases: COLOR_DOMICILIO,   icono: House },
+};
+
+export const ORDEN_TIPOS_TURNO: TipoTurno[] = ['RPG', 'Masajes', 'Evaluación inicial', 'Clase domicilio'];
+
+export function esDomicilio(tipo: string | null | undefined): boolean {
+  return tipo === 'Clase domicilio';
+}
+
+/** Configuración de un tipo leído de la base. Sin tipo = RPG; uno desconocido se muestra con su texto. */
+export function tipoTurno(tipo: string | null | undefined): ConfigEstado {
+  const valor = tipo || 'RPG';
+  if (Object.prototype.hasOwnProperty.call(TIPOS_TURNO, valor)) return TIPOS_TURNO[valor as TipoTurno];
+  return { label: valor, clases: COLOR_TIPO_NEUTRO, icono: Tag };
+}
+
+// ---------------------------------------------------------------------
+// Actividad del paciente
+// ---------------------------------------------------------------------
+
+export const ACTIVIDADES: Record<Actividad, ConfigEstado & { detalle?: string }> = {
+  RPG:       { label: 'RPG',       detalle: 'individual', clases: 'bg-teal-50 text-teal-700 border-teal-200', icono: PersonStanding },
+  TPA:       { label: 'TPA',       detalle: 'grupal',     clases: 'bg-blue-50 text-blue-700 border-blue-200', icono: Users },
+  Domicilio: { label: 'Domicilio',                       clases: COLOR_DOMICILIO,                           icono: House },
+};
+
+export const ORDEN_ACTIVIDADES: Actividad[] = ['RPG', 'TPA', 'Domicilio'];
+
+// ---------------------------------------------------------------------
+// Estado de una sesión individual
 // ---------------------------------------------------------------------
 
 export const ESTADOS_SESION_RPG: Record<EstadoSesionRPG, ConfigEstado> = {

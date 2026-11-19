@@ -2,7 +2,7 @@
 
 import type { SesionRPG } from '@/types';
 import { cn } from '@/lib/utils';
-import { ESTADOS_PAGO, ESTADOS_SESION_RPG } from '@/lib/estados';
+import { ESTADOS_PAGO, ESTADOS_SESION_RPG, esDomicilio, tipoTurno } from '@/lib/estados';
 
 interface TurnoCardProps {
   turno: SesionRPG;
@@ -10,25 +10,35 @@ interface TurnoCardProps {
   onPacienteClick: (e: React.MouseEvent) => void;
 }
 
+// Un turno individual. El color de la card es el de su estado; la clase a
+// domicilio va siempre en violeta (salvo cancelada, que se ve apagada) y su
+// estado se lee en el ícono.
 export function TurnoCard({ turno, onClick, onPacienteClick }: TurnoCardProps) {
+  const estado = turno.estado_sesion ?? 'pendiente';
   const pago = ESTADOS_PAGO[turno.estado_pago ?? 'pendiente'];
-  const sesion = ESTADOS_SESION_RPG[turno.estado_sesion ?? 'pendiente'];
+  const sesion = ESTADOS_SESION_RPG[estado];
+  const tipo = tipoTurno(turno.tipo_sesion);
+  const domicilio = esDomicilio(turno.tipo_sesion) && estado !== 'cancelada';
   const StatusIcon = sesion.icono;
+  const TipoIcon = tipo.icono;
 
   return (
-    <div 
+    <div
       onClick={onClick}
       className={cn(
         "group relative flex flex-col p-3 rounded-xl border transition-all duration-150 cursor-pointer shadow-sm hover:shadow-md",
-        sesion.clases
+        domicilio ? tipo.clases : sesion.clases
       )}
     >
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center space-x-1.5 text-xs font-semibold">
-          <StatusIcon className="w-3.5 h-3.5" aria-label={sesion.label} />
+          <StatusIcon
+            className={cn("w-3.5 h-3.5", domicilio && estado === 'realizada' && "text-emerald-600")}
+            aria-label={sesion.label}
+          />
           <span>{turno.hora}</span>
         </div>
-        <div 
+        <div
           className={cn(
             "w-2.5 h-2.5 rounded-full shadow-sm shrink-0",
             pago.punto
@@ -37,8 +47,8 @@ export function TurnoCard({ turno, onClick, onPacienteClick }: TurnoCardProps) {
           aria-label={`Sesión: ${pago.label.toLowerCase()}`}
         />
       </div>
-      
-      <div 
+
+      <div
         onClick={(e) => {
           e.stopPropagation();
           onPacienteClick(e);
@@ -47,12 +57,11 @@ export function TurnoCard({ turno, onClick, onPacienteClick }: TurnoCardProps) {
       >
         {turno.pacientes?.nombre || 'Paciente sin nombre'}
       </div>
-      
-      {turno.tipo_sesion && (
-        <div className="text-xs mt-1 text-stone-500 truncate font-medium">
-          {turno.tipo_sesion}
-        </div>
-      )}
+
+      <div className={cn("text-xs mt-1 font-medium flex items-center gap-1 min-w-0", !domicilio && "text-stone-500")}>
+        <TipoIcon className="w-3 h-3 shrink-0" aria-hidden="true" />
+        <span className="truncate">{tipo.label}</span>
+      </div>
     </div>
   );
 }

@@ -12,7 +12,9 @@ import { format } from 'date-fns';
 import { cn, nuevoId } from '@/lib/utils';
 import { normalizarHora } from '@/lib/horas';
 import { hoyArgentina, MEDIOS_PAGO, ORDEN_MEDIOS_PAGO } from '@/lib/pagos';
-import { ESTADOS_PAGO, ESTADOS_SESION_RPG, ORDEN_ESTADOS_PAGO, ORDEN_ESTADOS_SESION_RPG } from '@/lib/estados';
+import {
+  ESTADOS_PAGO, ESTADOS_SESION_RPG, ORDEN_ESTADOS_PAGO, ORDEN_ESTADOS_SESION_RPG, ORDEN_TIPOS_TURNO, esDomicilio, tipoTurno,
+} from '@/lib/estados';
 
 interface TurnoModalProps {
   onClose: () => void;
@@ -33,7 +35,7 @@ export function TurnoModal({ onClose, turno, selectedDate, onSave }: TurnoModalP
   const [pacienteId, setPacienteId] = useState(turno?.paciente_id ?? '');
   const [fecha, setFecha] = useState(() => turno?.fecha ?? format(selectedDate ?? new Date(), 'yyyy-MM-dd'));
   const [hora, setHora] = useState(turno ? normalizarHora(turno.hora) : '09:00');
-  const [tipoSesion] = useState(turno?.tipo_sesion || 'RPG'); // todavía sin campo para cambiarlo (PENDIENTES, RPG)
+  const [tipoSesion, setTipoSesion] = useState<string>(turno?.tipo_sesion || 'RPG');
   const [estadoPago, setEstadoPago] = useState<EstadoPago>(turno?.estado_pago ?? 'pendiente');
   const [estadoSesion, setEstadoSesion] = useState<EstadoSesionRPG>(turno?.estado_sesion ?? 'pendiente');
   const [medioPago, setMedioPago] = useState<MedioPago>(turno?.medio_pago ?? 'transferencia');
@@ -84,6 +86,9 @@ export function TurnoModal({ onClose, turno, selectedDate, onSave }: TurnoModalP
     }
   };
 
+  // Un tipo viejo que no está en la lista se conserva como opción: no se pierde al editar.
+  const tipos: string[] = ORDEN_TIPOS_TURNO.some((t) => t === tipoSesion) ? ORDEN_TIPOS_TURNO : [...ORDEN_TIPOS_TURNO, tipoSesion];
+
   const pie = (
     <>
       <button type="button" onClick={onClose} className={BOTON_PIE_SECUNDARIO}>
@@ -101,7 +106,7 @@ export function TurnoModal({ onClose, turno, selectedDate, onSave }: TurnoModalP
   );
 
   return (
-    <Modal titulo={turno ? 'Editar turno RPG' : 'Nuevo turno RPG'} onCerrar={onClose} pie={pie} ancho="md">
+    <Modal titulo={turno ? 'Editar turno' : 'Nuevo turno'} onCerrar={onClose} pie={pie} ancho="md">
         <form id="turno-form" onSubmit={handleSubmit} className="p-4 md:p-6 space-y-5 text-base md:text-sm">
           
           <div className="space-y-1.5">
@@ -123,6 +128,25 @@ export function TurnoModal({ onClose, turno, selectedDate, onSave }: TurnoModalP
                 <option value={turno.paciente_id}>{turno.pacientes?.nombre ?? 'Paciente'} (dado de baja)</option>
               )}
             </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <span className="text-sm font-semibold text-stone-600">Tipo de turno</span>
+            <div role="radiogroup" aria-label="Tipo de turno" className="grid grid-cols-2 gap-2">
+              {tipos.map((valor) => {
+                const { label, clases, icono: Icono } = tipoTurno(valor);
+                const activo = tipoSesion === valor;
+                return (
+                  <button key={valor} type="button" role="radio" aria-checked={activo} onClick={() => setTipoSesion(valor)}
+                    className={cn('min-h-11 px-3 flex items-center gap-2 rounded-lg border text-sm font-medium text-left transition-colors duration-150',
+                      !activo && 'bg-white border-stone-200 text-stone-700 hover:border-stone-300',
+                      activo && 'ring-1 ring-current',
+                      activo && (esDomicilio(valor) ? clases : 'bg-teal-50 border-teal-500 text-teal-800'))}>
+                    <Icono size={16} className="shrink-0" aria-hidden="true" /> {label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

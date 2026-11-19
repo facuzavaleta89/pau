@@ -1,10 +1,10 @@
 import { supabase } from './supabase';
 import { ErrorApp } from './errores';
 import { normalizarHora } from './horas';
-import type { DatosSemanaTPA } from './tpa';
+import { inicioDeSemana, type DatosSemanaTPA } from './tpa';
 import type { DatosRecuperaciones } from './recuperaciones';
 import type { ClaseAGuardar } from './clase-tpa';
-import { format } from 'date-fns';
+import { addDays, format, parseISO } from 'date-fns';
 import type { FilaAlerta } from './alertas';
 import { TABLAS_COPIA, type TablaCopia } from './copia';
 import type { AsistenciaSuelta, DatosPagosMes, Mes } from './pagos';
@@ -275,6 +275,24 @@ export async function getHorariosTPA(pacienteId?: string) {
 
   if (error) throw error;
   return ((data || []) as HorarioTPA[]).map(conHora);
+}
+
+export interface DatosHoy {
+  pacientes: Paciente[];
+  sesiones: SesionRPG[];
+  /** La semana de esa fecha: las clases del día salen de clasesDelDia (src/lib/tpa.ts). */
+  semana: DatosSemanaTPA;
+}
+
+// Pantalla Hoy: cumpleaños (pacientes activos), turnos individuales y clases de TPA de esa fecha.
+export async function cargarHoy(hoy: string): Promise<DatosHoy> {
+  const lunes = inicioDeSemana(parseISO(hoy));
+  const [pacientes, sesiones, semana] = await Promise.all([
+    getPacientesActivos(),
+    getSesionesRPGPorRango(hoy, hoy),
+    cargarSemanaTPA(format(lunes, 'yyyy-MM-dd'), format(addDays(lunes, 6), 'yyyy-MM-dd')),
+  ]);
+  return { pacientes, sesiones, semana };
 }
 
 // Todo lo necesario para armar una semana de TPA (armarSemanaTPA).

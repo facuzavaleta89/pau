@@ -1,4 +1,9 @@
+/** Columna vieja pacientes.tipo_clase: la reemplaza `actividades` (se mantienen iguales con un trigger). */
 export type TipoClase = 'RPG' | 'TPA' | 'ambos';
+/** Qué hace el paciente (una o más). Etiquetas y colores: ACTIVIDADES en src/lib/estados.ts. */
+export type Actividad = 'RPG' | 'TPA' | 'Domicilio';
+/** Tipo de un turno individual (sesiones_rpg.tipo_sesion). Etiquetas y colores: TIPOS_TURNO en src/lib/estados.ts. */
+export type TipoTurno = 'RPG' | 'Masajes' | 'Evaluación inicial' | 'Clase domicilio';
 export type EstadoPago = 'pagado' | 'pendiente';
 export type EstadoSesionRPG = 'realizada' | 'cancelada' | 'pendiente';
 export type DiaSemana = 'lunes' | 'miercoles' | 'viernes';
@@ -20,7 +25,10 @@ export type MotivoCancelacionTPA = 'feriado' | 'cancelada_por_pau';
 export interface Paciente {
   id: string;
   nombre: string;
+  /** Edad cargada a mano: vale solo si no hay fecha de nacimiento (ver edadDe en src/lib/pacientes.ts). */
   edad: number | null;
+  /** 'yyyy-MM-dd' (migración 20261118000001). */
+  fecha_nacimiento?: string | null;
   telefono: string | null;
   telefono_emergencia: string | null;
   direccion: string | null;
@@ -32,6 +40,8 @@ export interface Paciente {
   evaluacion_inicial: string | null;
   objetivo_tratamiento: string | null;
   tipo_clase: TipoClase | null;
+  /** Leer con actividadesDe() (src/lib/pacientes.ts): una copia vieja restaurada puede traerla vacía. */
+  actividades?: Actividad[] | null;
   /** false = dado de baja (archivado): no aparece en las listas para elegir; su historia queda. */
   activo: boolean;
   /** Desde qué día está dado de baja (migración 20261114000001); null si está activo. */
@@ -133,6 +143,8 @@ export interface PreciosMes {
   tpa_3_veces: number;
   tpa_suelta: number;
   rpg_sesion: number;
+  /** Clase a domicilio; null = se usa rpg_sesion, con aviso (migración 20261118000001). */
+  domicilio_sesion?: number | null;
 }
 
 /** Un pago de TPA ya hecho (pagos_tpa). Sin fila = pendiente. */

@@ -5,9 +5,12 @@ import { FileText, Save, Trash2, User } from 'lucide-react';
 import { createPaciente, updatePaciente } from '@/lib/queries';
 import { mensajeErrorAlGuardar, registrarError } from '@/lib/errores';
 import { nuevoId } from '@/lib/utils';
+import { actividadesDe, edadEn, fechaNacimientoValida } from '@/lib/pacientes';
+import { hoyArgentina } from '@/lib/pagos';
 import { useToast } from '@/components/ui/ToastProvider';
 import { Modal, BOTON_PIE_PRIMARIO, BOTON_PIE_SECUNDARIO } from '@/components/ui/Modal';
-import type { Paciente, TipoClase } from '@/types';
+import type { Actividad, Paciente } from '@/types';
+import { CampoActividades } from './CampoActividades';
 
 interface PacienteFormModalProps {
   /** null = paciente nuevo. */
@@ -21,7 +24,7 @@ type CampoTexto =
   | 'nombre' | 'telefono' | 'telefono_emergencia' | 'direccion' | 'profesion' | 'actividad_fisica'
   | 'motivo_consulta' | 'antecedentes_clinicos' | 'estudios_imagenologicos' | 'evaluacion_inicial' | 'objetivo_tratamiento';
 
-type Formulario = Record<CampoTexto, string> & { edad: string; tipo_clase: TipoClase };
+type Formulario = Record<CampoTexto, string> & { edad: string; fecha_nacimiento: string; actividades: Actividad[] };
 
 interface DefCampo {
   campo: CampoTexto;
@@ -56,6 +59,7 @@ function formularioInicial(p: Paciente | null): Formulario {
   return {
     nombre: p?.nombre ?? '',
     edad: p?.edad != null ? String(p.edad) : '',
+    fecha_nacimiento: p?.fecha_nacimiento ?? '',
     telefono: p?.telefono ?? '',
     telefono_emergencia: p?.telefono_emergencia ?? '',
     direccion: p?.direccion ?? '',
@@ -66,7 +70,7 @@ function formularioInicial(p: Paciente | null): Formulario {
     estudios_imagenologicos: p?.estudios_imagenologicos ?? '',
     evaluacion_inicial: p?.evaluacion_inicial ?? '',
     objetivo_tratamiento: p?.objetivo_tratamiento ?? '',
-    tipo_clase: p?.tipo_clase ?? 'RPG',
+    actividades: p ? actividadesDe(p) : ['RPG'],
   };
 }
 
@@ -78,8 +82,14 @@ export function PacienteFormModal({ paciente, onCerrar, onGuardado, onEliminar }
   const [guardando, setGuardando] = useState(false);
   // Id del paciente nuevo, fijo mientras el formulario está abierto: guardar de nuevo no lo duplica.
   const [idNuevo] = useState(nuevoId);
+  const [hoy] = useState(() => hoyArgentina(new Date()));
 
-  const cambiar = (campo: keyof Formulario, valor: string) => setForm((prev) => ({ ...prev, [campo]: valor }));
+  const cambiar = (campo: CampoTexto | 'edad' | 'fecha_nacimiento', valor: string) => setForm((prev) => ({ ...prev, [campo]: valor }));
+
+  // Con una fecha válida, la edad se calcula sola y no se escribe a mano.
+  const edadCalculada = form.fecha_nacimiento && fechaNacimientoValida(form.fecha_nacimiento, hoy)
+    ? edadEn(form.fecha_nacimiento, hoy)
+    : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,10 +98,21 @@ export function PacienteFormModal({ paciente, onCerrar, onGuardado, onEliminar }
       return;
     }
 
+    if (form.actividades.length === 0) {
+      toast.aviso('Elegí al menos una actividad.');
+      return;
+    }
+    if (form.fecha_nacimiento && !fechaNacimientoValida(form.fecha_nacimiento, hoy)) {
+      toast.aviso('Revisá la fecha de nacimiento: no puede ser futura ni anterior a 1900.');
+      return;
+    }
+
     const texto = (v: string) => v.trim() || null;
     const payload: Partial<Paciente> = {
       nombre: form.nombre.trim(),
-      edad: form.edad === '' ? null : Number(form.edad),
+      // Con fecha se guarda también la edad de hoy: la sigue leyendo la app de main.
+      edad: edadCalculada ?? (form.edad === '' ? null : Number(form.edad)),
+      fecha_nacimiento: form.fecha_nacimiento || null,
       telefono: texto(form.telefono),
       telefono_emergencia: texto(form.telefono_emergencia),
       direccion: texto(form.direccion),
@@ -102,7 +123,8 @@ export function PacienteFormModal({ paciente, onCerrar, onGuardado, onEliminar }
       estudios_imagenologicos: texto(form.estudios_imagenologicos),
       evaluacion_inicial: texto(form.evaluacion_inicial),
       objetivo_tratamiento: texto(form.objetivo_tratamiento),
-      tipo_clase: form.tipo_clase,
+      // tipo_clase lo mantiene la base (trigger de la migración 20261118000001).
+      actividades: form.actividades,
     };
 
     setGuardando(true);
@@ -160,28 +182,29 @@ export function PacienteFormModal({ paciente, onCerrar, onGuardado, onEliminar }
       <form id="form-paciente" onSubmit={handleSubmit} className="p-4 md:p-6 space-y-6">
         <section className="space-y-4">
           <h3 className={CLASE_SECCION}><User size={16} className="text-teal-600" /> Información personal</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div className="sm:col-span-2 space-y-1.5">
               <label htmlFor="paciente-nombre" className={CLASE_LABEL}>Nombre completo *</label>
               <input id="paciente-nombre" type="text" required autoComplete="off" value={form.nombre}
                 placeholder="Ej: Juan Pérez" onChange={(e) => cambiar('nombre', e.target.value)} className={CLASE_CAMPO} />
             </div>
             <div className="space-y-1.5">
+              <label htmlFor="paciente-nacimiento" className={CLASE_LABEL}>Fecha de nacimiento</label>
+              <input id="paciente-nacimiento" type="date" min="1900-01-01" max={hoy} value={form.fecha_nacimiento}
+                onChange={(e) => cambiar('fecha_nacimiento', e.target.value)} className={CLASE_CAMPO} />
+            </div>
+            <div className="space-y-1.5">
               <label htmlFor="paciente-edad" className={CLASE_LABEL}>Edad</label>
-              <input id="paciente-edad" type="number" inputMode="numeric" min={0} value={form.edad}
-                placeholder="Ej: 32" onChange={(e) => cambiar('edad', e.target.value)} className={CLASE_CAMPO} />
+              <input id="paciente-edad" type="number" inputMode="numeric" min={0} value={edadCalculada ?? form.edad}
+                disabled={edadCalculada !== null} aria-describedby={edadCalculada !== null ? 'paciente-edad-ayuda' : undefined}
+                placeholder="Ej: 32" onChange={(e) => cambiar('edad', e.target.value)}
+                className={`${CLASE_CAMPO} disabled:bg-stone-50 disabled:text-stone-600`} />
+              {edadCalculada !== null && <p id="paciente-edad-ayuda" className="text-xs text-stone-500">Se calcula con la fecha.</p>}
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {DATOS_PERSONALES.map(renderCampo)}
-            <div className="space-y-1.5">
-              <label htmlFor="paciente-tipo" className={CLASE_LABEL}>Clase asignada</label>
-              <select id="paciente-tipo" value={form.tipo_clase} onChange={(e) => cambiar('tipo_clase', e.target.value)} className={CLASE_CAMPO}>
-                <option value="RPG">RPG (individual)</option>
-                <option value="TPA">TPA (grupal)</option>
-                <option value="ambos">Ambos</option>
-              </select>
-            </div>
+            <CampoActividades valor={form.actividades} onCambiar={(actividades) => setForm((prev) => ({ ...prev, actividades }))} />
           </div>
         </section>
 

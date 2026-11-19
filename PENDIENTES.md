@@ -1,6 +1,6 @@
 # PENDIENTES.md — Estado y plan de trabajo
 
-_Última revisión: 13/11/2026 — Fases 0 y 0.5 completas; Fase 1: **asistencia TPA en 4 entregas** (diseño en `docs/DISENO_ASISTENCIA_TPA.md`): las 4 mergeadas y con sus migraciones aplicadas (la 4 probada por Facu). **Fase 2 (pagos):** diseño en `docs/DISENO_PAGOS.md`; **pagos completo** mergeado (migración `20261113000001` aplicada). **Datos reales** con código listo en `fase-2/datos-reales` (ajustes de pagos con las respuestas de Pau, baja lógica, borrar `pagos` y "Prueba 1", copia de seguridad): falta aplicar `20261114000001`, correr el script de "Prueba 1", probar, mergear y aplicar `20261114000002`. **Pau usa la app sobre todo desde la compu** y lo que más le importa son las faltas y recuperaciones: CLAUDE.md y DESIGN.md pasaron a "compu primero". App en https://paukinesio.vercel.app. Base Supabase `pau` (`dmwtoozbctnwccaaitos`, Postgres 17, plan Free, región us-east-2)._
+_Última revisión: 18/11/2026 — **Pau usa la app con datos reales desde el 16/11.** Rama `fase-3/agenda-pacientes`: tipos de turno, clase a domicilio, actividades, fecha de nacimiento y pantalla Hoy (ver "Fase 3 — Pedidos de Pau del 18/11"); falta aplicar `20261118000001`, probar y mergear. Revisión anterior, 13/11/2026: Fases 0 y 0.5 completas; Fase 1: **asistencia TPA en 4 entregas** (diseño en `docs/DISENO_ASISTENCIA_TPA.md`): las 4 mergeadas y con sus migraciones aplicadas (la 4 probada por Facu). **Fase 2 (pagos):** diseño en `docs/DISENO_PAGOS.md`; **pagos completo** mergeado (migración `20261113000001` aplicada). **Datos reales** con código listo en `fase-2/datos-reales` (ajustes de pagos con las respuestas de Pau, baja lógica, borrar `pagos` y "Prueba 1", copia de seguridad): falta aplicar `20261114000001`, correr el script de "Prueba 1", probar, mergear y aplicar `20261114000002`. **Pau usa la app sobre todo desde la compu** y lo que más le importa son las faltas y recuperaciones: CLAUDE.md y DESIGN.md pasaron a "compu primero". App en https://paukinesio.vercel.app. Base Supabase `pau` (`dmwtoozbctnwccaaitos`, Postgres 17, plan Free, región us-east-2)._
 
 ## Estado actual (resumen)
 
@@ -171,13 +171,13 @@ Las notas van en **`notas_evolucion`**, **nunca en `asistencia_tpa.nota`**. Moti
 
 ### Pantalla "Inicio" (después de las notas de evolución)
 Reemplaza a `/rpg` como entrada de la app (`/` y el destino después del login). La sección "Hoy" se puede adelantar si conviene.
-- [ ] **(a) Hoy:** martes y jueves, los turnos RPG del día; lunes, miércoles y viernes, las clases TPA del día con su ocupación ("3/4") y botón "Registrar asistencia" (abre el mismo modal). Las clases de hoy que ya pasaron y no tienen asistencia, destacadas.
+- [x] **(a) Hoy** (`/hoy`, 18/11/2026): cumpleaños, turnos del día y clases TPA con su ocupación y "Registrar asistencia" (el mismo modal). Las que ya terminaron sin asistencia, destacadas.
 - [ ] **(b) Para atender:** clases de días anteriores sin asistencia registrada, pagos pendientes del mes y alertas clínicas recientes (cuando existan las notas de evolución).
 - [ ] **(c) Esta semana:** turnos RPG, lugares libres en TPA y pacientes activos RPG / TPA.
 - Reutilizar `armarSemanaTPA` / `TpaHorarioCard` y `TurnoCard`; en el celular, una sola columna en ese orden.
 ### TPA
 - [x] **Agregar alumno no fijo a una clase** (recupera / cambio de horario / suelta): entrega 3.
-- [ ] Horarios y cupo **editables por Pau** desde la app (hoy constantes en `src/lib/tpa.ts`; alcanza si no cambian seguido).
+- [ ] Horarios y cupo **editables por Pau** desde la app (pedido del 18/11/2026; diseño en `docs/DISENO_AGENDA.md`).
 - [ ] **Controlar el cupo al inscribir** (N7): hoy solo se avisa en la pestaña "Alumnos fijos" cuando ya hay 4 fijos; no se impide.
 - [x] Poder volver un estado a "sin marcar"; no crear una clase vacía si todo queda pendiente (bug #2, Fase 0.5).
 - [x] Botón "Marcar el resto como presente" en el registro rápido (entrega 4).
@@ -188,7 +188,7 @@ Reemplaza a `/rpg` como entrada de la app (`/` y el destino después del login).
 - [ ] El aviso de cupo al inscribir cuenta también los fijos con alta a futuro.
 
 ### RPG
-- [ ] Tipo de sesión como lista (RPG, masajes, evaluación inicial; editable), no texto libre con default "RPG".
+- [x] Tipo de turno como lista en el modal (18/11/2026). Sin editar la lista desde la app.
 - [ ] Botón eliminar turno (la query `deleteSesionRPG` existe, no hay UI).
 - [x] El tooltip de `TurnoCard` decía "Mes pagado/pendiente"; ahora "Sesión: pagado/pendiente" (Fase 0.5).
 - [ ] Crear paciente nuevo rápido desde el modal de turno.
@@ -197,7 +197,7 @@ Reemplaza a `/rpg` como entrada de la app (`/` y el destino después del login).
 - [x] Mostrar **Evaluación inicial** (bug #4, entrega 1).
 - [ ] Editar la ficha desde el mismo modal.
 - [ ] Teléfono tocable (llamar / WhatsApp).
-- [ ] Evaluar guardar fecha de nacimiento en vez de edad (la edad queda desactualizada).
+- [x] Fecha de nacimiento en la ficha; la edad se calcula sola (18/11/2026).
 
 ## Fase 2 — Pagos y planes
 
@@ -241,13 +241,40 @@ Reemplaza a `/rpg` como entrada de la app (`/` y el destino después del login).
 - [ ] Después: punto de pago en la grilla de la semana, pagos pendientes en "Inicio", tope de recuperaciones desde el plan pagado (si Pau lo pide).
 - [ ] Ideas que quedaron afuera: que una suelta "Presente" ofrezca cobrarla desde el modal de la clase; cambiar el importe de una sesión de RPG desde el turno (hoy solo desde Pagos).
 
+## Fase 3 — Pedidos de Pau del 18/11/2026
+
+Textuales en `REQUISITOS.md`, sección 6. Diseño de lo que falta: `docs/DISENO_AGENDA.md`.
+
+**Parte A (rama `fase-3/agenda-pacientes`), código listo:**
+- [x] Tipo de turno en el modal (RPG, Masajes, Evaluación inicial, Clase domicilio), definidos una vez en `estados.ts`. Domicilio en violeta con `House` en agendas, cards, pagos e historia clínica.
+- [x] Turnos cualquier día: "+" en todo el calendario y los 7 días en el celular. La sección pasa a llamarse **Turnos individuales** (la URL sigue siendo `/rpg`).
+- [x] Actividad con casillas RPG · TPA · Domicilio (`pacientes.actividades`, con trigger que la mantiene igual a `tipo_clase`).
+- [x] Precio de domicilio (`precios_mes.domicilio_sesion`): si está vacío, el de RPG con aviso. Pagos y Cobrar usan el precio según el tipo.
+- [x] Fecha de nacimiento y edad calculada (`edad` sigue para quien no tiene fecha).
+- [x] Pantalla **Hoy**: entrada de la app, en el menú; cumpleaños de hoy y de los próximos 7 días, turnos y clases de TPA con el mismo modal.
+- [x] Tests de edad, cumpleaños (con 29/02), precio por tipo, actividad con "ambos" y clases del día.
+- [x] Migración `20261118000001` probada en un Postgres local descartable (relleno, trigger en los dos sentidos, checks, rollback).
+- [ ] **Facu:** aplicar la migración → preview → pruebas cortas → merge.
+- [ ] **Pau:** pasar el precio de la clase a domicilio y cargar las fechas de nacimiento.
+- [ ] Cuando `main` ya use `actividades`: migración aparte para borrar `tipo_clase` y su trigger.
+
+**Parte B, solo diseño (`docs/DISENO_AGENDA.md`):**
+- [ ] Agenda Día / Semana / Mes (entrega 1, sin migración).
+- [ ] Horarios de TPA editables con vigencia: `franjas_tpa`, pantalla Horarios y mover fijos (entregas 2 a 4).
+- [ ] Horario de atención y duración de turnos, si Pau lo pide (entrega 5).
+- [ ] Estudios complementarios en Storage (bucket privado, tabla, pestaña) y "Descargar estudios" (ZIP, necesita aprobar `fflate`).
+
+**Descubierto el 18/11/2026:**
+- [ ] `next` 16.4.2 tiene avisos de seguridad moderados (`npm audit`; arreglado en 16.4.6). Son sobre `use cache`, que la app no usa, pero `next build` se corta una vez con `SecurityFatalError` y pasa al repetirlo: hay que actualizar y revisar si afecta al build de Vercel.
+- [ ] `/pagos` y otras pantallas se generan al compilar con la fecha de ese momento (el HTML de `/pagos` trae "Noviembre 2026"): si no hay deploy en un mes nuevo, puede verse un instante el mes viejo. Pasarlas a `useAhora()`.
+
 ## Fase 3 — Extras sugeridos (después del núcleo)
 
 - [ ] Búsqueda global funcional en el Header (hoy el input no hace nada).
 - [ ] Alertas reales del día en el Header (si se quiere la campana).
 - [ ] Alertas clínicas basadas en flags explícitos y en notas **recientes**; poder descartarlas.
 - [ ] Lista de espera con UI y "Liberar cupo" (la tabla existe; ya tiene política RLS desde Fase 0).
-- [ ] Vista mensual TPA (ocupación, huecos, cancelaciones).
+- [ ] Vista mensual TPA (ocupación, huecos, cancelaciones): entra en la agenda unificada (`docs/DISENO_AGENDA.md`).
 - [ ] Estadísticas simples: activos, faltas del mes, ocupación, ingresos.
 
 ## Fase 4 — Calidad de código

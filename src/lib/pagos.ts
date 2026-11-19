@@ -5,6 +5,7 @@ import type {
 } from '@/types';
 import { CUPO_TPA, DIAS_TPA, HORARIOS_TPA, diaSemanaDeFecha, eraFijoEn } from './tpa';
 import { normalizarHora } from './horas';
+import { esDomicilio } from './estados';
 
 // Pagos (docs/DISENO_PAGOS.md, sección 3, y decisiones de Facu del 13/11/2026).
 // Todo se calcula: "pendiente" = no hay pago guardado. Lo que se guarda es
@@ -92,6 +93,22 @@ export function precioPlan(precios: PreciosMes, veces: number): number {
   if (veces <= 1) return precios.tpa_1_vez;
   if (veces === 2) return precios.tpa_2_veces;
   return precios.tpa_3_veces;
+}
+
+export interface PrecioTurno {
+  importe: number;
+  /** Clase a domicilio sin precio cargado en el mes: se usa el de RPG y se avisa. */
+  sinPrecioPropio: boolean;
+}
+
+/** Precio de un turno individual según su tipo. RPG, masajes y evaluación valen lo mismo (Pau, octubre 2026). */
+export function precioTurno(precios: PreciosMes | null, tipo: string | null | undefined): PrecioTurno {
+  if (!precios) return { importe: 0, sinPrecioPropio: false };
+  if (!esDomicilio(tipo)) return { importe: precios.rpg_sesion, sinPrecioPropio: false };
+  const domicilio = precios.domicilio_sesion ?? null;
+  return domicilio === null
+    ? { importe: precios.rpg_sesion, sinPrecioPropio: true }
+    : { importe: domicilio, sinPrecioPropio: false };
 }
 
 export function textoVeces(veces: number): string {
@@ -342,17 +359,19 @@ export function textoSueltas(s: SueltasDelMes): string {
 }
 
 // ---------------------------------------------------------------------
-// RPG
+// Turnos individuales (RPG, masajes, evaluación, domicilio)
 // ---------------------------------------------------------------------
 
 export interface SesionDelMes {
   sesion: SesionRPG;
   nombre: string;
   pagada: boolean;
-  /** Lo cobrado (o el precio del mes si se marcó pagada sin importe) o lo que se cobraría. */
+  /** Lo cobrado (o el precio de su tipo si se marcó pagada sin importe) o lo que se cobraría. */
   importe: number;
-  /** Pagada sin importe guardado: se cuenta con el precio de RPG del mes. */
+  /** Pagada sin importe guardado: se cuenta con el precio de su tipo en el mes. */
   importeEstimado: boolean;
+  /** Clase a domicilio cuyo importe sale del precio de RPG porque el mes no tiene precio de domicilio. */
+  sinPrecioDomicilio: boolean;
   /** Ya pasó (o es hoy) y no está pagada: cuenta en "falta cobrar". */
   aCobrar: boolean;
   /** Todavía no se hizo: no es deuda (supuesto del diseño, 2.4). */
@@ -361,7 +380,6 @@ export interface SesionDelMes {
 
 /** Sesiones del mes. Las canceladas no se cobran (salvo que figuren pagadas). */
 export function sesionesRPGDelMes(sesiones: SesionRPG[], mes: Mes, precios: PreciosMes | null, hoy: string): SesionDelMes[] {
-  const precio = precios?.rpg_sesion ?? 0;
   return sesiones
     .filter((s) => s.fecha.slice(0, 7) === mes)
     .filter((s) => s.estado_sesion !== 'cancelada' || s.estado_pago === 'pagado')
@@ -369,17 +387,24 @@ export function sesionesRPGDelMes(sesiones: SesionRPG[], mes: Mes, precios: Prec
       const pagada = s.estado_pago === 'pagado';
       const futura = s.fecha > hoy;
       const guardado = pagada ? s.importe ?? null : null;
+      const precio = precioTurno(precios, s.tipo_sesion);
       return {
         sesion: s,
         nombre: s.pacientes?.nombre ?? 'Sin nombre',
         pagada,
-        importe: guardado ?? precio,
+        importe: guardado ?? precio.importe,
         importeEstimado: pagada && guardado === null,
+        sinPrecioDomicilio: guardado === null && precio.sinPrecioPropio,
         aCobrar: !pagada && !futura,
         futura,
       };
     })
     .sort((a, b) => a.sesion.fecha.localeCompare(b.sesion.fecha) || a.sesion.hora.localeCompare(b.sesion.hora));
+}
+
+/** Cuántas clases a domicilio del mes se están contando con el precio de RPG. */
+export function domiciliosSinPrecio(sesiones: SesionDelMes[]): number {
+  return sesiones.filter((s) => s.sinPrecioDomicilio).length;
 }
 
 // ---------------------------------------------------------------------
@@ -405,7 +430,7 @@ export interface ResumenMes {
   total: number;
   efectivo: number;
   transferencia: number;
-  /** Sesiones de RPG marcadas pagadas sin medio (desde el turno, antes de esta versión). */
+  /** Turnos marcados pagados sin medio (desde el turno, antes de esta versión). */
   sinMedio: number;
 }
 
@@ -467,7 +492,7 @@ export function textoPendientes(mes: Mes, cuotas: CuotaDelMes[], sueltas: Suelta
     [`Pagos pendientes de ${titulo}`],
     lineasCuotas.length ? ['Cuotas TPA:', ...lineasCuotas] : [],
     lineasSueltas.length ? ['Clases sueltas TPA:', ...lineasSueltas] : [],
-    lineasRpg.length ? ['RPG:', ...lineasRpg] : [],
+    lineasRpg.length ? ['Turnos individuales:', ...lineasRpg] : [],
     [`Total: ${formatoPesos(total)}`],
   ].filter((b) => b.length > 0);
   return bloques.map((b) => b.join('\n')).join('\n\n');
@@ -487,7 +512,7 @@ export interface DatosPagosMes {
   pagos: PagoTPA[];
   /** Clases sueltas del mes, con su clase. */
   sueltas: AsistenciaSuelta[];
-  /** Sesiones de RPG del mes. */
+  /** Turnos individuales del mes. */
   sesiones: SesionRPG[];
 }
 
