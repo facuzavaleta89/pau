@@ -49,7 +49,7 @@ export function TpaCalendarioCelda({ celda, conHora = false, onCobrar, onInscrib
                 type="button"
                 onClick={() => onInscribir(celda)}
                 aria-label={`Inscribir un fijo en el lugar libre de las ${celda.hora}`}
-                className={cn(FILA, LUGAR_LIBRE.clases, 'hover:bg-teal-100')}
+                className={cn(FILA, 'transition-colors duration-150', LUGAR_LIBRE.clases, LUGAR_LIBRE.hover)}
               >
                 <IconoLibre size={14} className="shrink-0" aria-hidden="true" />
                 <span className="flex-1">{LUGAR_LIBRE.label}</span>

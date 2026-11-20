@@ -27,7 +27,8 @@ const TEXTO_NAV: Record<Vista, [string, string]> = {
   mes: ['Mes anterior', 'Mes siguiente'],
 };
 
-// Agenda (/agenda): turnos individuales y clases de TPA en Día | Semana | Mes.
+// Agenda (/agenda): Día con turnos individuales y clases de TPA; Semana y Mes,
+// solo turnos individuales (Pau, 20/11/2026).
 // Arranca en Semana, en la fecha de hoy (hora argentina, nunca la del deploy).
 export function PantallaAgenda() {
   const ahora = useAhora();
@@ -43,15 +44,17 @@ function ContenidoAgenda({ ahora }: { ahora: Date }) {
   const [pacienteHistoria, setPacienteHistoria] = useState<string | null>(null);
 
   const { desde, hasta } = rangoVista(vista, fecha);
-  const cargar = useCallback(() => cargarAgenda(desde, hasta), [desde, hasta]);
-  const { datos, cargando, error, recargar } = useDatos(`${desde}_${hasta}`, cargar, 'No se pudo cargar la agenda.');
+  // Solo Día muestra TPA: Semana y Mes, solo turnos individuales (Pau, 20/11/2026).
+  const conTPA = vista === 'dia';
+  const cargar = useCallback(() => cargarAgenda(desde, hasta, conTPA), [desde, hasta, conTPA]);
+  const { datos, cargando, error, recargar } = useDatos(`${conTPA ? 'dia' : 'turnos'}_${desde}_${hasta}`, cargar, 'No se pudo cargar la agenda.');
   const apoyo = useDatosClaseTPA(ahora);
   const recargarApoyo = apoyo.recargar;
   const recargarTodo = useCallback(() => { recargar(); recargarApoyo(); }, [recargar, recargarApoyo]);
 
-  const eventos = useMemo(() => (datos ? eventosEntre(desde, hasta, datos) : []), [datos, desde, hasta]);
-  const semana = useMemo(() => (datos && vista === 'semana' ? armarSemanaAgenda(fecha, datos) : null), [datos, vista, fecha]);
-  const mes = useMemo(() => (datos && vista === 'mes' ? armarMesAgenda(fecha, datos) : null), [datos, vista, fecha]);
+  const eventos = useMemo(() => (datos && conTPA ? eventosEntre(desde, hasta, datos) : []), [datos, conTPA, desde, hasta]);
+  const semana = useMemo(() => (datos && vista === 'semana' ? armarSemanaAgenda(fecha, datos.sesiones) : null), [datos, vista, fecha]);
+  const mes = useMemo(() => (datos && vista === 'mes' ? armarMesAgenda(fecha, datos.sesiones) : null), [datos, vista, fecha]);
   const celdaAbierta = abierto?.tipo === 'clase'
     ? eventos.flatMap((e) => (e.tipo === 'clase' && e.clave === abierto.clave ? [e.celda] : []))[0] ?? null
     : null;
@@ -111,7 +114,7 @@ function ContenidoAgenda({ ahora }: { ahora: Date }) {
       ) : (
         <div className={cn('transition-opacity duration-150', cargando && 'opacity-60')} aria-busy={cargando}>
           {vista === 'dia' && <AgendaDia fecha={desde} eventos={eventos} acciones={acciones} />}
-          {semana && <AgendaSemana semana={semana} hoy={hoy} acciones={acciones} />}
+          {semana && <AgendaSemana dias={semana} hoy={hoy} acciones={acciones} />}
           {mes && <AgendaMes semanas={mes} hoy={hoy} acciones={acciones} />}
         </div>
       )}

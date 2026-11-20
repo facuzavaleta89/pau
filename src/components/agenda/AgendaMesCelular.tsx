@@ -2,8 +2,8 @@
 
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { DIAS_CORTOS, textoResumenTPA, type DiaMes } from '@/lib/agenda';
-import { CLASE_AGENDA, TIPOS_TURNO, tipoTurno } from '@/lib/estados';
+import { DIAS_CORTOS, type DiaMes } from '@/lib/agenda';
+import { TIPOS_TURNO, tipoTurno } from '@/lib/estados';
 import { cn } from '@/lib/utils';
 
 interface AgendaMesCelularProps {
@@ -15,8 +15,8 @@ interface AgendaMesCelularProps {
 const PUNTO = 'w-1.5 h-1.5 rounded-full shrink-0';
 
 // Mes en el celular: calendario de 7 columnas con un punto por turno (hasta 3,
-// violeta si es a domicilio), "+" si hay más y un punto teal si hay TPA con
-// alumnos. Tocar un día abre la vista Día.
+// violeta si es a domicilio) y "+" si hay más. Solo turnos individuales (sin
+// TPA, Pau 20/11/2026). Tocar un día abre la vista Día.
 export function AgendaMesCelular({ semanas, hoy, onAbrirDia }: AgendaMesCelularProps) {
   return (
     <div className="space-y-2">
@@ -32,7 +32,6 @@ export function AgendaMesCelular({ semanas, hoy, onAbrirDia }: AgendaMesCelularP
             const descripcion = [
               format(parseISO(dia.fecha), "EEEE d 'de' MMMM", { locale: es }),
               cantidad > 0 && `${cantidad} ${cantidad === 1 ? 'turno' : 'turnos'}`,
-              dia.tpa && textoResumenTPA(dia.tpa),
             ].filter(Boolean).join(', ');
             return (
               <button
@@ -51,7 +50,6 @@ export function AgendaMesCelular({ semanas, hoy, onAbrirDia }: AgendaMesCelularP
                 <span className="flex items-center gap-0.5 h-2" aria-hidden="true">
                   {dia.turnos.map((t) => <span key={t.id} className={cn(PUNTO, tipoTurno(t.tipo_sesion).punto)} />)}
                   {dia.masTurnos > 0 && <span className="text-[10px] leading-none font-bold text-stone-500">+</span>}
-                  {dia.tpa && dia.tpa.clases > 0 && <span className={cn(PUNTO, 'ml-0.5', CLASE_AGENDA.punto)} />}
                 </span>
               </button>
             );
@@ -61,7 +59,6 @@ export function AgendaMesCelular({ semanas, hoy, onAbrirDia }: AgendaMesCelularP
       <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-500" aria-hidden="true">
         <span className="flex items-center gap-1"><span className={cn(PUNTO, TIPOS_TURNO.RPG.punto)} /> Turno</span>
         <span className="flex items-center gap-1"><span className={cn(PUNTO, TIPOS_TURNO['Clase domicilio'].punto)} /> Domicilio</span>
-        <span className="flex items-center gap-1"><span className={cn(PUNTO, CLASE_AGENDA.punto)} /> TPA</span>
       </p>
     </div>
   );

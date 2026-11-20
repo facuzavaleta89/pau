@@ -3,8 +3,7 @@
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Plus } from 'lucide-react';
-import { DIAS_CORTOS, textoResumenTPA, type DiaMes } from '@/lib/agenda';
-import { CLASE_AGENDA } from '@/lib/estados';
+import { DIAS_CORTOS, type DiaMes } from '@/lib/agenda';
 import { cn } from '@/lib/utils';
 import type { AccionesAgenda } from './acciones';
 import { AgendaMesCelular } from './AgendaMesCelular';
@@ -16,11 +15,11 @@ interface AgendaMesProps {
   acciones: AccionesAgenda;
 }
 
-// Vista Mes. Compu: una celda por día con hasta 3 turnos en una línea, "+N
-// más" (abre el Día) y una línea resumen de TPA. Cada semana mide lo que
-// necesita: ninguna se estira por la más cargada. Celular: calendario con puntos.
+// Vista Mes: solo turnos individuales (Pau, 20/11/2026: sin la línea de TPA).
+// Compu: una celda por día con hasta 3 turnos en una línea y "+N más" (abre
+// el Día). Cada semana mide lo que necesita: ninguna se estira por la más
+// cargada. Celular: calendario con puntos.
 export function AgendaMes({ semanas, hoy, acciones }: AgendaMesProps) {
-  const IconoTPA = CLASE_AGENDA.icono;
   return (
     <>
       <div className="md:hidden">
@@ -69,19 +68,6 @@ export function AgendaMes({ semanas, hoy, acciones }: AgendaMesProps) {
                   className="h-6 px-2 self-start rounded-md text-xs font-semibold text-teal-700 hover:bg-teal-50"
                 >
                   +{dia.masTurnos} más
-                </button>
-              )}
-              {dia.tpa && (
-                <button
-                  type="button"
-                  onClick={() => acciones.onAbrirDia(dia.fecha)}
-                  className={cn(
-                    'mt-auto h-6 px-1 flex items-center gap-1 rounded-md text-xs text-left truncate hover:bg-stone-50',
-                    dia.tpa.libres > 0 ? 'text-teal-700' : 'text-stone-500',
-                  )}
-                >
-                  <IconoTPA size={12} className="shrink-0" aria-hidden="true" />
-                  <span className="truncate">{textoResumenTPA(dia.tpa)}</span>
                 </button>
               )}
             </div>

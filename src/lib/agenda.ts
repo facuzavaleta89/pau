@@ -3,8 +3,9 @@ import type { CeldaTPA, SesionRPG } from '@/types';
 import { celdasEntre, type DatosSemanaTPA } from './tpa';
 
 // ---------------------------------------------------------------------
-// Agenda unificada (/agenda): turnos individuales + clases de TPA.
-// Única fuente para las vistas Día, Semana y Mes (docs/DISENO_AGENDA.md, 1.6).
+// Agenda (/agenda). Única fuente para las vistas Día, Semana y Mes
+// (docs/DISENO_AGENDA.md, 1.6). Día: turnos individuales + clases de TPA.
+// Semana y Mes: solo turnos individuales (Pau, 20/11/2026).
 // ---------------------------------------------------------------------
 
 export interface DatosAgenda {
@@ -31,12 +32,12 @@ export const ULTIMA_HORA_DIA = 20;
 const SEMANA = { weekStartsOn: 1 } as const;
 const aTexto = (d: Date) => format(d, 'yyyy-MM-dd');
 
-/** Clase sin nadie (ni fijos ni quien ocupe un lugar) y sin notas: se atenúa o se oculta. */
+/** Clase sin nadie (ni fijos ni quien ocupe un lugar) y sin notas: en Día, una línea atenuada. */
 export function claseVacia(celda: CeldaTPA): boolean {
   return celda.alumnos.length === 0 && celda.notas.length === 0;
 }
 
-/** "10:30" → "10": la fila de la hora en Día y Semana. */
+/** "10:30" → "10": la fila de la hora en Día. */
 export function bloqueDeHora(hora: string): string {
   return hora.slice(0, 2);
 }
@@ -61,30 +62,31 @@ export function eventosEntre(desde: string, hasta: string, datos: DatosAgenda): 
     || nombre(a).localeCompare(nombre(b), 'es'));
 }
 
-export interface DiaAgenda {
+/** Turnos individuales entre `desde` y `hasta` ('yyyy-MM-dd', inclusive), por fecha, hora y nombre. */
+export function turnosEntre(desde: string, hasta: string, sesiones: SesionRPG[]): SesionRPG[] {
+  return sesiones
+    .filter((s) => s.fecha >= desde && s.fecha <= hasta)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha)
+      || a.hora.localeCompare(b.hora)
+      || (a.pacientes?.nombre ?? '').localeCompare(b.pacientes?.nombre ?? '', 'es'));
+}
+
+export interface DiaSemanaAgenda {
   fecha: string;
-  eventos: EventoAgenda[];
+  /** Sus turnos individuales, por hora. */
+  turnos: SesionRPG[];
 }
 
-function agruparPorDia(fechas: string[], eventos: EventoAgenda[]): DiaAgenda[] {
-  return fechas.map((fecha) => ({ fecha, eventos: eventos.filter((e) => e.fecha === fecha) }));
-}
-
-export interface SemanaAgenda {
-  dias: DiaAgenda[];
-  /** Filas de la grilla: las horas ("10") con algo en algún día, ordenadas. */
-  horas: string[];
-}
-
-/** Los 7 días (lunes a domingo) de la semana de `fecha`. */
-export function armarSemanaAgenda(fecha: Date, datos: DatosAgenda): SemanaAgenda {
+/**
+ * Los 7 días (lunes a domingo) de la semana de `fecha`, cada uno con sus
+ * turnos individuales. Sin TPA: en Semana y Mes "se le mezcla" (Pau,
+ * 20/11/2026); las clases se ven en Día y en TPA.
+ */
+export function armarSemanaAgenda(fecha: Date, sesiones: SesionRPG[]): DiaSemanaAgenda[] {
   const lunes = startOfWeek(fecha, SEMANA);
   const fechas = Array.from({ length: 7 }, (_, i) => aTexto(addDays(lunes, i)));
-  const eventos = eventosEntre(fechas[0], fechas[6], datos);
-  return {
-    dias: agruparPorDia(fechas, eventos),
-    horas: [...new Set(eventos.map((e) => bloqueDeHora(e.hora)))].sort(),
-  };
+  const turnos = turnosEntre(fechas[0], fechas[6], sesiones);
+  return fechas.map((f) => ({ fecha: f, turnos: turnos.filter((t) => t.fecha === f) }));
 }
 
 /** Horas de la vista Día: de 8 a 20 siempre, más las de cualquier evento fuera de ese rango. */
@@ -95,34 +97,6 @@ export function horasDelDia(eventos: EventoAgenda[]): string[] {
   return [...horas].sort();
 }
 
-export interface ResumenTPA {
-  /** Clases con alumnos que se dan (no canceladas). */
-  clases: number;
-  /** Lugares libres en esas clases. */
-  libres: number;
-  canceladas: number;
-}
-
-/** Resumen de las clases de un día. Las clases vacías no cuentan: taparían los turnos. null si no hay nada. */
-export function resumenTPA(celdas: CeldaTPA[]): ResumenTPA | null {
-  const conAlguien = celdas.filter((c) => !claseVacia(c));
-  const canceladas = conAlguien.filter((c) => c.lugares.cancelada).length;
-  const dadas = conAlguien.filter((c) => !c.lugares.cancelada);
-  if (dadas.length === 0 && canceladas === 0) return null;
-  return { clases: dadas.length, libres: dadas.reduce((n, c) => n + c.lugares.libres, 0), canceladas };
-}
-
-/** "TPA: 5 clases · 3 libres", "TPA: 1 clase · completa", "TPA: 7 canceladas". */
-export function textoResumenTPA(r: ResumenTPA): string {
-  const partes: string[] = [];
-  if (r.clases > 0) {
-    partes.push(`${r.clases} ${r.clases === 1 ? 'clase' : 'clases'}`);
-    partes.push(r.libres === 0 ? (r.clases === 1 ? 'completa' : 'completas') : `${r.libres} ${r.libres === 1 ? 'libre' : 'libres'}`);
-  }
-  if (r.canceladas > 0) partes.push(`${r.canceladas} ${r.canceladas === 1 ? 'cancelada' : 'canceladas'}`);
-  return `TPA: ${partes.join(' · ')}`;
-}
-
 export interface DiaMes {
   fecha: string;
   /** false = día de relleno del mes anterior o siguiente. */
@@ -131,7 +105,6 @@ export interface DiaMes {
   turnos: SesionRPG[];
   /** Turnos que no entran: "+N más" (0 = no se muestra). */
   masTurnos: number;
-  tpa: ResumenTPA | null;
 }
 
 /** Rango que muestra el mes de `fecha`: de lunes a domingo, con los días de relleno. */
@@ -142,20 +115,18 @@ export function rangoMes(fecha: Date): { desde: string; hasta: string } {
   };
 }
 
-/** El mes de `fecha` en semanas de lunes a domingo. Cada día, sus turnos (hasta `max`) y el resumen de TPA. */
-export function armarMesAgenda(fecha: Date, datos: DatosAgenda, max = MAX_TURNOS_POR_DIA): DiaMes[][] {
+/** El mes de `fecha` en semanas de lunes a domingo. Cada día, sus turnos individuales (hasta `max`); sin TPA. */
+export function armarMesAgenda(fecha: Date, sesiones: SesionRPG[], max = MAX_TURNOS_POR_DIA): DiaMes[][] {
   const { desde, hasta } = rangoMes(fecha);
   const mes = format(fecha, 'yyyy-MM');
-  const fechas = eachDayOfInterval({ start: parseISO(desde), end: parseISO(hasta) }).map(aTexto);
-  const dias = agruparPorDia(fechas, eventosEntre(desde, hasta, datos)).map(({ fecha: f, eventos }): DiaMes => {
-    const turnos = eventos.flatMap((e) => (e.tipo === 'turno' ? [e.turno] : []));
-    const celdas = eventos.flatMap((e) => (e.tipo === 'clase' ? [e.celda] : []));
+  const turnos = turnosEntre(desde, hasta, sesiones);
+  const dias = eachDayOfInterval({ start: parseISO(desde), end: parseISO(hasta) }).map(aTexto).map((f): DiaMes => {
+    const delDia = turnos.filter((t) => t.fecha === f);
     return {
       fecha: f,
       delMes: f.startsWith(mes),
-      turnos: turnos.slice(0, max),
-      masTurnos: Math.max(0, turnos.length - max),
-      tpa: resumenTPA(celdas),
+      turnos: delDia.slice(0, max),
+      masTurnos: Math.max(0, delDia.length - max),
     };
   });
   return Array.from({ length: dias.length / 7 }, (_, i) => dias.slice(i * 7, i * 7 + 7));

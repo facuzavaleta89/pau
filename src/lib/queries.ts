@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import { ErrorApp } from './errores';
 import { normalizarHora } from './horas';
-import { CUPO_TPA, inicioDeSemana, type DatosSemanaTPA } from './tpa';
+import { CUPO_TPA, HORARIOS_TPA, inicioDeSemana, type DatosSemanaTPA } from './tpa';
 import type { DatosHorarios } from './horarios';
 import type { DatosRecuperaciones } from './recuperaciones';
 import type { DatosAgenda } from './agenda';
@@ -297,10 +297,15 @@ export async function cargarHoy(hoy: string): Promise<DatosHoy> {
   return { pacientes, sesiones, semana };
 }
 
-// Agenda (/agenda): turnos individuales y TPA del rango visible ('yyyy-MM-dd', inclusive).
-// Los eventos salen de eventosEntre (src/lib/agenda.ts).
-export async function cargarAgenda(desde: string, hasta: string): Promise<DatosAgenda> {
-  const [sesiones, tpa] = await Promise.all([getSesionesRPGPorRango(desde, hasta), cargarSemanaTPA(desde, hasta)]);
+// Agenda (/agenda): turnos individuales del rango visible ('yyyy-MM-dd',
+// inclusive) y, solo si `conTPA` (vista Día), las clases de TPA. Semana y Mes
+// muestran solo turnos (Pau, 20/11/2026). Lo que se ve sale de src/lib/agenda.ts.
+export async function cargarAgenda(desde: string, hasta: string, conTPA: boolean): Promise<DatosAgenda> {
+  const sinTPA: DatosSemanaTPA = { horarios: [], clases: [], asistencias: [], notas: [] };
+  const [sesiones, tpa] = await Promise.all([
+    getSesionesRPGPorRango(desde, hasta),
+    conTPA ? cargarSemanaTPA(desde, hasta) : Promise.resolve(sinTPA),
+  ]);
   return { sesiones, tpa };
 }
 
@@ -397,6 +402,31 @@ export async function cargarDatosHorarios(pacienteId: string, horas: string[]): 
     pagos,
     recuperaciones,
   };
+}
+
+// "Cambiar de horario" (src/lib/horarios.ts): lo de cargarDatosHorarios para
+// todas las horas (las habituales y las de cualquier horario cargado), porque
+// el destino puede ser cualquiera.
+export async function cargarDatosCambio(pacienteId: string): Promise<DatosHorarios> {
+  const horas = await leerTodo<Pick<HorarioTPA, 'id' | 'hora'>>((d, h) =>
+    supabase.from('horarios_tpa').select('id, hora').order('id').range(d, h));
+  return cargarDatosHorarios(pacienteId, [
+    ...Object.values(HORARIOS_TPA).flat(),
+    ...horas.map((h) => normalizarHora(h.hora)),
+  ]);
+}
+
+// "Cambiar de horario" (migración 20261120000002): en una transacción cierra
+// el viejo con fecha de baja = `desde` y abre el nuevo (`idNuevo`, generado al
+// abrir el diálogo con nuevoId()) con fecha de alta = `desde`. Si no hay lugar
+// o la fecha no sirve, la base avisa ("TPA: …") y no cambia nada. Reintentar
+// con el mismo id no duplica.
+export async function cambiarHorarioTPA(horarioId: string, idNuevo: string, destino: { dia: DiaSemana; hora: string }, desde: string) {
+  const { data, error } = await supabase.rpc('cambiar_horario_tpa', {
+    p_horario: horarioId, p_nuevo: idNuevo, p_dia: destino.dia, p_hora: destino.hora, p_desde: desde, p_cupo: CUPO_TPA,
+  });
+  if (error) throw error;
+  return data as string;
 }
 
 // "Lo cargué por error" (migración 20261120000001): borra el horario como si

@@ -3,25 +3,24 @@
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ChevronRight, Plus } from 'lucide-react';
-import type { SemanaAgenda } from '@/lib/agenda';
+import type { DiaSemanaAgenda } from '@/lib/agenda';
 import { cn } from '@/lib/utils';
+import { TurnoCard } from '@/components/rpg/TurnoCard';
 import type { AccionesAgenda } from './acciones';
-import { LineaEvento } from './LineaEvento';
 
 interface AgendaSemanaListaProps {
-  semana: SemanaAgenda;
+  dias: DiaSemanaAgenda[];
   hoy: string;
   acciones: AccionesAgenda;
 }
 
-// Semana en el celular: los 7 días en lista, cada uno con "+ Turno" y sus
-// turnos y clases en una línea. Las clases sin alumnos no se muestran (se ven
-// en la vista Día). Un día sin nada ocupa una sola línea.
-export function AgendaSemanaLista({ semana, hoy, acciones }: AgendaSemanaListaProps) {
+// Semana en el celular (como la lista de turnos de antes): los 7 días, cada
+// uno con "+ Turno" y sus turnos individuales en tarjetas. Sin TPA (se ve en
+// Día). Un día sin turnos ocupa una sola línea.
+export function AgendaSemanaLista({ dias, hoy, acciones }: AgendaSemanaListaProps) {
   return (
     <div className="space-y-3">
-      {semana.dias.map(({ fecha, eventos }) => {
-        const visibles = eventos.filter((e) => e.tipo === 'turno' || !e.vacia);
+      {dias.map(({ fecha, turnos }) => {
         const fechaLarga = format(parseISO(fecha), "EEEE d 'de' MMMM", { locale: es });
         return (
           <section key={fecha} className="space-y-1">
@@ -31,7 +30,7 @@ export function AgendaSemanaLista({ semana, hoy, acciones }: AgendaSemanaListaPr
                 onClick={() => acciones.onAbrirDia(fecha)}
                 className={cn(
                   'min-h-11 min-w-0 flex items-center gap-1 text-sm font-semibold capitalize text-left',
-                  fecha === hoy ? 'text-teal-700' : visibles.length > 0 ? 'text-stone-900' : 'text-stone-500',
+                  fecha === hoy ? 'text-teal-700' : turnos.length > 0 ? 'text-stone-900' : 'text-stone-500',
                 )}
               >
                 <span className="truncate">{fechaLarga}</span>
@@ -47,9 +46,16 @@ export function AgendaSemanaLista({ semana, hoy, acciones }: AgendaSemanaListaPr
                 <Plus size={16} /> Turno
               </button>
             </div>
-            {visibles.length > 0 && (
-              <div className="flex flex-col gap-1.5">
-                {visibles.map((e) => <LineaEvento key={e.clave} evento={e} acciones={acciones} />)}
+            {turnos.length > 0 && (
+              <div className="flex flex-col gap-2">
+                {turnos.map((t) => (
+                  <TurnoCard
+                    key={t.id}
+                    turno={t}
+                    onClick={() => acciones.onEditarTurno(t)}
+                    onPacienteClick={() => acciones.onAbrirPaciente(t.paciente_id)}
+                  />
+                ))}
               </div>
             )}
           </section>

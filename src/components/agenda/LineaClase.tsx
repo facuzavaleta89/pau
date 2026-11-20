@@ -11,7 +11,7 @@ interface LineaClaseProps {
 }
 
 // Una clase de TPA en una sola línea: "10:30 TPA 3/4". Con lugares, en el
-// teal de "Libre"; completa, gris; sin alumnos, atenuada; cancelada, tachada.
+// teal; completa, gris; sin alumnos, atenuada; cancelada, tachada.
 export function LineaClase({ celda, onClick }: LineaClaseProps) {
   const { lugares, cupo } = celda;
   const vacia = claseVacia(celda);

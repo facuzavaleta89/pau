@@ -136,3 +136,11 @@ Cargó a una alumna en viernes 12:30 en vez de 16:00. Para corregirlo dio de baj
 - **Reactivar un paciente:** ofrecer también recuperar los horarios que se cerraron con su baja (casillas marcadas), dejando claro que son dos cosas distintas.
 
 Hecho en `fase-3/correcciones-horarios` (20/11/2026).
+
+## 8. Opinión de Pau sobre la agenda y un cambio de horario (20/11/2026, contado por Facu)
+
+- **Agenda:** en Semana y Mes "se le mezcla" con TPA y es mucha información junta. Día le encanta como está (turnos y TPA). Le gustaba más la vista anterior de turnos.
+- **Lugares libres en amarillo:** en TPA, los "Libre" (Calendario y semana) en amarillo, para identificarlos de un vistazo; en verde clarito se confundían con los alumnos.
+- **Cambiar de horario:** una alumna fija de los lunes 16:00 pasa a los lunes 18:00 desde una fecha a mitad de mes, porque se liberó un lugar. Antes había que hacer "Deja de venir" (la baja queda con la fecha de hoy) e "Inscribir fijo" en el otro horario.
+
+Hecho en `fase-3/ajustes-agenda` (20/11/2026): Semana y Mes solo con turnos individuales (Semana con una columna por día y las tarjetas de antes), "Cambiar de horario" en el diálogo del tacho y los lugares libres en amarillo.
