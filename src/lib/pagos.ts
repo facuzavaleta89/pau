@@ -163,9 +163,30 @@ function horarioDelMes(horario: HorarioTPA, mes: Mes, fechas: string[]): Horario
   return { horario, clases, desde: horario.fecha_alta > inicio ? horario.fecha_alta : null, baja };
 }
 
-/** Por alumno: sus horarios fijos del mes, veces por semana y si entra o sale en el mes. */
+/**
+ * Alta "de corrido" de un horario: si sigue a otro suyo que se cerró el mismo
+ * día en que este empieza ("Cambiar de horario", 20/11/2026), el alta del
+ * primero. Así un cambio a mitad de mes no cuenta como alta a mitad de mes.
+ */
+function altaDeCorrido(h: HorarioTPA, todos: HorarioTPA[], vistos: Set<string> = new Set()): string {
+  vistos.add(h.id);
+  const previo = todos.find((o) => o.paciente_id === h.paciente_id && !vistos.has(o.id)
+    && !o.activo && o.fecha_baja === h.fecha_alta && o.fecha_alta < h.fecha_alta);
+  return previo ? altaDeCorrido(previo, todos, vistos) : h.fecha_alta;
+}
+
+/**
+ * Por alumno: sus horarios fijos del mes, veces por semana y si entra o sale
+ * en el mes. Un cambio de horario (uno se cierra el día que abre el otro) no
+ * es alta ni baja en el mes y cuenta como una sola vez por semana.
+ */
 export function fijosDelMes(horarios: HorarioTPA[], mes: Mes): FijoDelMes[] {
   const fechas = fechasDelMes(mes);
+  const inicio = primerDia(mes);
+  const desdeDe = (h: HorarioDelMes) => {
+    const alta = altaDeCorrido(h.horario, horarios);
+    return alta > inicio ? alta : null;
+  };
   const porAlumno = new Map<string, HorarioDelMes[]>();
   for (const h of horarios) {
     const delMes = horarioDelMes(h, mes, fechas);
@@ -177,11 +198,15 @@ export function fijosDelMes(horarios: HorarioTPA[], mes: Mes): FijoDelMes[] {
     lista.sort((a, b) => ordenDia(a.horario.dia_semana) - ordenDia(b.horario.dia_semana)
       || normalizarHora(a.horario.hora).localeCompare(normalizarHora(b.horario.hora)));
     const aLaVez = Math.max(...fechas.map((f) => lista.filter((h) => eraFijoEn(h.horario, f)).length));
-    const desdes = lista.map((h) => h.desde);
-    const bajas = lista.map((h) => h.baja);
+    const desdes = lista.map(desdeDe);
+    // Una baja seguida de otro horario suyo desde ese día es un cambio, no una baja.
+    const bajas = lista.map((h) => (h.baja && horarios.some((o) => o.paciente_id === pacienteId && o.id !== h.horario.id
+      && o.fecha_alta === h.baja) ? null : h.baja));
     const desde = desdes.every(Boolean) ? (desdes as string[]).sort()[0] : null;
-    const seSaltea = lista.some(({ horario: h, desde: d }) =>
-      d !== null && fechas.some((f) => f < d && diaSemanaDeFecha(f) === h.dia_semana));
+    const seSaltea = lista.some((h, i) => {
+      const d = desdes[i];
+      return d !== null && fechas.some((f) => f < d && diaSemanaDeFecha(f) === h.horario.dia_semana);
+    });
     return {
       pacienteId,
       nombre: lista[0].horario.pacientes?.nombre ?? 'Sin nombre',

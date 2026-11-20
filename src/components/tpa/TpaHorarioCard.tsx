@@ -109,7 +109,7 @@ export function TpaHorarioCard({ celda, onAbrir, onOcupar, onAbrirPaciente, aler
                 type="button"
                 onClick={() => onOcupar(celda)}
                 aria-label={`Ocupar un lugar libre a las ${celda.hora}`}
-                className={cn(FILA, 'transition-colors duration-150 hover:bg-teal-100', LUGAR_LIBRE.clases)}
+                className={cn(FILA, 'transition-colors duration-150', LUGAR_LIBRE.clases, LUGAR_LIBRE.hover)}
               >
                 <IconoLibre size={14} className="shrink-0" aria-hidden="true" />
                 <span className="flex-1 text-left">{LUGAR_LIBRE.label}</span>

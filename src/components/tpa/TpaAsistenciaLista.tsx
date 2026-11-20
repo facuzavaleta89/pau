@@ -138,8 +138,8 @@ export function TpaAsistenciaLista(p: TpaAsistenciaListaProps) {
               type="button"
               onClick={() => p.onOcupar(null)}
               className={cn(
-                "w-full min-h-11 px-3 flex items-center gap-2 rounded-xl border text-sm font-medium hover:bg-teal-100 transition-colors duration-150",
-                LUGAR_LIBRE.clases
+                "w-full min-h-11 px-3 flex items-center gap-2 rounded-xl border text-sm font-medium transition-colors duration-150",
+                LUGAR_LIBRE.clases, LUGAR_LIBRE.hover
               )}
             >
               <IconoLibre size={16} className="shrink-0" aria-hidden="true" />

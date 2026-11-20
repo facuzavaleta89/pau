@@ -1,11 +1,11 @@
 import { addMonths, format, parseISO, subDays } from 'date-fns';
 import { es } from 'date-fns/locale';
-import type { AsistenciaTPA, ClaseTPA, HorarioTPA, NotaEvolucion, PagoTPA } from '@/types';
+import type { AsistenciaTPA, ClaseTPA, DiaSemana, HorarioTPA, NotaEvolucion, PagoTPA } from '@/types';
 import { esAviso } from './avisos';
 import { normalizarHora } from './horas';
-import { fijosDelMes, nombreMes, type Mes } from './pagos';
+import { diaYMes, fijosDelMes, nombreMes, type Mes } from './pagos';
 import { calcularRecuperaciones, type DatosRecuperaciones } from './recuperaciones';
-import { DIAS_TPA, diaSemanaDeFecha, eraFijoEn } from './tpa';
+import { DIAS_TPA, HORARIOS_TPA, diaSemanaDeFecha, eraFijoEn } from './tpa';
 import { TIPOS_OCUPANTE } from './estados';
 
 // Corregir horarios fijos de TPA cargados por error (Pau, 19/11/2026):
@@ -14,7 +14,11 @@ import { TIPOS_OCUPANTE } from './estados';
 // - "Deshacer la baja": volver a activarlo, si el lugar sigue libre
 //   (conflictoAlReactivar). Lo usa también "Reactivar" de un paciente dado de
 //   baja, para sus horarios cerrados con la baja (horariosCerradosConLaBaja).
-// La base vuelve a controlar lo mismo al guardar (migración 20261120000001).
+// - "Cambiar de horario" (Pau, 20/11/2026): cierra el horario con fecha de
+//   baja = la fecha elegida y abre el nuevo con fecha de alta = esa fecha
+//   (conflictoFechaCambio, destinosParaCambiar).
+// La base vuelve a controlar lo mismo al guardar (migraciones 20261120000001
+// y 20261120000002).
 
 export interface DatosHorarios {
   /** Todos los horarios de esos días y horas, de todos los alumnos (activos e inactivos). */
@@ -201,19 +205,105 @@ export function conflictoAlReactivar(horario: HorarioTPA, datos: DatosHorarios, 
     .map((o) => o.paciente_id));
   if (fijos.size >= op.cupo) return `El horario ya tiene los ${op.cupo} lugares ocupados por fijos.`;
 
-  const desdeLaBaja = datos.clases
-    .filter((c) => mismoHorario(horario, c.fecha, c.hora) && c.fecha >= (horario.fecha_baja as string) && !c.motivo_cancelacion)
+  return conflictoEnClases(horario.paciente_id, horario, horario.fecha_baja, datos, op.cupo, 'alguien ocupó su lugar');
+}
+
+/**
+ * Clases ya registradas (no canceladas) de ese día y hora desde `desde`: si
+ * el alumno pasa a ser fijo ahí, no puede estar anotado de otra forma
+ * (recupera, cambio, suelta) ni encontrar la clase completa sin él.
+ */
+function conflictoEnClases(
+  pacienteId: string, h: Pick<HorarioTPA, 'dia_semana' | 'hora'>, desde: string, datos: DatosHorarios, cupo: number, porque: string,
+): string | null {
+  const clases = datos.clases
+    .filter((c) => mismoHorario(h, c.fecha, c.hora) && c.fecha >= desde && !c.motivo_cancelacion)
     .sort((a, b) => a.fecha.localeCompare(b.fecha));
-  for (const c of desdeLaBaja) {
-    const suya = datos.asistencias.find((a) => a.clase_id === c.id && a.paciente_id === horario.paciente_id);
+  for (const c of clases) {
+    const suya = datos.asistencias.find((a) => a.clase_id === c.id && a.paciente_id === pacienteId);
     if (suya && suya.tipo !== 'fijo') {
       return `Ya está anotado en la clase del ${diaCorto(c.fecha)} como ${TIPOS_OCUPANTE[suya.tipo].label}.`;
     }
     if (suya && esAviso(suya.estado)) continue; // avisó: no ocupa lugar
-    const ocupados = ocupadosSin(c, horario.paciente_id, datos);
-    if (ocupados >= op.cupo) return `La clase del ${diaCorto(c.fecha)} ya está completa (${ocupados}/${op.cupo}): alguien ocupó su lugar.`;
+    const ocupados = ocupadosSin(c, pacienteId, datos);
+    if (ocupados >= cupo) return `La clase del ${diaCorto(c.fecha)} ya está completa (${ocupados}/${cupo}): ${porque}.`;
   }
   return null;
+}
+
+// ---------------------------------------------------------------------
+// Cambiar de horario
+// ---------------------------------------------------------------------
+
+export interface DestinoCambio {
+  dia: DiaSemana;
+  hora: string;
+}
+
+/**
+ * Por qué NO se puede cambiar de horario desde `desde` ('yyyy-MM-dd'), sin
+ * mirar el destino; null = la fecha sirve. El horario tiene que estar activo,
+ * la fecha no puede ser anterior a su alta, y tiene que ser posterior a su
+ * última asistencia ya cargada en este horario (desde esa fecha deja de ser
+ * fijo acá: una asistencia de ese día o después quedaría fuera de su horario).
+ */
+export function conflictoFechaCambio(horario: HorarioTPA, desde: string, datos: DatosHorarios): string | null {
+  if (!horario.activo) return 'Este horario ya no está activo.';
+  if (!desde) return 'Elegí desde qué fecha.';
+  if (desde < horario.fecha_alta) return `Es fijo desde el ${diaYMes(horario.fecha_alta)}: el cambio no puede ser antes.`;
+  const claseDe = new Map(datos.clases.map((c) => [c.id, c]));
+  const ultima = datos.asistencias
+    .filter((a) => a.paciente_id === horario.paciente_id)
+    .map((a) => claseDe.get(a.clase_id))
+    .filter((c): c is ClaseTPA => Boolean(c && mismoHorario(horario, c.fecha, c.hora) && c.fecha >= horario.fecha_alta))
+    .map((c) => c.fecha)
+    .sort()
+    .at(-1);
+  if (ultima && ultima >= desde) {
+    return `Ya tiene asistencia cargada el ${diaCorto(ultima)} en este horario: el cambio tiene que ser después de esa fecha.`;
+  }
+  return null;
+}
+
+/**
+ * Por qué NO puede pasar a `destino` desde `desde`; null = tiene lugar. Las
+ * mismas reglas que "Deshacer la baja" (conflictoAlReactivar): no puede tener
+ * ya un horario ahí, tiene que haber menos fijos que el cupo desde esa fecha y
+ * ninguna clase ya registrada desde esa fecha puede estar completa sin él ni
+ * tenerlo anotado de otra forma.
+ */
+export function conflictoDestino(
+  horario: HorarioTPA, destino: DestinoCambio, desde: string, datos: DatosHorarios, cupo: number,
+): string | null {
+  if (horario.dia_semana === destino.dia && normalizarHora(horario.hora) === normalizarHora(destino.hora)) return 'Es el mismo horario.';
+  const vigenteDesde = (o: HorarioTPA) => o.activo || (o.fecha_baja !== null && o.fecha_baja > desde);
+  const enDestino = datos.horarios.filter((o) => o.id !== horario.id && o.dia_semana === destino.dia
+    && normalizarHora(o.hora) === normalizarHora(destino.hora) && vigenteDesde(o));
+  if (enDestino.some((o) => o.paciente_id === horario.paciente_id)) {
+    return `Ya tiene un horario ${textoHorario({ dia_semana: destino.dia, hora: destino.hora })}.`;
+  }
+  const fijos = new Set(enDestino.map((o) => o.paciente_id));
+  if (fijos.size >= cupo) return `Ya tiene los ${cupo} lugares ocupados por fijos.`;
+  return conflictoEnClases(horario.paciente_id, { dia_semana: destino.dia, hora: destino.hora }, desde, datos, cupo, 'no queda lugar');
+}
+
+export interface OpcionDestino extends DestinoCambio {
+  conflicto: string | null;
+}
+
+/**
+ * Horarios a los que se puede cambiar (menos el actual), por día y hora, cada
+ * uno con su conflicto (null = tiene lugar): los habituales de Pau y los de
+ * fuera de lo habitual que hoy tienen fijos (como en la grilla de TPA).
+ */
+export function destinosParaCambiar(horario: HorarioTPA, desde: string, datos: DatosHorarios, cupo: number): OpcionDestino[] {
+  return DIAS_TPA.flatMap(({ id: dia }) => {
+    const horas = new Set(HORARIOS_TPA[dia]);
+    datos.horarios.filter((o) => o.activo && o.dia_semana === dia).forEach((o) => horas.add(normalizarHora(o.hora)));
+    return [...horas].sort().map((hora) => ({ dia, hora }));
+  })
+    .filter((d) => !(d.dia === horario.dia_semana && d.hora === normalizarHora(horario.hora)))
+    .map((d) => ({ ...d, conflicto: conflictoDestino(horario, d, desde, datos, cupo) }));
 }
 
 /**

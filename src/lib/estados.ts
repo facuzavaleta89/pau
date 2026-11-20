@@ -47,11 +47,16 @@ export const TIPOS_OCUPANTE: Record<Exclude<TipoAsistenciaTPA, 'fijo'>, { label:
 };
 
 /** Lugar sin nadie (horario con menos fijos que el cupo, o fijo que avisó sin reemplazo). */
+// Amarillo bien visible (Pau, 20/11/2026: en teal claro se confundía con los
+// alumnos). Más saturado y con borde punteado, para no confundirse con el
+// ámbar casi blanco de los avisos (Avisó C.T./S.T., "5/4", "Ya terminó").
+// Texto yellow-900 sobre yellow-200: 7,4:1 (AA).
 export const LUGAR_LIBRE = {
   label: 'Libre',
-  clases: 'bg-teal-50 text-teal-700 border-dashed border-teal-200',
+  clases: 'bg-yellow-200 text-yellow-900 border-dashed border-yellow-500',
+  hover: 'hover:bg-yellow-300',
   icono: SquareDashed,
-} satisfies ConfigEstado;
+} satisfies ConfigEstado & { hover: string };
 
 export const MOTIVOS_CANCELACION: Record<MotivoCancelacionTPA, string> = {
   feriado: 'Cancelada · Feriado',

@@ -96,6 +96,8 @@ Para mostrar turnos en una grilla de horas hace falta la duración: `sesiones_rp
 
 ### 1.6 Agenda unificada
 
+> **Cambio del 20/11/2026 (opinión de Pau después de usarla):** Semana y Mes muestran **solo turnos individuales** (con TPA "se le mezcla"); Día queda con turnos y TPA. La Semana de la compu pasó a una columna por día con las tarjetas de siempre (`TurnoCard`), como el calendario de turnos de antes. Lo de abajo describe la entrega del 19/11.
+
 Pantalla **Agenda** (`/agenda`) con `Pestanias` **Día | Semana | Mes**. Reemplaza a "Turnos" en el menú (`/rpg` redirige). TPA sigue con sus pestañas Calendario y Recuperaciones, que son de gestión y no de agenda.
 
 Una sola función pura, `eventosEntre(desde, hasta, datos)` en `src/lib/agenda.ts`, con tests. Devuelve una lista ordenada de eventos `turno` (con `SesionRPG`) y `clase` (con `CeldaTPA`, armada por `celdasEntre`, sin volver a filtrar horarios).
