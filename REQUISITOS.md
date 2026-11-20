@@ -126,3 +126,13 @@ Diseño en `docs/DISENO_PAGOS.md`.
 Aclaración de Pau: los domicilios se ven en la agenda en otro color, y en la ficha del paciente "Actividad" tiene que tener también Domicilio.
 
 Los pedidos 4 y 5 se hicieron en `fase-3/agenda-pacientes`. El pedido 2 (agenda Día / Semana / Mes) se hizo en `fase-3/agenda-unificada` (19/11/2026): pantalla **Agenda**, con turnos y clases de TPA juntos. El diseño de los pedidos 1 y 3 está en `docs/DISENO_AGENDA.md`. Pendiente: que Pau pase el precio de la clase a domicilio.
+
+## 7. Problema de Pau del 19/11/2026 (contado por Facu)
+
+Cargó a una alumna en viernes 12:30 en vez de 16:00. Para corregirlo dio de baja a la paciente (se cerraron los dos horarios) y después tocó "Reactivar" en la historia clínica creyendo que le devolvía el horario: solo reactivó a la paciente. En el calendario del mes la alumna seguía ocupando el lugar de las 12:30 con "baja 19/11" y no podía inscribir a otra persona. Facu lo corrigió a mano con SQL. Lo que se pidió para que lo resuelva sola:
+
+- **"Lo cargué por error":** borrar un horario como si nunca hubiera existido, solo si no cambia nada ya registrado; si no se puede, explicar por qué y ofrecer la baja normal.
+- **"Deshacer la baja":** volver a activar un horario dado de baja si el lugar sigue libre y no tiene otro horario activo ese día y hora.
+- **Reactivar un paciente:** ofrecer también recuperar los horarios que se cerraron con su baja (casillas marcadas), dejando claro que son dos cosas distintas.
+
+Hecho en `fase-3/correcciones-horarios` (20/11/2026).

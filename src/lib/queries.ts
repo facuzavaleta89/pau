@@ -1,7 +1,8 @@
 import { supabase } from './supabase';
 import { ErrorApp } from './errores';
 import { normalizarHora } from './horas';
-import { inicioDeSemana, type DatosSemanaTPA } from './tpa';
+import { CUPO_TPA, inicioDeSemana, type DatosSemanaTPA } from './tpa';
+import type { DatosHorarios } from './horarios';
 import type { DatosRecuperaciones } from './recuperaciones';
 import type { DatosAgenda } from './agenda';
 import type { ClaseAGuardar } from './clase-tpa';
@@ -357,6 +358,62 @@ export async function deactivateHorarioTPA(horario: Pick<HorarioTPA, 'id' | 'fec
   return conHora(exigirUnaFila(data as HorarioTPA[] | null, 'No se pudo desinscribir al alumno.'));
 }
 
+// Fijos y bajas de un día y hora (sección "Dados de baja" de Alumnos fijos),
+// con el nombre y si el paciente está activo.
+export async function getHorariosDeUnHorario(dia: DiaSemana, hora: string) {
+  const { data, error } = await supabase
+    .from('horarios_tpa')
+    .select('*, pacientes (nombre, activo)')
+    .eq('dia_semana', dia)
+    .eq('hora', hora);
+
+  if (error) throw error;
+  return ((data || []) as HorarioTPA[]).map(conHora);
+}
+
+// Lo que necesitan motivosParaNoBorrar y conflictoAlReactivar
+// (src/lib/horarios.ts) para los horarios de un alumno en esas horas: los
+// horarios de todos en esas horas, sus clases con las asistencias, y las
+// notas, cuotas y datos de recuperaciones del alumno.
+export async function cargarDatosHorarios(pacienteId: string, horas: string[]): Promise<DatosHorarios> {
+  const unicas = [...new Set(horas)];
+  const [horarios, clases, notas, pagos, recuperaciones] = await Promise.all([
+    leerTodo<HorarioTPA>((d, h) =>
+      supabase.from('horarios_tpa').select('*, pacientes (nombre, activo)').in('hora', unicas).order('id').range(d, h)),
+    leerTodo<ClaseTPA>((d, h) => supabase.from('clases_tpa').select('*').in('hora', unicas).order('id').range(d, h)),
+    getNotasPaciente(pacienteId),
+    leerTodo<PagoTPA>((d, h) =>
+      supabase.from('pagos_tpa').select('*').eq('paciente_id', pacienteId).eq('concepto', 'cuota').order('id').range(d, h)),
+    cargarDatosRecuperaciones(pacienteId),
+  ]);
+  // Con la hora de su clase solo para filtrar (`!inner`): el resto se ignora.
+  const asistencias = await leerTodo<AsistenciaTPA>((d, h) =>
+    supabase.from('asistencia_tpa').select('*, clases_tpa!inner (hora)').in('clases_tpa.hora', unicas).order('id').range(d, h));
+  return {
+    horarios: horarios.map(conHora),
+    clases: clases.map(conHora),
+    asistencias,
+    notas,
+    pagos,
+    recuperaciones,
+  };
+}
+
+// "Lo cargué por error" (migración 20261120000001): borra el horario como si
+// nunca hubiera existido. La base lo rechaza si ya tiene algo registrado
+// (mensaje "TPA: …", se muestra tal cual).
+export async function borrarHorarioTPA(id: string) {
+  const { error } = await supabase.rpc('borrar_horario_tpa', { p_horario: id });
+  if (error) throw error;
+}
+
+// "Deshacer la baja": vuelve activo y sin fecha de baja si el lugar sigue
+// libre. Si hay conflicto, la base avisa ("TPA: …") y no cambia nada.
+export async function deshacerBajaHorarioTPA(id: string) {
+  const { error } = await supabase.rpc('deshacer_baja_horario_tpa', { p_horario: id, p_cupo: CUPO_TPA });
+  if (error) throw error;
+}
+
 export async function getClasesTPAPorRango(startDate: string, endDate: string) {
   const { data, error } = await supabase
     .from('clases_tpa')
@@ -580,10 +637,19 @@ export async function darDeBajaPaciente(id: string, fecha: string) {
   return data;
 }
 
-// Vuelve a las listas. Sus horarios fijos no se reabren: se inscribe de nuevo
-// desde TPA → Calendario. La base limpia fecha_baja sola (trigger).
-export async function reactivarPaciente(id: string) {
-  return updatePaciente(id, { activo: true, fecha_baja: null });
+// Vuelve a las listas. La base limpia fecha_baja sola (trigger). Con
+// `horarios`, en la misma transacción deshace la baja de esos horarios fijos
+// (reactivar_paciente, migración 20261120000001): si alguno ya no tiene
+// lugar, no cambia nada y avisa. Devuelve cuántos horarios recuperó.
+export async function reactivarPaciente(id: string, horarios: string[] = []) {
+  if (horarios.length === 0) {
+    await updatePaciente(id, { activo: true, fecha_baja: null });
+    return 0;
+  }
+  const { data, error } = await supabase.rpc('reactivar_paciente', { p_paciente: id, p_horarios: horarios, p_cupo: CUPO_TPA });
+  if (error) throw error;
+  if (typeof data !== 'number') throw new ErrorApp('No se pudo reactivar al paciente.');
+  return data;
 }
 
 // Borrado REAL, solo para un paciente sin ningún dato (cargado por error).

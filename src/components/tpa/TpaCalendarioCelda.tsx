@@ -17,6 +17,7 @@ const FILA = 'w-full min-h-11 md:min-h-9 flex items-center gap-2 px-3 py-1.5 rou
 
 // Un horario del calendario general: sus 4 lugares. Fijo en verde (pagó el
 // mes) o rosa (todavía no): un clic abre Cobrar. Libre: "+ Inscribir fijo".
+// Con una baja en el mes, "Fijos y bajas…" abre lo mismo para corregirla.
 export function TpaCalendarioCelda({ celda, conHora = false, onCobrar, onInscribir }: TpaCalendarioCeldaProps) {
   const IconoLibre = LUGAR_LIBRE.icono;
 
@@ -58,6 +59,16 @@ export function TpaCalendarioCelda({ celda, conHora = false, onCobrar, onInscrib
           </li>
         ))}
       </ul>
+      {/* Un fijo con baja en el mes sigue ocupando su lugar este mes: desde acá se corrige (Pau, 19/11/2026). */}
+      {celda.lugares.some((l) => l.tipo === 'fijo' && l.baja) && (
+        <button
+          type="button"
+          onClick={() => onInscribir(celda)}
+          className="self-start min-h-11 md:min-h-8 px-2 text-xs font-medium text-teal-700 hover:bg-teal-50 rounded-lg transition-colors duration-150"
+        >
+          Fijos y bajas…
+        </button>
+      )}
     </div>
   );
 }
