@@ -35,7 +35,8 @@ Antes de trabajar, leé en este orden:
 | **Nota de evolución** | Observación clínica clase a clase (bajó la presión, dolor, avance en un ejercicio) o libre (sin clase, desde la historia clínica). Va en `notas_evolucion`. Datos de salud: nunca a la consola ni en un mensaje de error. |
 | **Cuota** | Pago mensual de TPA según las veces por semana (plan 1, 2 o 3 veces). Cubre el mes entero. El mismo precio pague cuando pague (Pau, 13/11/2026). **Alta a mitad de mes:** por clase (suelta del mes × clases que le quedan), con "Volver al plan". Pendiente = sin fila en `pagos_tpa` (se calcula, no se guarda). |
 | **Precios del mes** | `precios_mes`: cuotas, clase suelta y sesión de RPG de cada mes. Un mes sin precios usa los del anterior, con aviso. Lo cobrado guarda su importe y no cambia. |
-| **Baja de un paciente** | Baja lógica: `pacientes.activo = false` + `fecha_baja`, con `dar_de_baja_paciente()` (cierra sus horarios fijos en esa fecha). No aparece en las listas para elegir (`getPacientesActivos`); su historia y pagos quedan. Se reactiva desde la ficha. Borrar de verdad solo si no tiene ningún dato (FK `ON DELETE RESTRICT`). |
+| **Baja de un paciente** | Baja lógica: `pacientes.activo = false` + `fecha_baja`, con `dar_de_baja_paciente()` (cierra sus horarios fijos en esa fecha). No aparece en las listas para elegir (`getPacientesActivos`); su historia y pagos quedan. Se reactiva desde la ficha (`reactivar_paciente()`, que además puede recuperar los horarios cerrados con la baja). Borrar de verdad solo si no tiene ningún dato (FK `ON DELETE RESTRICT`). |
+| **Corregir un horario fijo** | **"Lo cargué por error"**: borrar el horario como si nunca hubiera existido (`borrar_horario_tpa()`), solo si no cambia nada registrado (`motivosParaNoBorrar`). **"Deshacer la baja"**: volver a activarlo (`deshacer_baja_horario_tpa()`) si el lugar sigue libre (`conflictoAlReactivar`). Reglas en `src/lib/horarios.ts`. |
 | **Edad y cumpleaños** | Con `fecha_nacimiento`, la edad se calcula (`edadDe`); sin fecha, vale `edad`. Quien nació un 29/02 cumple el 28/02 en años comunes. `cumpleaniosProximos()` en `src/lib/pacientes.ts`. |
 | **Alerta de faltas** | 2 o más faltas seguidas sin avisar como fijo, en cualquiera de sus horarios (las sin marcar no cortan la racha): `alertasDeFaltas()` (`src/lib/alertas.ts`). Solo avisa: no libera el lugar. |
 
@@ -61,7 +62,7 @@ npx tsc --noEmit     # chequeo de tipos
 npm test             # Vitest: tests de las funciones puras de src/lib (*.test.ts)
 ```
 
-Variables de entorno en `.env.local` (nunca commitear): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+Variables de entorno en `.env.local` (nunca commitear): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`. En Vercel, además, `CRON_SECRET` (solo Production): lo manda Vercel Cron a `/api/mantener-activo` y sin él la ruta responde 401.
 
 ## Estructura
 
@@ -72,6 +73,7 @@ src/
 │   ├── layout.tsx            # raíz: solo html/body
 │   ├── page.tsx              # / redirige a /hoy
 │   ├── login/                # pantalla de login (pública)
+│   ├── api/mantener-activo/  # Vercel Cron diario (vercel.json): llama a public.ping() con CRON_SECRET; sin sesión
 │   └── (app)/                # grupo de rutas con sesión (no cambia las URLs)
 │       ├── layout.tsx        # Navigation + Header + AvisoSinConexion + SesionWatcher + VerificadorAutorizacion
 │       └── hoy/ agenda/ rpg/ tpa/ pacientes/ pagos/ (hoy/ = PantallaHoy; agenda/ = PantallaAgenda; rpg/ redirige a /agenda; pagos/ = PagosDelMes)
@@ -79,7 +81,7 @@ src/
 │   ├── auth/                 # LoginForm, SesionWatcher, VerificadorAutorizacion
 │   ├── layout/               # Header (con Salir), Navigation, AvisoSinConexion
 │   ├── hoy/                  # PantallaHoy, HoyCumpleanios, HoyTurnos, HoyClases
-│   ├── pacientes/            # HistoriaClinicaModal (Ficha | Evolución), HistoriaFicha (+ EstadoPacienteCard), HistoriaEvolucion,
+│   ├── pacientes/            # HistoriaClinicaModal (Ficha | Evolución), HistoriaFicha (+ EstadoPacienteCard, ReactivarPacienteDialog), HistoriaEvolucion,
 │   │                         # EvolucionItem, NotaEvolucionForm, PacienteFormModal (+ CampoActividades, CampoTextoPaciente,
 │   │                         # formularioPaciente.ts), PacientesTabla (compu),
 │   │                         # PacientesListaCelular, EliminarPacienteDialog, DarDeBajaDialog, CopiaDeSeguridad
@@ -92,7 +94,7 @@ src/
 │   ├── tpa/                  # TpaAgenda (carga + modales + pestañas), TpaCalendario (+ TpaCalendarioCelda, TpaInscribirFijo), TpaGrillaSemana (compu), TpaListaDia (celular),
 │   │                         # TpaHorarioCard (ambas), TpaAccionesDia, TpaClaseModal (+ useBorradorClase),
 │   │                         # TpaAsistenciaLista, TpaAsistenciaFila, TpaNotaClase, TpaOcuparSelector, TpaCancelarDialog,
-│   │                         # TpaInscripcion, TpaRecuperaciones, TpaPendientesGrupo, TpaBuscarLugar
+│   │                         # TpaInscripcion (+ TpaBajasRecientes, TpaCorregirFijoDialog, OpcionCorregir), TpaRecuperaciones, TpaPendientesGrupo, TpaBuscarLugar
 │   └── ui/                   # base: Modal, ConfirmDialog, ToastProvider (useToast), ToastItem,
 │                             # SemanaNav, EstadoCarga, Pestanias (vistas principales de una pantalla)
 ├── hooks/
@@ -122,6 +124,7 @@ src/
 │   ├── copia.ts              # copia de seguridad: tablas, nombre del archivo, aviso de la última copia
 │   ├── pacientes.ts          # ficha: baja, actividades, edad, cumpleaños
 │   ├── agenda.ts             # agenda: eventosEntre, armarSemanaAgenda, armarMesAgenda, resumenTPA
+│   ├── horarios.ts           # corregir horarios fijos: motivosParaNoBorrar, conflictoAlReactivar, horariosCerradosConLaBaja
 │   └── utils.ts              # cn(), nuevoId()
 └── types/index.ts            # tipos mapeados a las tablas
 ```
@@ -159,6 +162,7 @@ Estados válidos (migración `20261022000001_tpa_faltas_y_lugares.sql`):
 - `asistencia_tpa.estado`: fijo → `presente | aviso_con_tiempo | aviso_sin_tiempo | falto_sin_avisar` (sin marcar = sin fila); quien ocupa un lugar → `pendiente | presente | falto_sin_avisar`. `avisado_at` obligatorio en los avisos y solo en ellos. `ocupa_lugar_de` = fila del fijo de la misma clase que avisó (trigger `validar_asistencia_tpa`).
 - `asistencia_tpa.cambio_de` (migración `20261023000001`): solo en `tipo = 'cambio'`, la fila del aviso del mismo alumno en su horario de origen.
 - `clases_tpa.motivo_cancelacion`: `null` (se da) `| feriado | cancelada_por_pau`
+- Funciones de horarios (migración `20261120000001`, security invoker, `execute` solo `authenticated`): `borrar_horario_tpa(p_horario)`, `deshacer_baja_horario_tpa(p_horario, p_cupo)` y `reactivar_paciente(p_paciente, p_horarios, p_cupo)` (paciente + horarios en una transacción; si uno falla, nada). Vuelven a controlar lo de `src/lib/horarios.ts` salvo la comparación de recuperaciones (solo en la app). `public.ping()` (`select 1`): la **única** función con `execute` para `anon`, para el cron.
 - Funciones (migración `20261023000001`, reemplazadas con la misma firma en `20261024000001`; security invoker, `execute` solo `authenticated`): `guardar_clase_tpa(p_clases jsonb)` guarda una o varias clases en una transacción, **con sus notas** (clave `notas`); `cambiar_cancelacion_tpa(p_fecha, p_horas, p_motivo)` cancela o reactiva. Una clase con notas no se borra aunque quede sin asistencias. Sus mensajes de error empiezan con `"TPA: "` y la app los muestra tal cual (`mensajeError`).
 - El trigger `validar_asistencia_tpa` no deja insertar ni cambiar asistencias de una **clase cancelada** (cancelar/reactivar no las toca).
 - Los prefijos de mensaje que `mensajeError` muestra tal cual: `"TPA: "` y `"Pacientes: "`.
@@ -187,7 +191,7 @@ Estados válidos (migración `20261022000001_tpa_faltas_y_lugares.sql`):
 - **Fechas en pantallas generadas al compilar:** una fecha calculada en el primer render es la del deploy. Las pantallas nuevas usan `useAhora()`.
 - **Pacientes:** para elegir un paciente (turno, inscribir, ocupar lugar), siempre `getPacientesActivos()`; `getPacientes()` (con los dados de baja) solo en la pantalla Pacientes. Editar la ficha no toca `activo` (N6). Actividad con `actividadesDe()` / `textoActividades()` y edad con `edadDe()` / `textoEdad()`: nunca leer `tipo_clase` o `edad` directo.
 - **Pagos:** todo lo que se calcula (fijos del mes, cuota pendiente, cuota sugerida, sueltas, RPG, totales, calendario) sale **solo** de `src/lib/pagos.ts`; importes con `formatoPesos()`, meses como `'yyyy-MM'` con `moverMes()` (nunca `setMonth`). Pendiente = sin pago guardado: nunca crear filas "pendiente". Guardar un pago: alta con `nuevoId()` (`crearPagoTPA`); la cuota repetida choca con el índice único parcial y se avisa.
-- **TPA:** quién está en cada horario de una semana lo calcula **solo** `armarSemanaTPA()` (fijos de esa fecha + asistencias registradas). No volver a filtrar `horarios_tpa` a mano en un componente. Los saldos de recuperación salen **solo** de `calcularRecuperaciones()`. Una clase se guarda **siempre** con `guardarClasesTPA()` (función `guardar_clase_tpa` de la base, una transacción, notas de la clase incluidas), nunca fila por fila. La alerta de faltas sale **solo** de `alertasDeFaltas()`.
+- **TPA:** quién está en cada horario de una semana lo calcula **solo** `armarSemanaTPA()` (fijos de esa fecha + asistencias registradas). No volver a filtrar `horarios_tpa` a mano en un componente. Los saldos de recuperación salen **solo** de `calcularRecuperaciones()`. Borrar un horario o deshacer su baja **solo** con `borrarHorarioTPA()` / `deshacerBajaHorarioTPA()` / `reactivarPaciente(id, horarios)` (funciones de la base), con lo que se puede o no decidido por `src/lib/horarios.ts`; nunca con un `delete` de `horarios_tpa` ni un `update` que lo vuelva a `activo` (la baja sigue siendo `deactivateHorarioTPA()`). Una clase se guarda **siempre** con `guardarClasesTPA()` (función `guardar_clase_tpa` de la base, una transacción, notas de la clase incluidas), nunca fila por fila. La alerta de faltas sale **solo** de `alertasDeFaltas()`.
 - Nada de `alert()` / `confirm()` nativos: `useToast()` (`toast.exito / error / aviso`) y `ConfirmDialog`. Los errores que se muestran salen de `mensajeError(error)`.
 - Todo lo visual sigue **DESIGN.md**.
 

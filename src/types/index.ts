@@ -79,8 +79,8 @@ export interface HorarioTPA {
   /** Fecha de desinscripción ('yyyy-MM-dd'); null mientras está activo. */
   fecha_baja: string | null;
   created_at: string;
-  // Relación opcional
-  pacientes?: Pick<Paciente, 'nombre'>;
+  // Relación opcional (`activo` solo donde se pide: getHorariosDeUnHorario, cargarDatosHorarios)
+  pacientes?: Pick<Paciente, 'nombre'> & Partial<Pick<Paciente, 'activo'>>;
 }
 
 export interface ClaseTPA {

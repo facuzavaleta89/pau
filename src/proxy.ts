@@ -8,7 +8,8 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Todo menos archivos estáticos e imágenes.
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+    // Todo menos archivos estáticos, imágenes y la ruta del cron
+    // (api/mantener-activo: sin sesión, la protege CRON_SECRET).
+    '/((?!_next/static|_next/image|favicon.ico|api/mantener-activo|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 }

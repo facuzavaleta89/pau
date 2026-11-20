@@ -3,14 +3,15 @@
 import { useState } from "react";
 import { format, parseISO } from "date-fns";
 import { Plus, Trash2, User } from "lucide-react";
-import { createHorarioTPA, deactivateHorarioTPA } from "@/lib/queries";
+import { createHorarioTPA } from "@/lib/queries";
 import { mensajeErrorAlGuardar, registrarError } from "@/lib/errores";
 import { DIAS_TPA } from "@/lib/tpa";
 import { textoActividades } from "@/lib/pacientes";
 import type { CeldaTPA, HorarioTPA, Paciente } from "@/types";
 import { useToast } from "@/components/ui/ToastProvider";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { cn } from "@/lib/utils";
+import { TpaCorregirFijoDialog } from "./TpaCorregirFijoDialog";
+import { TpaBajasRecientes } from "./TpaBajasRecientes";
 
 interface TpaInscripcionProps {
   /** Día y hora, fijos de hoy y cupo (una celda de la semana o del calendario). */
@@ -22,8 +23,10 @@ interface TpaInscripcionProps {
   fechaAltaInicial?: string;
 }
 
-// Pestaña "Alumnos fijos": quiénes son fijos HOY de este día y hora. También
-// la usa "+ Inscribir fijo" del Calendario.
+// Pestaña "Alumnos fijos": quiénes son fijos HOY de este día y hora, quiénes
+// se dieron de baja hace poco (para corregir) e inscribir. También la usa
+// "+ Inscribir fijo" del Calendario. Quitar un fijo pregunta si deja de venir
+// (baja) o si se cargó por error (borrar): TpaCorregirFijoDialog.
 export function TpaInscripcion({ celda, todosPacientes, onCambio, fechaAltaInicial }: TpaInscripcionProps) {
   const toast = useToast();
   const [seleccionado, setSeleccionado] = useState('');
@@ -31,8 +34,10 @@ export function TpaInscripcion({ celda, todosPacientes, onCambio, fechaAltaInici
   const [hoy] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [fechaAlta, setFechaAlta] = useState(fechaAltaInicial ?? hoy);
   const [inscribiendo, setInscribiendo] = useState(false);
-  const [aDesinscribir, setADesinscribir] = useState<HorarioTPA | null>(null);
-  const [desinscribiendo, setDesinscribiendo] = useState(false);
+  const [aQuitar, setAQuitar] = useState<HorarioTPA | null>(null);
+  // Cambia con cada alta o baja: TpaBajasRecientes vuelve a leer.
+  const [version, setVersion] = useState(0);
+  const cambio = () => { setVersion((v) => v + 1); onCambio(); };
 
   const diaLabel = DIAS_TPA.find(d => d.id === celda.dia)?.label.toLowerCase() ?? celda.dia;
   const disponibles = todosPacientes.filter(p => !celda.fijosActuales.some(h => h.paciente_id === p.id));
@@ -45,28 +50,12 @@ export function TpaInscripcion({ celda, todosPacientes, onCambio, fechaAltaInici
       setSeleccionado('');
       setFechaAlta(fechaAltaInicial ?? hoy);
       toast.exito('Alumno inscripto');
-      onCambio();
+      cambio();
     } catch (err: unknown) {
       registrarError("Error inscribiendo alumno", err);
       toast.error(mensajeErrorAlGuardar("No se pudo inscribir al alumno.", err));
     } finally {
       setInscribiendo(false);
-    }
-  };
-
-  const handleDesinscribir = async () => {
-    if (!aDesinscribir) return;
-    setDesinscribiendo(true);
-    try {
-      await deactivateHorarioTPA(aDesinscribir);
-      toast.exito('Alumno desinscripto');
-      setADesinscribir(null);
-      onCambio();
-    } catch (err: unknown) {
-      registrarError("Error desinscribiendo alumno", err);
-      toast.error(mensajeErrorAlGuardar("No se pudo desinscribir al alumno.", err));
-    } finally {
-      setDesinscribiendo(false);
     }
   };
 
@@ -93,8 +82,8 @@ export function TpaInscripcion({ celda, todosPacientes, onCambio, fechaAltaInici
                 </span>
                 <button
                   type="button"
-                  onClick={() => setADesinscribir(h)}
-                  aria-label={`Desinscribir a ${h.pacientes?.nombre ?? 'este alumno'}`}
+                  onClick={() => setAQuitar(h)}
+                  aria-label={`Quitar a ${h.pacientes?.nombre ?? 'este alumno'} de este horario`}
                   className="h-11 w-11 flex items-center justify-center text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-150"
                 >
                   <Trash2 size={16} />
@@ -104,6 +93,8 @@ export function TpaInscripcion({ celda, todosPacientes, onCambio, fechaAltaInici
           </ul>
         )}
       </section>
+
+      <TpaBajasRecientes dia={celda.dia} hora={celda.hora} version={version} onCambio={cambio} />
 
       <section className="space-y-2 border-t border-stone-200 pt-5">
         <h3 className="text-xs font-semibold text-stone-400 uppercase tracking-wider">Inscribir alumno fijo</h3>
@@ -150,15 +141,7 @@ export function TpaInscripcion({ celda, todosPacientes, onCambio, fechaAltaInici
         )}
       </section>
 
-      <ConfirmDialog
-        abierto={aDesinscribir !== null}
-        titulo={`¿Desinscribir a ${aDesinscribir?.pacientes?.nombre ?? 'este alumno'}?`}
-        mensaje={<p>Deja de ser alumno fijo de los {diaLabel} a las {celda.hora}. Sus asistencias ya registradas no se borran.</p>}
-        textoConfirmar="Desinscribir"
-        cargando={desinscribiendo}
-        onConfirmar={handleDesinscribir}
-        onCancelar={() => setADesinscribir(null)}
-      />
+      {aQuitar && <TpaCorregirFijoDialog horario={aQuitar} onCerrar={() => setAQuitar(null)} onHecho={cambio} />}
     </div>
   );
 }

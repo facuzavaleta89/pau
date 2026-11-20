@@ -2,12 +2,9 @@
 
 import { useState } from 'react';
 import { Archive, RotateCcw } from 'lucide-react';
-import { reactivarPaciente } from '@/lib/queries';
-import { mensajeErrorAlGuardar, registrarError } from '@/lib/errores';
-import { useToast } from '@/components/ui/ToastProvider';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import type { Paciente } from '@/types';
 import { DarDeBajaDialog } from './DarDeBajaDialog';
+import { ReactivarPacienteDialog } from './ReactivarPacienteDialog';
 import { textoBaja } from '@/lib/pacientes';
 
 interface EstadoPacienteCardProps {
@@ -17,28 +14,10 @@ interface EstadoPacienteCardProps {
 
 const BOTON = 'h-11 md:h-9 px-3 shrink-0 inline-flex items-center justify-center gap-2 text-sm font-medium rounded-lg border transition-colors duration-150';
 
-// Al pie de la ficha: "Dar de baja" (activo) o "Dado de baja el 13/11/2026 · Reactivar".
+// Al pie de la ficha: "Dar de baja" (activo) o "Dado de baja el 13/11/2026 ·
+// Reactivar" (con la opción, aparte, de recuperar sus horarios de TPA).
 export function EstadoPacienteCard({ paciente, onCambio }: EstadoPacienteCardProps) {
-  const toast = useToast();
   const [abierto, setAbierto] = useState<'baja' | 'reactivar' | null>(null);
-  const [cargando, setCargando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const reactivar = async () => {
-    setCargando(true);
-    setError(null);
-    try {
-      await reactivarPaciente(paciente.id);
-      toast.exito(`${paciente.nombre}: reactivado`);
-      setAbierto(null);
-      onCambio();
-    } catch (err: unknown) {
-      registrarError('Error reactivando al paciente', err);
-      setError(mensajeErrorAlGuardar('No se pudo reactivar.', err));
-    } finally {
-      setCargando(false);
-    }
-  };
 
   return (
     <div className="bg-white border border-stone-200 rounded-xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center gap-3">
@@ -61,16 +40,9 @@ export function EstadoPacienteCard({ paciente, onCambio }: EstadoPacienteCardPro
       {abierto === 'baja' && (
         <DarDeBajaDialog paciente={paciente} onCancelar={() => setAbierto(null)} onHecho={() => { setAbierto(null); onCambio(); }} />
       )}
-      <ConfirmDialog
-        abierto={abierto === 'reactivar'}
-        titulo={`¿Reactivar a ${paciente.nombre}?`}
-        mensaje={<p>Vuelve a aparecer en las listas. Sus horarios fijos no se reabren: si vuelve a TPA, inscribilo desde TPA → Calendario.</p>}
-        textoConfirmar="Reactivar"
-        cargando={cargando}
-        error={error}
-        onConfirmar={reactivar}
-        onCancelar={() => { setAbierto(null); setError(null); }}
-      />
+      {abierto === 'reactivar' && (
+        <ReactivarPacienteDialog paciente={paciente} onCancelar={() => setAbierto(null)} onHecho={() => { setAbierto(null); onCambio(); }} />
+      )}
     </div>
   );
 }
